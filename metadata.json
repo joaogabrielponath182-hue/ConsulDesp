@@ -1,0 +1,6 @@
+{
+  "name": "Gestão Financeira - Despachante",
+  "description": "Sistema de controle financeiro para documentação de veículos, com gerenciamento de serviços, subcategorias de taxas, registro de placas, controle de gastos e relatórios detalhados.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
