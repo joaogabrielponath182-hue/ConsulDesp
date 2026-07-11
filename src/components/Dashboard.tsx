@@ -20,7 +20,9 @@ import {
   Pencil,
   Check,
   X,
-  Search
+  Search,
+  ChevronDown,
+  ChevronUp
 } from 'lucide-react';
 import { motion } from 'motion/react';
 
@@ -101,6 +103,45 @@ export default function Dashboard({
 
   const [editingType, setEditingType] = useState<'RECEITA' | 'GASTO' | null>(null);
   const [tempSelectedCats, setTempSelectedCats] = useState<string[]>([]);
+
+  // States to toggle collapse/expand details of Faturamento and Gastos cards
+  const [isRevenuesExpanded, setIsRevenuesExpanded] = useState(() => {
+    try {
+      const stored = localStorage.getItem(`dashboard_revenues_expanded_${username}`);
+      return stored !== 'false'; // defaults to true
+    } catch {
+      return true;
+    }
+  });
+
+  const [isExpensesExpanded, setIsExpensesExpanded] = useState(() => {
+    try {
+      const stored = localStorage.getItem(`dashboard_expenses_expanded_${username}`);
+      return stored !== 'false'; // defaults to true
+    } catch {
+      return true;
+    }
+  });
+
+  const toggleRevenuesExpanded = () => {
+    const nextVal = !isRevenuesExpanded;
+    setIsRevenuesExpanded(nextVal);
+    try {
+      localStorage.setItem(`dashboard_revenues_expanded_${username}`, String(nextVal));
+    } catch (e) {
+      // ignore
+    }
+  };
+
+  const toggleExpensesExpanded = () => {
+    const nextVal = !isExpensesExpanded;
+    setIsExpensesExpanded(nextVal);
+    try {
+      localStorage.setItem(`dashboard_expenses_expanded_${username}`, String(nextVal));
+    } catch (e) {
+      // ignore
+    }
+  };
 
   // Unique years option list extracted dynamically from services & expenses
   const availableYears = React.useMemo(() => {
@@ -516,69 +557,83 @@ export default function Dashboard({
           <div className="bg-[#161B22] border border-slate-800 rounded-2xl p-6 shadow-sm relative overflow-hidden group">
             <div className="absolute top-0 left-0 w-1.5 h-full bg-emerald-500"></div>
             <div className="flex justify-between items-start">
-              <div>
+              <div className="flex-1">
                 <p className="text-slate-400 text-xs font-semibold uppercase tracking-wider">Faturamento (Mês)</p>
                 <h3 className="text-2xl font-bold text-white mt-1.5 font-sans tracking-tight">
                   {formatCurrency(totalRevenuesThisMonth)}
                 </h3>
               </div>
-              <div className="p-3 rounded-xl bg-emerald-500/10 text-emerald-400">
-                <TrendingUp size={20} />
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={toggleRevenuesExpanded}
+                  className="p-1.5 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-white transition-all cursor-pointer"
+                  title={isRevenuesExpanded ? "Esconder detalhes" : "Mostrar detalhes"}
+                >
+                  {isRevenuesExpanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+                </button>
+                <div className="p-3 rounded-xl bg-emerald-500/10 text-emerald-400 shrink-0">
+                  <TrendingUp size={20} />
+                </div>
               </div>
             </div>
             
-            <div className="mt-4 flex items-center justify-between text-xs text-slate-400 border-t border-slate-800/80 pt-3">
-              <span className="flex items-center gap-1">
-                <CheckCircle size={12} className="text-emerald-400" />
-                Pago: <span className="font-semibold text-emerald-400">{formatCurrency(paidRevenuesThisMonth)}</span>
-              </span>
-              <span className="flex items-center gap-1">
-                <Clock size={12} className="text-amber-400" />
-                Pendente: <span className="font-semibold text-amber-400">{formatCurrency(pendingRevenuesThisMonth)}</span>
-              </span>
-            </div>
-
-            {/* Breakdown by Category */}
-            <div className="mt-4 pt-3 border-t border-slate-800/80 space-y-2">
-              <div className="flex justify-between items-center">
-                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Faturamento por Categoria:</span>
-              </div>
-              <div className="space-y-1.5 max-h-[130px] overflow-y-auto pr-1 select-none scrollbar-thin">
-                {(Object.entries(revenuesByCategory) as [string, number][]).length === 0 ? (
-                  <div className="text-[11px] text-slate-500 italic py-1">Nenhum faturamento registrado.</div>
-                ) : (
-                  (Object.entries(revenuesByCategory) as [string, number][]).map(([cat, val]) => (
-                    <div key={cat} className="flex justify-between items-center text-xs">
-                       <span className="text-slate-300 font-medium truncate max-w-[130px]">{cat}</span>
-                      <span className="font-mono font-bold text-emerald-400">{formatCurrency(val)}</span>
-                    </div>
-                  ))
-                )}
-              </div>
-            </div>
-
-            {/* Coincident Subcategories (Same name in Receita & Gasto) */}
-            {coincidentCategories.length > 0 && (
-              <div className="mt-4 pt-3 border-t border-dashed border-slate-800">
-                <span className="text-[10px] font-bold text-amber-400 uppercase tracking-wider block mb-2">
-                  Saldos de Subcategorias Coincidentes:
-                </span>
-                <div className="space-y-2">
-                  {coincidentCategories.map(item => (
-                    <div key={item.name} className="p-2 bg-[#0F1115] border border-slate-800/60 rounded-xl text-xs leading-tight">
-                      <div className="flex justify-between font-bold text-white mb-1.5 uppercase tracking-wide font-sans">
-                        <span>{item.name}</span>
-                        <span className={item.balance >= 0 ? 'text-emerald-400' : 'text-rose-400'}>
-                          Saldo: {formatCurrency(item.balance)}
-                        </span>
-                      </div>
-                      <div className="flex justify-between text-[10px] text-slate-450 font-medium font-mono">
-                        <span>Rec: +{formatCurrency(item.revenue)}</span>
-                        <span>Gas: -{formatCurrency(item.expense)}</span>
-                      </div>
-                    </div>
-                  ))}
+            {isRevenuesExpanded && (
+              <div className="animate-fadeIn">
+                <div className="mt-4 flex items-center justify-between text-xs text-slate-400 border-t border-slate-800/80 pt-3">
+                  <span className="flex items-center gap-1">
+                    <CheckCircle size={12} className="text-emerald-400" />
+                    Pago: <span className="font-semibold text-emerald-400">{formatCurrency(paidRevenuesThisMonth)}</span>
+                  </span>
+                  <span className="flex items-center gap-1">
+                    <Clock size={12} className="text-amber-400" />
+                    Pendente: <span className="font-semibold text-amber-400">{formatCurrency(pendingRevenuesThisMonth)}</span>
+                  </span>
                 </div>
+
+                {/* Breakdown by Category */}
+                <div className="mt-4 pt-3 border-t border-slate-800/80 space-y-2">
+                  <div className="flex justify-between items-center">
+                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Faturamento por Categoria:</span>
+                  </div>
+                  <div className="space-y-1.5 max-h-[130px] overflow-y-auto pr-1 select-none scrollbar-thin">
+                    {(Object.entries(revenuesByCategory) as [string, number][]).length === 0 ? (
+                      <div className="text-[11px] text-slate-500 italic py-1">Nenhum faturamento registrado.</div>
+                    ) : (
+                      (Object.entries(revenuesByCategory) as [string, number][]).map(([cat, val]) => (
+                        <div key={cat} className="flex justify-between items-center text-xs">
+                           <span className="text-slate-300 font-medium truncate max-w-[130px]">{cat}</span>
+                          <span className="font-mono font-bold text-emerald-400">{formatCurrency(val)}</span>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </div>
+
+                {/* Coincident Subcategories (Same name in Receita & Gasto) */}
+                {coincidentCategories.length > 0 && (
+                  <div className="mt-4 pt-3 border-t border-dashed border-slate-800">
+                    <span className="text-[10px] font-bold text-amber-400 uppercase tracking-wider block mb-2">
+                      Saldos de Subcategorias Coincidentes:
+                    </span>
+                    <div className="space-y-2">
+                      {coincidentCategories.map(item => (
+                        <div key={item.name} className="p-2 bg-[#0F1115] border border-slate-800/60 rounded-xl text-xs leading-tight">
+                          <div className="flex justify-between font-bold text-white mb-1.5 uppercase tracking-wide font-sans">
+                            <span>{item.name}</span>
+                            <span className={item.balance >= 0 ? 'text-emerald-400' : 'text-rose-400'}>
+                              Saldo: {formatCurrency(item.balance)}
+                            </span>
+                          </div>
+                          <div className="flex justify-between text-[10px] text-slate-450 font-medium font-mono">
+                            <span>Rec: +{formatCurrency(item.revenue)}</span>
+                            <span>Gas: -{formatCurrency(item.expense)}</span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
             )}
           </div>
@@ -590,38 +645,52 @@ export default function Dashboard({
           <div className="bg-[#161B22] border border-slate-800 rounded-2xl p-6 shadow-sm relative overflow-hidden group">
             <div className="absolute top-0 left-0 w-1.5 h-full bg-rose-500"></div>
             <div className="flex justify-between items-start">
-              <div>
+              <div className="flex-1">
                 <p className="text-slate-400 text-xs font-semibold uppercase tracking-wider">Gastos Totais (Mês)</p>
                 <h3 className="text-2xl font-bold text-white mt-1.5 font-sans tracking-tight">
                   {formatCurrency(totalExpensesThisMonth)}
                 </h3>
               </div>
-              <div className="p-3 rounded-xl bg-rose-500/10 text-rose-400">
-                <TrendingDown size={20} />
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={toggleExpensesExpanded}
+                  className="p-1.5 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-white transition-all cursor-pointer"
+                  title={isExpensesExpanded ? "Esconder detalhes" : "Mostrar detalhes"}
+                >
+                  {isExpensesExpanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+                </button>
+                <div className="p-3 rounded-xl bg-rose-500/10 text-rose-400 shrink-0">
+                  <TrendingDown size={20} />
+                </div>
               </div>
             </div>
             
-            <div className="mt-4 text-[10px] text-slate-400 border-t border-slate-800/80 pt-3 flex items-center gap-1.5">
-              <span className="inline-block w-1.5 h-1.5 rounded-full bg-rose-450 animate-pulse"></span>
-              Total destinado a taxas, impostos e despesas internas
-            </div>
+            {isExpensesExpanded && (
+              <div className="animate-fadeIn">
+                <div className="mt-4 text-[10px] text-slate-400 border-t border-slate-800/80 pt-3 flex items-center gap-1.5">
+                  <span className="inline-block w-1.5 h-1.5 rounded-full bg-rose-450 animate-pulse"></span>
+                  Total destinado a taxas, impostos e despesas internas
+                </div>
 
-            {/* Breakdown by Category */}
-            <div className="mt-4 pt-3 border-t border-slate-800/80 space-y-2">
-              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Gastos por Categoria:</span>
-              <div className="space-y-1.5 max-h-[130px] overflow-y-auto pr-1 select-none scrollbar-thin">
-                {(Object.entries(expensesByCategory) as [string, number][]).length === 0 ? (
-                  <div className="text-[11px] text-slate-500 italic py-1">Nenhum gasto registrado.</div>
-                ) : (
-                  (Object.entries(expensesByCategory) as [string, number][]).map(([cat, val]) => (
-                    <div key={cat} className="flex justify-between items-center text-xs">
-                      <span className="text-slate-300 font-medium truncate max-w-[130px]">{cat}</span>
-                      <span className="font-mono font-bold text-rose-400">{formatCurrency(val)}</span>
-                    </div>
-                  ))
-                )}
+                {/* Breakdown by Category */}
+                <div className="mt-4 pt-3 border-t border-slate-800/80 space-y-2">
+                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Gastos por Categoria:</span>
+                  <div className="space-y-1.5 max-h-[130px] overflow-y-auto pr-1 select-none scrollbar-thin">
+                    {(Object.entries(expensesByCategory) as [string, number][]).length === 0 ? (
+                      <div className="text-[11px] text-slate-500 italic py-1">Nenhum gasto registrado.</div>
+                    ) : (
+                      (Object.entries(expensesByCategory) as [string, number][]).map(([cat, val]) => (
+                        <div key={cat} className="flex justify-between items-center text-xs">
+                          <span className="text-slate-300 font-medium truncate max-w-[130px]">{cat}</span>
+                          <span className="font-mono font-bold text-rose-400">{formatCurrency(val)}</span>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </div>
               </div>
-            </div>
+            )}
           </div>
 
           {/* Metric Card: Serviços Prestados */}
