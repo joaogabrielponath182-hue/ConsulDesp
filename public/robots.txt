@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://consuldesp.vercel.app/sitemap.xml
