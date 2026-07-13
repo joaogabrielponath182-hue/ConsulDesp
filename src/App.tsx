@@ -715,14 +715,26 @@ export default function App() {
 
   const handleEditService = async (updatedService: Service) => {
     setServices(prev => {
-      const updated = prev.map(s => s.id === updatedService.id ? updatedService : s);
+      const updated = prev.map(s => {
+        if (s.id === updatedService.id) {
+          return {
+            ...s,
+            ...updatedService
+          };
+        }
+        return s;
+      });
       localStorage.setItem('dep_services', JSON.stringify(updated));
       return updated;
     });
 
     if (currentSession && isCloudConnected) {
       try {
-        await saveService(currentSession.username, updatedService);
+        const existingSrv = services.find(s => s.id === updatedService.id);
+        const mergedService = existingSrv 
+          ? { ...existingSrv, ...updatedService }
+          : updatedService;
+        await saveService(currentSession.username, mergedService);
       } catch (err) {
         console.error("Erro ao editar serviço na nuvem:", err);
       }

@@ -79,6 +79,7 @@ export default function Services({
 
   // Editing State
   const [editingService, setEditingService] = useState<Service | null>(null);
+  const [activeVehicleId, setActiveVehicleId] = useState<string>('');
 
   // Expanded card rows state
   const [expandedRows, setExpandedRows] = useState<Record<string, boolean>>({});
@@ -215,7 +216,7 @@ export default function Services({
     }
 
     const newVehicle = {
-      id: `vh-${Date.now()}-${Math.floor(Math.random() * 100000)}`,
+      id: activeVehicleId || `vh-${Date.now()}-${Math.floor(Math.random() * 100000)}`,
       plate: finalPlate,
       paymentMethod,
       status,
@@ -231,6 +232,7 @@ export default function Services({
     setStatus('PAGO');
     setCurrentSubId('');
     setCurrentSubVal('');
+    setActiveVehicleId('');
   };
 
   // Handler to remove a vehicle from the list
@@ -239,6 +241,31 @@ export default function Services({
       setRemovedVehicleIds(prev => [...prev, vId]);
     }
     setAddedVehicles(prev => prev.filter(v => v.id !== vId));
+  };
+
+  // Handler to cancel editing the active vehicle and clean fields
+  const handleCancelActiveVehicleEdit = () => {
+    if (activeVehicleId && plate.trim() !== '' && serviceItems.length > 0) {
+      const alreadyInList = addedVehicles.some(v => v.id === activeVehicleId);
+      if (!alreadyInList) {
+        setAddedVehicles(prev => [...prev, {
+          id: activeVehicleId,
+          plate: plate.trim().toUpperCase(),
+          paymentMethod,
+          status,
+          items: serviceItems
+        }]);
+      }
+    }
+
+    // Reset fields to ready state for a new plate
+    setPlate('');
+    setServiceItems([]);
+    setPaymentMethod('DINHEIRO');
+    setStatus('PAGO');
+    setCurrentSubId('');
+    setCurrentSubVal('');
+    setActiveVehicleId('');
   };
 
   // Handler to swap/edit an added vehicle from the list
@@ -252,7 +279,7 @@ export default function Services({
     // If the active fields have data, save them back to the list before loading the new one
     if (plate.trim() && serviceItems.length > 0) {
       const activeVehicleItem = {
-        id: editingService ? editingService.id : `vh-${Date.now()}-${Math.floor(Math.random() * 100000)}`,
+        id: activeVehicleId || `vh-${Date.now()}-${Math.floor(Math.random() * 100000)}`,
         plate: plate.trim().toUpperCase(),
         paymentMethod,
         status,
@@ -266,6 +293,7 @@ export default function Services({
     setPaymentMethod(target.paymentMethod);
     setStatus(target.status);
     setServiceItems(target.items);
+    setActiveVehicleId(target.id);
 
     // Adjust editingService context to map to the new selected active vehicle
     if (editingService) {
@@ -274,16 +302,13 @@ export default function Services({
         setEditingService(fullService);
       } else {
         setEditingService({
+          ...editingService,
           id: target.id,
-          client: client.trim(),
           plate: target.plate,
-          description: description.trim(),
           paymentMethod: target.paymentMethod,
           items: target.items,
-          totalValue: target.items.reduce((s, k) => s + k.value, 0),
-          date,
           status: target.status,
-          groupId: editingService.groupId
+          totalValue: target.items.reduce((s, k) => s + k.value, 0)
         });
       }
     }
@@ -380,26 +405,19 @@ export default function Services({
   const startEditingService = (service: Service) => {
     setEditingService(service);
     setClient(service.client);
-    setPlate(service.plate);
     setDescription(service.description);
-    setPaymentMethod(service.paymentMethod);
-    setStatus(service.status);
     setDate(service.date);
-    setServiceItems(service.items);
     
     // Reset tracked removals
     setRemovedVehicleIds([]);
 
-    // Find all OTHER services belonging to the exact same group
+    // Find ALL services belonging to the exact same group (INCLUDING this one!)
     const linkedGroupServices = services.filter(s => 
-      s.id !== service.id &&
-      (
-        (service.groupId && s.groupId === service.groupId) ||
-        (!service.groupId && s.client.trim().toUpperCase() === service.client.trim().toUpperCase() && s.description.trim().toUpperCase() === service.description.trim().toUpperCase() && s.date === service.date)
-      )
+      (service.groupId && s.groupId === service.groupId) ||
+      (!service.groupId && s.client.trim().toUpperCase() === service.client.trim().toUpperCase() && s.description.trim().toUpperCase() === service.description.trim().toUpperCase() && s.date === service.date)
     );
 
-    // Load them into addedVehicles
+    // Load ALL of them into addedVehicles
     setAddedVehicles(linkedGroupServices.map(s => ({
       id: s.id,
       plate: s.plate,
@@ -407,6 +425,13 @@ export default function Services({
       status: s.status,
       items: s.items
     })));
+
+    // Clear active vehicle inputs so the user can easily type a new plate OR click edit on an existing one
+    setPlate('');
+    setPaymentMethod('DINHEIRO');
+    setStatus('PAGO');
+    setServiceItems([]);
+    setActiveVehicleId('');
 
     setErrorMsg('');
     setTimeout(() => {
@@ -420,6 +445,7 @@ export default function Services({
 
   const cancelEditingService = () => {
     setEditingService(null);
+    setActiveVehicleId('');
     setClient('');
     setPlate('');
     setDescription('');
@@ -467,7 +493,9 @@ export default function Services({
         }
       }
 
-      if (activeItems.length === 0) {
+      const isActiveVehicleFilled = activeItems.length > 0 && plate.trim() !== '';
+
+      if (!isActiveVehicleFilled && addedVehicles.length === 0) {
         setErrorMsg('Adicione pelo menos uma subcategoria de serviço e seu valor.');
         return;
       }
@@ -475,20 +503,38 @@ export default function Services({
       const finalPlate = plate.trim().toUpperCase() || 'NINFO';
       const commonGroupId = editingService.groupId || `group-${Date.now()}-${Math.floor(Math.random() * 100000)}`;
 
-      // 1. Save changes of the active edited service
-      if (onEditService) {
-        onEditService({
-          ...editingService,
-          client: client.trim(),
-          plate: finalPlate,
-          description: description.trim(),
-          paymentMethod,
-          items: activeItems,
-          date,
-          status,
-          totalValue: activeItems.reduce((acc, curr) => acc + curr.value, 0),
-          groupId: commonGroupId
-        });
+      // 1. Save changes of the active edited service if it is filled
+      if (isActiveVehicleFilled) {
+        const targetId = activeVehicleId || `vh-${Date.now()}-${Math.floor(Math.random() * 100000)}`;
+        if (targetId.startsWith('srv-')) {
+          if (onEditService) {
+            const originalSrv = services.find(s => s.id === targetId);
+            onEditService({
+              ...originalSrv,
+              id: targetId,
+              client: client.trim(),
+              plate: finalPlate,
+              description: description.trim(),
+              paymentMethod,
+              items: activeItems,
+              date,
+              status,
+              totalValue: activeItems.reduce((acc, curr) => acc + curr.value, 0),
+              groupId: commonGroupId
+            });
+          }
+        } else {
+          onAddService({
+            client: client.trim(),
+            plate: finalPlate,
+            description: description.trim(),
+            paymentMethod,
+            items: activeItems,
+            date,
+            status,
+            groupId: commonGroupId
+          });
+        }
       }
 
       // 2. Save changes to other linked vehicles (or add them if newly created)
@@ -496,7 +542,9 @@ export default function Services({
         const vPlate = v.plate.trim().toUpperCase() || 'NINFO';
         if (v.id.startsWith('srv-')) {
           if (onEditService) {
+            const originalSrv = services.find(s => s.id === v.id);
             onEditService({
+              ...originalSrv,
               id: v.id,
               client: client.trim(),
               plate: vPlate,
@@ -523,7 +571,28 @@ export default function Services({
         }
       });
 
-      // 3. Delete any services that were removed during this edit session
+      // 3. Find and delete original services of this group that are no longer present
+      const originalGroupServiceIds = services
+        .filter(s => s.groupId && s.groupId === editingService.groupId)
+        .map(s => s.id);
+
+      const savedServiceIds = new Set<string>();
+      if (isActiveVehicleFilled && activeVehicleId.startsWith('srv-')) {
+        savedServiceIds.add(activeVehicleId);
+      }
+      addedVehicles.forEach(v => {
+        if (v.id.startsWith('srv-')) {
+          savedServiceIds.add(v.id);
+        }
+      });
+
+      originalGroupServiceIds.forEach(id => {
+        if (!savedServiceIds.has(id)) {
+          onRemoveService(id);
+        }
+      });
+
+      // Also delete any specifically tracked removedVehicleIds
       removedVehicleIds.forEach(remId => {
         onRemoveService(remId);
       });
@@ -595,6 +664,7 @@ export default function Services({
     setAddedVehicles([]);
     setRemovedVehicleIds([]);
     setErrorMsg('');
+    setActiveVehicleId('');
     const today = new Date();
     setDate(today.toISOString().split('T')[0]);
 
@@ -1011,9 +1081,32 @@ export default function Services({
 
         {/* UNIFIED VEHICLE AND DATA BINDING CARD */}
         <div className="border border-slate-850 rounded-2xl p-4 bg-[#0F1115]/50 space-y-4">
-          <span className="text-[10px] font-black text-emerald-400 uppercase tracking-widest block">
-            Vinculação do Veículo (Receitas)
-          </span>
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-850/60 pb-2.5">
+            <span className="text-[10px] font-black text-emerald-400 uppercase tracking-widest block">
+              Vinculação do Veículo (Receitas)
+            </span>
+            {editingService && (
+              <div className="flex items-center gap-2">
+                <span className={`text-[9px] px-2 py-0.5 rounded font-black uppercase tracking-wider ${
+                  activeVehicleId 
+                    ? 'bg-amber-500/10 text-amber-400 border border-amber-500/20' 
+                    : 'bg-indigo-500/10 text-indigo-400 border border-indigo-500/20'
+                }`}>
+                  {activeVehicleId ? 'Editando Placa' : 'Nova Placa'}
+                </span>
+                {activeVehicleId && (
+                  <button
+                    type="button"
+                    onClick={handleCancelActiveVehicleEdit}
+                    className="text-[9px] font-bold text-slate-400 hover:text-white bg-slate-800 hover:bg-slate-750 px-2 py-0.5 rounded transition-all cursor-pointer uppercase"
+                    title="Salva as alterações desta placa na lista e limpa o formulário para adicionar outra"
+                  >
+                    Lançar Nova Placa
+                  </button>
+                )}
+              </div>
+            )}
+          </div>
 
           {itemErrorMsg && (
             <div className="text-[10px] bg-rose-950/40 border border-rose-900/30 text-rose-455 p-1.5 rounded-lg font-medium animate-fadeIn">
@@ -1228,7 +1321,7 @@ export default function Services({
           <div className="bg-[#0F1115] border border-slate-850 rounded-2xl p-4 mt-1 space-y-3 font-sans">
             <div className="flex justify-between items-center pb-2 border-b border-slate-800">
               <span className="text-[10px] font-bold text-slate-300 uppercase tracking-widest">
-                {editingService ? "Outros Veículos Vinculados" : "Veículos Prontos"} ({addedVehicles.length})
+                {editingService ? "Veículos Vinculados ao Grupo" : "Veículos Prontos"} ({addedVehicles.length})
               </span>
               <span className="text-xs font-bold text-indigo-400 font-mono">
                 {formatCurrency(addedVehicles.reduce((sum, v) => sum + v.items.reduce((bSum, item) => bSum + item.value, 0), 0))}
