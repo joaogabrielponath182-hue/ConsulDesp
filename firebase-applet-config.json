@@ -1,10 +1,11 @@
 {
-  "projectId": "causal-journal-nd2jw",
-  "appId": "1:47392898575:web:0d5d3f75bcd821f29bad7a",
-  "apiKey": "AIzaSyAYn4zRZR2Yu7Ud2OiwMvHXszB0EBT-n6s",
-  "authDomain": "causal-journal-nd2jw.firebaseapp.com",
-  "firestoreDatabaseId": "ai-studio-ab4e3785-a57a-4e02-8a46-933b22d68e50",
-  "storageBucket": "causal-journal-nd2jw.firebasestorage.app",
-  "messagingSenderId": "47392898575",
-  "measurementId": ""
+  "projectId": "consuldesp-financeiro",
+  "appId": "1:732461409128:web:dc8fc5550b00c1daddecdd",
+  "apiKey": "AIzaSyCaSfLSRiJS0PjpXKOT9enAUiquE1GkXak",
+  "authDomain": "consuldesp-financeiro.firebaseapp.com",
+  "firestoreDatabaseId": "ai-studio-gestofinanceirad-ab4e3785-a57a-4e02-8a46-933b22d68e50",
+  "storageBucket": "consuldesp-financeiro.firebasestorage.app",
+  "messagingSenderId": "732461409128",
+  "measurementId": "",
+  "oAuthClientId": "732461409128-8okm1f16g7oihgihbfb0tl6205md2fqg.apps.googleusercontent.com"
 }
