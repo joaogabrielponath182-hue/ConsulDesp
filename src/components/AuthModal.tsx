@@ -30,6 +30,7 @@ interface AuthModalProps {
   onForceRefreshCloud?: () => Promise<void>;
   isSyncing: boolean;
   onSignOutComplete: () => void;
+  isAdmin?: boolean;
 }
 
 export default function AuthModal({
@@ -39,7 +40,8 @@ export default function AuthModal({
   onSyncLocalData,
   onForceRefreshCloud,
   isSyncing,
-  onSignOutComplete
+  onSignOutComplete,
+  isAdmin = false
 }: AuthModalProps) {
   const [isLoading, setIsLoading] = useState(false);
   const [successMsg, setSuccessMsg] = useState('');
@@ -174,9 +176,9 @@ export default function AuthModal({
         {/* Header */}
         <div className="flex items-center justify-between p-5 border-b border-slate-800">
           <div className="flex items-center gap-2">
-            <CloudLightning className={currentUser ? "text-emerald-500 animate-pulse" : "text-amber-500"} size={20} />
+            <CloudLightning className={(currentUser || !isAdmin) ? "text-emerald-500 animate-pulse" : "text-amber-500"} size={20} />
             <h3 className="font-bold text-sm tracking-wide uppercase text-white">
-              {currentUser ? "Sincronização Cloud Ativa" : "Sincronização Cloud Inativa"}
+              {(currentUser || !isAdmin) ? "Sincronização Cloud Ativa" : "Sincronização Cloud Inativa"}
             </h3>
           </div>
           <button 
@@ -189,7 +191,20 @@ export default function AuthModal({
 
         {/* Content Body */}
         <div className="p-6 space-y-5">
-          {currentUser ? (
+          {!isAdmin ? (
+            <div className="text-center space-y-3 py-2">
+              <div className="mx-auto w-14 h-14 bg-emerald-950/40 border border-emerald-800/30 rounded-full flex items-center justify-center text-emerald-400 animate-pulse">
+                <CloudCheck size={28} />
+              </div>
+
+              <div className="space-y-1">
+                <h4 className="font-bold text-white text-sm uppercase tracking-wider">Conexão de Nuvem Ativa</h4>
+                <p className="text-slate-400 text-xs leading-relaxed max-w-sm mx-auto">
+                  Sua máquina está conectada de forma automática à nuvem do Administrador (ConsulDesp). Seus lançamentos de serviços, taxas e despesas são salvos com segurança em tempo real.
+                </p>
+              </div>
+            </div>
+          ) : currentUser ? (
             <div className="text-center space-y-3 py-2">
               <div className="mx-auto w-14 h-14 bg-emerald-950/40 border border-emerald-800/30 rounded-full flex items-center justify-center text-emerald-400">
                 <CloudCheck size={28} />
@@ -238,7 +253,7 @@ export default function AuthModal({
           {/* Connection Info */}
           <div className="p-4 bg-[#0F1115] border border-slate-850 rounded-xl space-y-2.5">
             <div className="flex items-center gap-2 text-xs font-semibold text-slate-300">
-              <Database size={14} className={currentUser ? "text-emerald-500" : "text-amber-500"} />
+              <Database size={14} className={(currentUser || !isAdmin) ? "text-emerald-500" : "text-amber-500"} />
               <span>Diagnóstico de Conexão</span>
             </div>
             
@@ -253,8 +268,10 @@ export default function AuthModal({
               </div>
               <div className="flex justify-between border-b border-slate-900 pb-1">
                 <span>Status da Conta:</span>
-                {currentUser ? (
-                  <span className="text-emerald-400 font-bold">Autenticado</span>
+                {!isAdmin ? (
+                  <span className="text-emerald-400 font-bold">Conectado Automático</span>
+                ) : currentUser ? (
+                  <span className="text-emerald-400 font-bold">Autenticado Admin</span>
                 ) : (
                   <span className="text-amber-500">Apenas Local (Offline)</span>
                 )}
@@ -293,9 +310,9 @@ export default function AuthModal({
             <div className="grid grid-cols-2 gap-3">
               <button
                 onClick={handlePull}
-                disabled={isLoading || isSyncing || !currentUser}
+                disabled={isLoading || isSyncing || (isAdmin ? !currentUser : false)}
                 className="py-2.5 px-3 rounded-xl bg-emerald-600 hover:bg-emerald-500 disabled:opacity-40 disabled:cursor-not-allowed text-white font-bold text-[11px] uppercase tracking-wider flex items-center justify-center gap-1.5 cursor-pointer transition-all active:scale-[0.98]"
-                title={currentUser ? "Salvar os dados atuais deste navegador na nuvem" : "Faça login com o Google para salvar"}
+                title={isAdmin ? (currentUser ? "Salvar os dados atuais deste navegador na nuvem" : "Faça login com o Google para salvar") : "Salvar os dados atuais deste navegador na nuvem"}
               >
                 {isLoading || isSyncing ? <Loader2 className="animate-spin" size={13} /> : <CloudUpload size={13} />}
                 <span>Enviar p/ Nuvem</span>
@@ -303,9 +320,9 @@ export default function AuthModal({
 
               <button
                 onClick={handlePush}
-                disabled={isLoading || isSyncing || !onForceRefreshCloud || !currentUser}
+                disabled={isLoading || isSyncing || !onForceRefreshCloud || (isAdmin ? !currentUser : false)}
                 className="py-2.5 px-3 rounded-xl bg-slate-800 hover:bg-slate-750 disabled:opacity-40 disabled:cursor-not-allowed border border-slate-700 text-slate-200 font-bold text-[11px] uppercase tracking-wider flex items-center justify-center gap-1.5 cursor-pointer transition-all active:scale-[0.98]"
-                title={currentUser ? "Sincronizar e baixar dados da nuvem para este navegador" : "Faça login com o Google para puxar"}
+                title={isAdmin ? (currentUser ? "Sincronizar e baixar dados da nuvem para este navegador" : "Faça login com o Google para puxar") : "Sincronizar e baixar dados da nuvem para este navegador"}
               >
                 {isLoading || isSyncing ? <Loader2 className="animate-spin" size={13} /> : <RefreshCw size={13} />}
                 <span>Puxar da Nuvem</span>

@@ -1120,6 +1120,7 @@ export default function App() {
           onForceRefreshCloud={handleForceRefreshCloud}
           isSyncing={isCloudLoading}
           onSignOutComplete={handleSignOutComplete}
+          isAdmin={currentSession?.isAdmin || false}
         />
 
         {/* Concurrent session blocked modal */}
@@ -1487,6 +1488,7 @@ export default function App() {
         onForceRefreshCloud={handleForceRefreshCloud}
         isSyncing={isCloudLoading}
         onSignOutComplete={handleSignOutComplete}
+        isAdmin={currentSession?.isAdmin || false}
       />
 
       {/* Daily Backup Reminder Modal */}

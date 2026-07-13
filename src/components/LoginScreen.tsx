@@ -276,56 +276,46 @@ export default function LoginScreen({
           <div className="bg-[#0F1115] border border-slate-850 p-4 rounded-xl text-center space-y-3">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-1.5">
-                <div className={`w-2 h-2 rounded-full ${isCloudConnected ? 'bg-emerald-500 animate-pulse shadow-lg shadow-emerald-500/50' : 'bg-amber-500'}`} />
+                <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse shadow-lg shadow-emerald-500/50" />
                 <span className="text-[10px] text-slate-300 font-bold uppercase tracking-wider">
                   Nuvem do Administrador
                 </span>
               </div>
-              <label className="relative inline-flex items-center cursor-pointer select-none">
-                <input 
-                  type="checkbox" 
-                  checked={isCloudConnected} 
-                  onChange={(e) => onToggleCloudConnected(e.target.checked)}
-                  className="sr-only peer" 
-                />
-                <div className="w-7 h-4 bg-slate-800 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-slate-400 after:border-slate-300 after:border after:rounded-full after:h-3 after:w-3 after:transition-all peer-checked:bg-emerald-600 peer-checked:after:bg-white peer-checked:after:border-white"></div>
-              </label>
+              <span className="text-[9px] bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 px-2 py-0.5 rounded-md font-extrabold uppercase">
+                Conectado
+              </span>
             </div>
             
             <div className="text-left">
               <p className="text-[10px] text-slate-400 leading-normal">
-                {isCloudConnected 
-                  ? "✓ Conexão automática ativa. Usuários cadastrados e dados de lançamentos são lidos e salvos diretamente na nuvem central."
-                  : "⚠️ Modo offline ativo. Registros e acessos ficarão salvos apenas localmente neste computador."
-                }
+                ✓ Conexão automática ativa. Usuários cadastrados e dados de lançamentos são lidos e salvos diretamente na nuvem central.
               </p>
             </div>
             
-            {isCloudConnected && (
-              <div className="grid grid-cols-2 gap-2 pt-1">
-                <button
-                  type="button"
-                  onClick={onPullCloudData}
-                  disabled={isCloudLoading}
-                  className="py-1.5 px-2 rounded-lg bg-slate-800 hover:bg-slate-750 disabled:opacity-50 disabled:cursor-not-allowed text-[10px] font-bold text-slate-200 uppercase tracking-wide cursor-pointer transition-colors border border-slate-700 flex items-center justify-center gap-1.5 active:scale-95"
-                  title="Atualizar dados de usuários e tabelas a partir da nuvem"
-                >
-                  <RefreshCw size={11} className={isCloudLoading ? "animate-spin text-emerald-400" : ""} />
-                  <span>Puxar Dados</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={onPushCloudData}
-                  disabled={isCloudLoading}
-                  className="py-1.5 px-2 rounded-lg bg-emerald-600/10 hover:bg-emerald-600/20 disabled:opacity-50 disabled:cursor-not-allowed border border-emerald-500/10 text-emerald-400 text-[10px] font-bold uppercase tracking-wide cursor-pointer transition-colors flex items-center justify-center gap-1.5 active:scale-95"
-                  title="Enviar backup atual local para a nuvem"
-                >
-                  <CloudUpload size={11} className={isCloudLoading ? "animate-spin text-emerald-400" : ""} />
-                  <span>Enviar Dados</span>
-                </button>
-              </div>
-            )}
+            <div className="grid grid-cols-2 gap-2 pt-1">
+              <button
+                type="button"
+                onClick={onPullCloudData}
+                disabled={isCloudLoading}
+                className="py-1.5 px-2 rounded-lg bg-slate-800 hover:bg-slate-750 disabled:opacity-50 disabled:cursor-not-allowed text-[10px] font-bold text-slate-200 uppercase tracking-wide cursor-pointer transition-colors border border-slate-700 flex items-center justify-center gap-1.5 active:scale-95"
+                title="Atualizar dados de usuários e tabelas a partir da nuvem"
+              >
+                <RefreshCw size={11} className={isCloudLoading ? "animate-spin text-emerald-400" : ""} />
+                <span>Puxar Dados</span>
+              </button>
+              <button
+                type="button"
+                onClick={onPushCloudData}
+                disabled={isCloudLoading}
+                className="py-1.5 px-2 rounded-lg bg-emerald-600/10 hover:bg-emerald-600/20 disabled:opacity-50 disabled:cursor-not-allowed border border-emerald-500/10 text-emerald-400 text-[10px] font-bold uppercase tracking-wide cursor-pointer transition-colors flex items-center justify-center gap-1.5 active:scale-95"
+                title="Enviar backup atual local para a nuvem"
+              >
+                <CloudUpload size={11} className={isCloudLoading ? "animate-spin text-emerald-400" : ""} />
+                <span>Enviar Dados</span>
+              </button>
+            </div>
           </div>
+        </div>
 
           <div className="bg-[#0F1115] border border-slate-850 p-4 rounded-xl text-center space-y-3">
             <div className="space-y-1 text-left">
@@ -372,6 +362,5 @@ export default function LoginScreen({
           </span>
         </div>
       </div>
-    </div>
-  );
-}
+    );
+  }
