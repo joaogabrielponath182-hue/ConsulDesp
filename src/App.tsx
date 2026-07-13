@@ -1255,7 +1255,7 @@ export default function App() {
             </button>
             
             <div className="flex items-center gap-2">
-              <SystemLogo size={14} className="animate-pulse" />
+              <SystemLogo size={22} className="animate-pulse border-none rounded" />
               <span className="text-xs font-black font-mono tracking-wider text-slate-200 hidden sm:inline">CONSULDESP FINANCEIRO</span>
               <span className="text-xs font-bold text-slate-400 lg:inline hidden">/</span>
               {/* Tab indicator */}

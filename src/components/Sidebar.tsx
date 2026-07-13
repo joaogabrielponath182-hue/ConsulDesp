@@ -201,8 +201,8 @@ export default function Sidebar({
       <div className="space-y-6">
         {/* Workspace Brand Group */}
         <div className="flex items-center gap-3.5 px-2">
-          <div className="p-1.5 bg-slate-900/30 dark:bg-slate-950/40 rounded-xl border border-slate-800/30 dark:border-slate-800/80 shadow-inner flex items-center justify-center">
-            <SystemLogo size={18} />
+          <div className="w-10 h-10 bg-slate-900/30 dark:bg-slate-950/40 rounded-xl border border-slate-800/30 dark:border-slate-800/80 shadow-inner flex items-center justify-center overflow-hidden">
+            <SystemLogo size={40} className="border-none rounded-xl" />
           </div>
           <div className="leading-tight min-w-0">
             <h2 className="text-xs font-black text-white tracking-wide uppercase">ConsulDesp Financeiro</h2>

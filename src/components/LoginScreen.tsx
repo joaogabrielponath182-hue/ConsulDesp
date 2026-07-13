@@ -172,8 +172,8 @@ export default function LoginScreen({
         
         {/* Logo and Brand */}
         <div className="text-center space-y-3">
-          <div className="mx-auto w-14 h-14 bg-slate-900/30 dark:bg-slate-950/40 border border-slate-800/40 dark:border-slate-800/80 rounded-2xl flex items-center justify-center shadow-inner">
-            <SystemLogo size={22} />
+          <div className="mx-auto w-14 h-14 bg-slate-900/30 dark:bg-slate-950/40 border border-slate-800/40 dark:border-slate-800/80 rounded-2xl flex items-center justify-center shadow-inner overflow-hidden">
+            <SystemLogo size={56} className="border-none rounded-2xl" />
           </div>
           <div className="space-y-1">
             <h1 className="text-xl font-bold tracking-tight text-white uppercase font-sans">
