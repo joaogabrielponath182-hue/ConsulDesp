@@ -10,6 +10,7 @@ import { InternalUser, UserSession } from '../types';
 
 interface LoginScreenProps {
   onLoginSuccess: (session: UserSession) => void;
+  onBackToLanding?: () => void;
   internalUsers: InternalUser[];
   onUpdateUserSession: (userId: string, sessionId: string) => Promise<void>;
   onImportBackup: (data: any) => Promise<void> | void;
@@ -22,6 +23,7 @@ interface LoginScreenProps {
 
 export default function LoginScreen({
   onLoginSuccess,
+  onBackToLanding,
   internalUsers,
   onUpdateUserSession,
   onImportBackup,
@@ -170,8 +172,20 @@ export default function LoginScreen({
       
       <div className="bg-[#161B22] border border-slate-800 w-full max-w-md rounded-2xl overflow-hidden shadow-2xl relative animate-fadeIn text-slate-100 p-8 space-y-6">
         
+        {/* Back button to institutional landing page */}
+        {onBackToLanding && (
+          <button
+            type="button"
+            onClick={onBackToLanding}
+            className="absolute top-5 left-6 inline-flex items-center gap-1 text-[10px] font-extrabold text-slate-400 hover:text-emerald-400 uppercase tracking-widest transition-colors cursor-pointer"
+            title="Voltar para o site institucional"
+          >
+            ← Voltar ao Site
+          </button>
+        )}
+
         {/* Logo and Brand */}
-        <div className="text-center space-y-3">
+        <div className="text-center space-y-3 pt-4">
           <div className="mx-auto w-14 h-14 bg-slate-900/30 dark:bg-slate-950/40 border border-slate-800/40 dark:border-slate-800/80 rounded-2xl flex items-center justify-center shadow-inner overflow-hidden">
             <SystemLogo size={56} className="border-none rounded-2xl" />
           </div>

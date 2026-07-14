@@ -54,8 +54,40 @@ import {
 import AuthModal from './components/AuthModal';
 import LoginScreen from './components/LoginScreen';
 import UserManagement from './components/UserManagement';
+import LandingPage from './components/LandingPage';
 
 export default function App() {
+  const [authView, setAuthView] = useState<'landing' | 'login'>(() => {
+    if (typeof window !== 'undefined') {
+      if (window.location.pathname === '/login' || window.location.hash === '#login') {
+        return 'login';
+      }
+    }
+    return 'landing';
+  });
+
+  useEffect(() => {
+    const handlePopState = () => {
+      if (window.location.pathname === '/login' || window.location.hash === '#login') {
+        setAuthView('login');
+      } else {
+        setAuthView('landing');
+      }
+    };
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, []);
+
+  const handleGoToLogin = () => {
+    window.history.pushState({}, '', '/login');
+    setAuthView('login');
+  };
+
+  const handleGoToLanding = () => {
+    window.history.pushState({}, '', '/');
+    setAuthView('landing');
+  };
+
   const [currentTab, setCurrentTab] = useState('dashboard');
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
   const [theme, setTheme] = useState<'dark' | 'light'>(() => {
@@ -1099,6 +1131,10 @@ export default function App() {
   };
 
   if (!currentSession) {
+    if (authView === 'landing') {
+      return <LandingPage onGoToLogin={handleGoToLogin} />;
+    }
+
     return (
       <>
         <LoginScreen
@@ -1113,6 +1149,7 @@ export default function App() {
               setWelcomeUser(null);
             }, 6000);
           }}
+          onBackToLanding={handleGoToLanding}
           internalUsers={internalUsers}
           onUpdateUserSession={handleUpdateUserSession}
           onImportBackup={handleImportBackup}
@@ -1161,7 +1198,7 @@ export default function App() {
                 </div>
                 <button
                   onClick={() => setIsConcurrentAlertOpen(false)}
-                  className="w-full py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 hover:text-white font-bold text-xs uppercase cursor-pointer transition-all"
+                  className="w-full py-2.5 rounded-xl bg-slate-800 hover:bg-slate-750 text-slate-200 hover:text-white font-bold text-xs uppercase cursor-pointer transition-all"
                 >
                   Entendi
                 </button>
