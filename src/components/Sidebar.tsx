@@ -55,6 +55,9 @@ interface SidebarProps {
   currentSession: UserSession | null;
   onLogoutInternalSession: () => void;
   isCloudConnected: boolean;
+  autoBackupFileName: string | null;
+  onConfigureAutoBackup: () => void;
+  onDisableAutoBackup: () => void;
 }
 
 export default function Sidebar({
@@ -72,7 +75,10 @@ export default function Sidebar({
   isCloudLoading,
   currentSession,
   onLogoutInternalSession,
-  isCloudConnected
+  isCloudConnected,
+  autoBackupFileName,
+  onConfigureAutoBackup,
+  onDisableAutoBackup
 }: SidebarProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -484,6 +490,56 @@ export default function Sidebar({
             <Upload size={11} className="text-slate-400" />
             Importar
           </button>
+        </div>
+
+        {/* Auto-Backup Panel widget */}
+        <div className="bg-[#0F1115] border border-slate-850 rounded-xl p-2.5 mt-2 space-y-2 select-none">
+          <div className="flex items-center justify-between text-[9px] font-bold">
+            <span className="text-slate-400">🕒 AUTO-BACKUP (16:35)</span>
+            <span className={`px-1.5 py-0.5 rounded-[4px] text-[7.5px] font-black uppercase ${
+              autoBackupFileName 
+                ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' 
+                : 'bg-slate-800 text-slate-500'
+            }`}>
+              {autoBackupFileName ? 'Ativo' : 'Inativo'}
+            </span>
+          </div>
+
+          {autoBackupFileName ? (
+            <div className="space-y-1.5">
+              <p className="text-[10px] font-mono text-emerald-400 truncate" title={autoBackupFileName}>
+                📁 {autoBackupFileName}
+              </p>
+              <div className="flex gap-1.5">
+                <button
+                  onClick={onConfigureAutoBackup}
+                  className="flex-1 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-750 hover:text-white text-[9px] font-bold cursor-pointer transition-all text-slate-300"
+                  title="Alterar o arquivo de auto-backup"
+                >
+                  Alterar
+                </button>
+                <button
+                  onClick={onDisableAutoBackup}
+                  className="px-2 py-1.5 rounded-lg bg-rose-950/20 hover:bg-rose-950/40 text-rose-400 hover:text-rose-300 text-[9px] font-bold cursor-pointer transition-all"
+                  title="Desativar o auto-backup"
+                >
+                  Desligar
+                </button>
+              </div>
+            </div>
+          ) : (
+            <div className="space-y-1.5">
+              <p className="text-[8.5px] text-slate-500 leading-normal">
+                Grave e substitua o arquivo de backup automaticamente todos os dias às 16:35.
+              </p>
+              <button
+                onClick={onConfigureAutoBackup}
+                className="w-full py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-[9px] font-extrabold uppercase tracking-wide cursor-pointer transition-all active:scale-[0.98]"
+              >
+                Ativar Auto-Backup
+              </button>
+            </div>
+          )}
         </div>
 
         {/* Invisible file upload tag */}

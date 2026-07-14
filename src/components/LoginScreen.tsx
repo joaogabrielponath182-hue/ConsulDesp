@@ -19,6 +19,8 @@ interface LoginScreenProps {
   onPullCloudData: () => Promise<void>;
   onPushCloudData: () => Promise<void>;
   isCloudLoading: boolean;
+  initialUsername?: string;
+  initialPassword?: string;
 }
 
 export default function LoginScreen({
@@ -31,10 +33,22 @@ export default function LoginScreen({
   onToggleCloudConnected,
   onPullCloudData,
   onPushCloudData,
-  isCloudLoading
+  isCloudLoading,
+  initialUsername = '',
+  initialPassword = ''
 }: LoginScreenProps) {
-  const [username, setUsername] = useState('');
-  const [password, setPassword] = useState('');
+  const [username, setUsername] = useState(initialUsername);
+  const [password, setPassword] = useState(initialPassword);
+
+  // Sync state if initial props change
+  React.useEffect(() => {
+    if (initialUsername) {
+      setUsername(initialUsername);
+    }
+    if (initialPassword) {
+      setPassword(initialPassword);
+    }
+  }, [initialUsername, initialPassword]);
   const [isLoading, setIsLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
 

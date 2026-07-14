@@ -55,12 +55,18 @@ import AuthModal from './components/AuthModal';
 import LoginScreen from './components/LoginScreen';
 import UserManagement from './components/UserManagement';
 import LandingPage from './components/LandingPage';
+import TestDrivePage from './components/TestDrivePage';
 
 export default function App() {
-  const [authView, setAuthView] = useState<'landing' | 'login'>(() => {
+  const [authView, setAuthView] = useState<'landing' | 'login' | 'test-drive'>(() => {
     if (typeof window !== 'undefined') {
-      if (window.location.pathname === '/login' || window.location.hash === '#login') {
+      const path = window.location.pathname;
+      const hash = window.location.hash;
+      if (path === '/login' || hash === '#login') {
         return 'login';
+      }
+      if (path === '/experimentar' || path === '/test-drive' || hash === '#test-drive') {
+        return 'test-drive';
       }
     }
     return 'landing';
@@ -68,8 +74,12 @@ export default function App() {
 
   useEffect(() => {
     const handlePopState = () => {
-      if (window.location.pathname === '/login' || window.location.hash === '#login') {
+      const path = window.location.pathname;
+      const hash = window.location.hash;
+      if (path === '/login' || hash === '#login') {
         setAuthView('login');
+      } else if (path === '/experimentar' || path === '/test-drive' || hash === '#test-drive') {
+        setAuthView('test-drive');
       } else {
         setAuthView('landing');
       }
@@ -78,14 +88,86 @@ export default function App() {
     return () => window.removeEventListener('popstate', handlePopState);
   }, []);
 
+  const [prefilledUser, setPrefilledUser] = useState('');
+  const [prefilledPass, setPrefilledPass] = useState('');
+
   const handleGoToLogin = () => {
     window.history.pushState({}, '', '/login');
     setAuthView('login');
+    setPrefilledUser('');
+    setPrefilledPass('');
   };
 
   const handleGoToLanding = () => {
     window.history.pushState({}, '', '/');
     setAuthView('landing');
+  };
+
+  const handleGoToTestDrive = () => {
+    window.history.pushState({}, '', '/experimentar');
+    setAuthView('test-drive');
+  };
+
+  const handleGoToLoginPrefilled = (user: string, pass: string) => {
+    setPrefilledUser(user);
+    setPrefilledPass(pass);
+    window.history.pushState({}, '', '/login');
+    setAuthView('login');
+  };
+
+  const handleAutoLogin = async (user: string, pass: string) => {
+    const cleanUsername = user.trim().toLowerCase();
+    setIsCloudLoading(true);
+    await new Promise((resolve) => setTimeout(resolve, 500));
+
+    // Ensure the user 'user' with pass 'teste' is in our list
+    let matchedUser = internalUsers.find(
+      (u) => u.username.toLowerCase() === cleanUsername
+    );
+
+    if (!matchedUser) {
+      // Create and inject it
+      const demoUser: InternalUser = {
+        id: 'user-demo-default',
+        fullName: 'Usuário de Teste (Demonstração)',
+        cpf: '000.000.000-00',
+        phone: '(11) 99999-9999',
+        username: 'user',
+        password: 'teste',
+        duration: 'indeterminado',
+        createdAt: new Date().toISOString(),
+        expiresAt: null,
+        currentSessionId: null
+      };
+      setInternalUsers(prev => {
+        const updated = [...prev, demoUser];
+        localStorage.setItem('dep_internal_users', JSON.stringify(updated));
+        return updated;
+      });
+      matchedUser = demoUser;
+    }
+
+    if (matchedUser) {
+      const sessionId = `sess-${matchedUser.username}-${Date.now()}-${Math.floor(Math.random() * 100000)}`;
+      await handleUpdateUserSession(matchedUser.id, sessionId);
+
+      const session = {
+        username: matchedUser.username,
+        fullName: matchedUser.fullName,
+        isAdmin: false,
+        sessionId
+      };
+
+      setCurrentSession(session);
+      localStorage.setItem('dep_current_session', JSON.stringify(session));
+      setIsConcurrentAlertOpen(false);
+      setWelcomeUser(session.fullName);
+      handleFetchAndSyncOnLogin(session);
+      setTimeout(() => {
+        setWelcomeUser(null);
+      }, 6000);
+    }
+    setIsCloudLoading(false);
   };
 
   const [currentTab, setCurrentTab] = useState('dashboard');
@@ -120,6 +202,20 @@ export default function App() {
   const [isCloudLoading, setIsCloudLoading] = useState(false);
   const [isBackupReminderOpen, setIsBackupReminderOpen] = useState(false);
   const [initialStatusFilter, setInitialStatusFilter] = useState<string>('all');
+
+  // Auto-Backup state variables
+  const [autoBackupFileName, setAutoBackupFileName] = useState<string | null>(() => {
+    return localStorage.getItem('dep_auto_backup_file_name');
+  });
+  const [lastAutoBackupDate, setLastAutoBackupDate] = useState<string | null>(() => {
+    return localStorage.getItem('dep_last_auto_backup_date');
+  });
+  const [isSuggestAutoBackupOpen, setIsSuggestAutoBackupOpen] = useState(false);
+  const [autoBackupStatusToast, setAutoBackupStatusToast] = useState<{
+    show: boolean;
+    type: 'success' | 'error' | 'info';
+    message: string;
+  } | null>(null);
 
   const [isCloudConnected, setIsCloudConnected] = useState<boolean>(() => {
     const stored = localStorage.getItem('dep_cloud_connected');
@@ -401,46 +497,171 @@ export default function App() {
   }, [isCloudConnected]);
 
 
-  // Lembrete de segurança de backup ao tentar fechar a página do sistema após as 16h
+  // Carrega o handle do arquivo de auto-backup do IndexedDB na inicialização
   useEffect(() => {
-    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+    const loadBackupHandle = async () => {
+      try {
+        const { getFileHandle } = await import('./lib/indexedDbBackup');
+        const handle = await getFileHandle('autoBackupFile');
+        if (handle) {
+          console.log("Auto-backup file handle loaded on startup:", handle.name);
+          setAutoBackupFileName(handle.name);
+          localStorage.setItem('dep_auto_backup_file_name', handle.name);
+        } else {
+          if (autoBackupFileName) {
+            setAutoBackupFileName(null);
+            localStorage.removeItem('dep_auto_backup_file_name');
+          }
+        }
+      } catch (err) {
+        console.error("Erro ao carregar handle do auto-backup:", err);
+      }
+    };
+    loadBackupHandle();
+  }, []);
+
+  // Agendador de Auto-Backup às 16:35 todos os dias
+  useEffect(() => {
+    const checkAndTriggerBackup = async () => {
       const now = new Date();
       const hours = now.getHours();
+      const minutes = now.getMinutes();
 
-      // Somente ativa se for igual ou superior às 16:00 (16h)
-      if (hours >= 16) {
-        // Ativa o banner/modal visual no app caso o usuário desista de sair
-        setIsBackupReminderOpen(true);
+      // Alvo: exatamente 16:35
+      if (hours === 16 && minutes === 35) {
+        const todayStr = now.toISOString().split('T')[0]; // Ex: 2026-07-14
+        const lastBackupDate = localStorage.getItem('dep_last_auto_backup_date');
 
-        // Previne fechamento automático sem confirmação seguindo o padrão moderno
-        e.preventDefault();
-        e.returnValue = '';
-        return '';
+        if (lastBackupDate !== todayStr) {
+          console.log("Iniciando Auto-Backup diário agendado das 16:35!");
+          await runAutoBackupNow(todayStr);
+        }
       }
     };
 
-    window.addEventListener('beforeunload', handleBeforeUnload);
-    return () => {
-      window.removeEventListener('beforeunload', handleBeforeUnload);
-    };
-  }, []);
+    // Executa verificação a cada 30 segundos
+    const intervalId = setInterval(checkAndTriggerBackup, 30000);
+    checkAndTriggerBackup();
 
-  const handleExportBackupNow = () => {
+    return () => clearInterval(intervalId);
+  }, [services, expenses, subCategories, clients, internalUsers, personalExpenses]);
+
+  const runAutoBackupNow = async (todayStr: string) => {
     try {
-      const dataStr = JSON.stringify({ services, expenses, subCategories }, null, 2);
-      const dataUri = 'data:application/json;charset=utf-8,' + encodeURIComponent(dataStr);
+      const { getFileHandle } = await import('./lib/indexedDbBackup');
+      const handle = await getFileHandle('autoBackupFile');
       
-      const todayStr = new Date().toISOString().split('T')[0];
-      const exportFileDefaultName = `gestao_financeira_despachante_backup_lembrete_${todayStr}.json`;
-      
+      const payload = {
+        services,
+        expenses,
+        subCategories,
+        clients,
+        internalUsers,
+        personalExpenses,
+        version: '1.0.0',
+        timestamp: new Date().toISOString()
+      };
+      const jsonStr = JSON.stringify(payload, null, 2);
+
+      // Tenta gravar diretamente no arquivo físico se houver handle cadastrado
+      if (handle) {
+        try {
+          const anyHandle = handle as any;
+          const permission = await anyHandle.queryPermission({ mode: 'readwrite' });
+          if (permission !== 'granted') {
+            const request = await anyHandle.requestPermission({ mode: 'readwrite' });
+            if (request !== 'granted') {
+              throw new Error('Permissão de gravação negada');
+            }
+          }
+
+          const writable = await handle.createWritable();
+          await writable.write(jsonStr);
+          await writable.close();
+
+          localStorage.setItem('dep_last_auto_backup_date', todayStr);
+          setLastAutoBackupDate(todayStr);
+          showBackupToast('success', `Auto-Backup diário realizado com sucesso no arquivo "${handle.name}"!`);
+          return;
+        } catch (fileError) {
+          console.warn("Falha ao gravar no handle do arquivo, usando download automático:", fileError);
+        }
+      }
+
+      // Fallback: Download automático transparente em formato JSON
+      const dataUri = 'data:application/json;charset=utf-8,' + encodeURIComponent(jsonStr);
+      const filename = `consuldesp_autobackup_${todayStr}.json`;
       const linkElement = document.createElement('a');
       linkElement.setAttribute('href', dataUri);
-      linkElement.setAttribute('download', exportFileDefaultName);
+      linkElement.setAttribute('download', filename);
       linkElement.click();
-      
-      setIsBackupReminderOpen(false);
+
+      localStorage.setItem('dep_last_auto_backup_date', todayStr);
+      setLastAutoBackupDate(todayStr);
+      showBackupToast('success', 'Auto-Backup diário gerado e baixado automaticamente com sucesso!');
     } catch (err) {
-      alert('Erro ao exportar arquivo de backup.');
+      console.error("Erro no Auto-Backup:", err);
+      showBackupToast('error', 'Ocorreu um erro ao realizar o Auto-Backup diário.');
+    }
+  };
+
+  const showBackupToast = (type: 'success' | 'error' | 'info', message: string) => {
+    setAutoBackupStatusToast({ show: true, type, message });
+    setTimeout(() => {
+      setAutoBackupStatusToast(null);
+    }, 8000);
+  };
+
+  const handleConfigureAutoBackup = async () => {
+    const anyWindow = window as any;
+    if (!anyWindow.showSaveFilePicker) {
+      alert("Seu navegador não possui suporte ao File System Access API para salvar arquivos silenciosamente. Mas não se preocupe: o ConsulDesp fará o download inteligente automático às 16:35 todos os dias!");
+      const defaultName = 'consuldesp_backup_automatico.json';
+      localStorage.setItem('dep_auto_backup_file_name', defaultName);
+      setAutoBackupFileName(defaultName);
+      showBackupToast('info', 'Auto-Backup agendado por download às 16:35 ativado!');
+      return;
+    }
+
+    try {
+      const options = {
+        suggestedName: autoBackupFileName || 'consuldesp_backup_automatico.json',
+        types: [{
+          description: 'Arquivos JSON de Backup',
+          accept: {
+            'application/json': ['.json'],
+          },
+        }],
+      };
+      const handle = await anyWindow.showSaveFilePicker(options);
+      if (handle) {
+        const { storeFileHandle } = await import('./lib/indexedDbBackup');
+        await storeFileHandle('autoBackupFile', handle);
+        localStorage.setItem('dep_auto_backup_file_name', handle.name);
+        setAutoBackupFileName(handle.name);
+        showBackupToast('success', `Auto-Backup diário ativado e pareado com: ${handle.name}`);
+        
+        // Executa uma gravação de teste imediata
+        const todayStr = new Date().toISOString().split('T')[0];
+        await runAutoBackupNow(todayStr);
+      }
+    } catch (err: any) {
+      if (err.name !== 'AbortError') {
+        console.error("Erro ao selecionar arquivo de auto backup:", err);
+        alert("Erro ao configurar arquivo de backup: " + err.message);
+      }
+    }
+  };
+
+  const handleDisableAutoBackup = async () => {
+    try {
+      const { removeFileHandle } = await import('./lib/indexedDbBackup');
+      await removeFileHandle('autoBackupFile');
+      localStorage.removeItem('dep_auto_backup_file_name');
+      setAutoBackupFileName(null);
+      showBackupToast('info', 'Auto-Backup diário desativado.');
+    } catch (err) {
+      console.error("Erro ao desativar auto backup:", err);
     }
   };
 
@@ -944,6 +1165,13 @@ export default function App() {
         console.error("Erro ao sincronizar backup importado na nuvem:", err);
       }
     }
+
+    // Se o auto-backup não estiver configurado, sugere a ativação após carregar a importação
+    if (!localStorage.getItem('dep_auto_backup_file_name')) {
+      setTimeout(() => {
+        setIsSuggestAutoBackupOpen(true);
+      }, 800);
+    }
   };
 
   // Concurrent session checking effect - Optimized to run only on critical actions and fetch single document
@@ -1132,7 +1360,17 @@ export default function App() {
 
   if (!currentSession) {
     if (authView === 'landing') {
-      return <LandingPage onGoToLogin={handleGoToLogin} />;
+      return <LandingPage onGoToLogin={handleGoToLogin} onGoToTestDrive={handleGoToTestDrive} />;
+    }
+
+    if (authView === 'test-drive') {
+      return (
+        <TestDrivePage
+          onBackToLanding={handleGoToLanding}
+          onGoToLoginPrefilled={handleGoToLoginPrefilled}
+          onAutoLogin={handleAutoLogin}
+        />
+      );
     }
 
     return (
@@ -1158,6 +1396,8 @@ export default function App() {
           onPullCloudData={handleForceRefreshCloud}
           onPushCloudData={handleSyncLocalData}
           isCloudLoading={isCloudLoading}
+          initialUsername={prefilledUser}
+          initialPassword={prefilledPass}
         />
         
         {/* Cloud Authentication & Coordination Panel overlay */}
@@ -1253,6 +1493,9 @@ export default function App() {
           currentSession={currentSession}
           onLogoutInternalSession={handleLogoutInternalSession}
           isCloudConnected={isCloudConnected}
+          autoBackupFileName={autoBackupFileName}
+          onConfigureAutoBackup={handleConfigureAutoBackup}
+          onDisableAutoBackup={handleDisableAutoBackup}
         />
       </div>
 
@@ -1285,6 +1528,9 @@ export default function App() {
               currentSession={currentSession}
               onLogoutInternalSession={handleLogoutInternalSession}
               isCloudConnected={isCloudConnected}
+              autoBackupFileName={autoBackupFileName}
+              onConfigureAutoBackup={handleConfigureAutoBackup}
+              onDisableAutoBackup={handleDisableAutoBackup}
             />
           </div>
         </div>
@@ -1540,61 +1786,92 @@ export default function App() {
         isAdmin={currentSession?.isAdmin || false}
       />
 
-      {/* Daily Backup Reminder Modal */}
+      {/* Auto-Backup Suggestion Modal after first Import */}
       <AnimatePresence>
-        {isBackupReminderOpen && (
-          <div className="fixed inset-0 z-50 bg-black/75 backdrop-blur-md flex items-center justify-center p-4">
+        {isSuggestAutoBackupOpen && (
+          <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-4">
             <motion.div
-              initial={{ opacity: 0, scale: 0.95, y: 20 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.95, y: 20 }}
-              transition={{ duration: 0.2 }}
-              className="bg-[#161B22] border-2 border-emerald-500/30 rounded-2xl w-full max-w-md overflow-hidden shadow-2xl flex flex-col relative"
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="bg-[#161B22] border-2 border-emerald-500/30 rounded-2xl w-full max-w-md overflow-hidden shadow-2xl flex flex-col p-6 relative"
             >
               <div className="absolute top-0 left-0 w-full h-1.5 bg-gradient-to-r from-emerald-500 to-teal-400"></div>
               
-              {/* Content */}
-              <div className="p-6 text-center space-y-5">
-                <div className="mx-auto w-14 h-14 bg-emerald-500/10 border border-emerald-500/20 rounded-full flex items-center justify-center text-emerald-400">
-                  <Bell size={26} className="animate-bounce" />
+              <div className="text-center space-y-4">
+                <div className="mx-auto w-12 h-12 bg-emerald-500/10 border border-emerald-500/20 rounded-full flex items-center justify-center text-emerald-400">
+                  <Bell size={24} className="animate-bounce" />
                 </div>
                 
-                <div className="space-y-2">
+                <div className="space-y-1">
                   <span className="text-[10px] font-extrabold text-emerald-400 uppercase tracking-widest block">
-                    Cópia de Segurança Diária
+                    Backup Importado com Sucesso!
                   </span>
                   <h3 className="text-sm font-black text-white leading-relaxed uppercase tracking-wide">
-                    LEMBRETE DE BACKUP DIARIO, DESEJA FAZER UM BACKUP AGORA?
+                    Ativar Auto-Backup Inteligente?
                   </h3>
-                  <p className="text-xs text-slate-400">
-                    Sua segurança é nossa prioridade. Exporte e salve os dados mais recentes do seu despachante no seu computador em segundos.
+                  <p className="text-xs text-slate-400 leading-relaxed">
+                    Deseja configurar este local para que o sistema salve e substitua seus dados automaticamente todos os dias às 16:35, de forma 100% silenciosa?
                   </p>
                 </div>
 
                 <div className="flex gap-3 pt-2">
                   <button
-                    onClick={() => setIsBackupReminderOpen(false)}
-                    className="flex-1 py-3 px-4 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white font-bold text-xs uppercase tracking-wide transition-all border border-slate-750 active:scale-[0.98] cursor-pointer"
+                    onClick={() => setIsSuggestAutoBackupOpen(false)}
+                    className="flex-1 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-750 text-slate-300 hover:text-white font-bold text-xs uppercase cursor-pointer transition-all active:scale-[0.98]"
                   >
-                    Não
+                    Não, obrigado
                   </button>
                   <button
-                    onClick={handleExportBackupNow}
-                    className="flex-1 py-3 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs uppercase tracking-wide transition-all shadow-lg shadow-emerald-600/20 active:scale-[0.98] cursor-pointer flex items-center justify-center gap-2"
+                    onClick={async () => {
+                      setIsSuggestAutoBackupOpen(false);
+                      await handleConfigureAutoBackup();
+                    }}
+                    className="flex-1 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs uppercase cursor-pointer transition-all shadow-lg shadow-emerald-650/20 active:scale-[0.98]"
                   >
-                    Sim, fazer backup
+                    Sim, Ativar
                   </button>
                 </div>
               </div>
-
-              {/* Little banner info */}
-              <div className="bg-slate-900/60 p-3 text-center border-t border-slate-800/80">
-                <p className="text-[9px] text-slate-500 font-mono">
-                  Lembrete de segurança obrigatório ao sair após as 16h
-                </p>
-              </div>
             </motion.div>
           </div>
+        )}
+      </AnimatePresence>
+
+      {/* Toast Notification for Auto-Backup Status */}
+      <AnimatePresence>
+        {autoBackupStatusToast?.show && (
+          <motion.div
+            initial={{ opacity: 0, y: 50, x: '-50%' }}
+            animate={{ opacity: 1, y: 0, x: '-50%' }}
+            exit={{ opacity: 0, y: 20, x: '-50%' }}
+            className={`fixed bottom-6 left-1/2 -translate-x-1/2 z-50 px-5 py-3.5 rounded-xl shadow-2xl flex items-center gap-3 max-w-sm sm:max-w-md w-full border backdrop-blur-md ${
+              autoBackupStatusToast.type === 'success' 
+                ? 'bg-emerald-950/90 border-emerald-500/30 text-emerald-200' 
+                : autoBackupStatusToast.type === 'error'
+                ? 'bg-rose-950/90 border-rose-500/30 text-rose-200'
+                : 'bg-slate-900/90 border-slate-800 text-slate-200'
+            }`}
+          >
+            <div className={`p-1.5 rounded-lg text-white shrink-0 ${
+              autoBackupStatusToast.type === 'success' 
+                ? 'bg-emerald-600' 
+                : autoBackupStatusToast.type === 'error'
+                ? 'bg-rose-600'
+                : 'bg-slate-600'
+            }`}>
+              <Coins size={14} className="animate-pulse" />
+            </div>
+            <p className="text-xs font-semibold flex-1 leading-snug">
+              {autoBackupStatusToast.message}
+            </p>
+            <button 
+              onClick={() => setAutoBackupStatusToast(null)}
+              className="text-slate-400 hover:text-white transition-colors cursor-pointer shrink-0"
+            >
+              <X size={14} />
+            </button>
+          </motion.div>
         )}
       </AnimatePresence>
 

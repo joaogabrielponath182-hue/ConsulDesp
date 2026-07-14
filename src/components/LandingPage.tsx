@@ -26,9 +26,10 @@ import SystemLogo from './SystemLogo';
 
 interface LandingPageProps {
   onGoToLogin: () => void;
+  onGoToTestDrive: () => void;
 }
 
-export default function LandingPage({ onGoToLogin }: LandingPageProps) {
+export default function LandingPage({ onGoToLogin, onGoToTestDrive }: LandingPageProps) {
   // Lead Form State
   const [leadName, setLeadName] = useState('');
   const [leadEmail, setLeadEmail] = useState('');
@@ -70,7 +71,7 @@ export default function LandingPage({ onGoToLogin }: LandingPageProps) {
     },
     {
       q: "Como é feita a segurança dos dados e o backup?",
-      a: "Trabalhamos com o modelo híbrido inteligente: sincronização automática em nuvem central segura e a segurança do Backup Offline. Todos os dias, a partir das 16:00, o sistema exibe um lembrete inteligente obrigatório para exportar sua base de dados em formato de arquivo JSON portátil. Você pode baixar em segundos e guardá-lo com segurança total."
+      a: "Trabalhamos com o modelo híbrido inteligente: sincronização automática em nuvem central segura e a segurança do Backup Offline Automático. Todos os dias, às 16:35, o sistema realiza o auto-backup automático gravando e substituindo o arquivo JSON local de forma transparente, garantindo autonomia e integridade sem complicação."
     }
   ];
 
@@ -146,13 +147,13 @@ export default function LandingPage({ onGoToLogin }: LandingPageProps) {
 
           {/* Action Buttons */}
           <div className="flex flex-col sm:flex-row justify-center items-center gap-4 pt-4">
-            <a
-              href="#demonstracao"
+            <button
+              onClick={onGoToTestDrive}
               className="w-full sm:w-auto px-8 py-4 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-black text-xs uppercase tracking-widest cursor-pointer transition-all shadow-xl shadow-emerald-600/15 flex items-center justify-center gap-2 active:scale-[0.99]"
             >
               <span>Experimentar Grátis</span>
               <ArrowRight size={14} />
-            </a>
+            </button>
 
             <button
               onClick={onGoToLogin}
@@ -364,10 +365,10 @@ export default function LandingPage({ onGoToLogin }: LandingPageProps) {
                   <Download size={20} />
                 </div>
                 <h3 className="text-sm font-bold text-white uppercase tracking-wider">
-                  Lembrete Inteligente de Backup
+                  Auto-Backup Local Automático
                 </h3>
                 <p className="text-xs text-slate-400 leading-relaxed">
-                  Compromisso total com sua segurança. O sistema possui lembretes pós-16h de backup local. Salve todo o seu banco de dados em um arquivo JSON portátil e independente com apenas um clique.
+                  Compromisso total com sua segurança. Todos os dias, pontualmente às 16:35, o sistema realiza de forma automatizada a regravação e atualização silenciosa do seu arquivo de backup local, eliminando cliques manuais e diálogos repetitivos de salvamento.
                 </p>
               </div>
               <span className="text-[10px] text-emerald-400 font-mono font-bold flex items-center gap-1 pt-4 border-t border-slate-800 mt-4">
