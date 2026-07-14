@@ -689,7 +689,7 @@ export function getEstimatedFirestoreStorage(): { sizeInBytes: number; formatted
     keys.forEach(key => {
       const val = localStorage.getItem(key);
       if (val) {
-        totalBytes += new Blob([val]).size;
+        totalBytes += val.length;
       }
     });
 

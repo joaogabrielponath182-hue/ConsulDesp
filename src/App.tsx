@@ -25,7 +25,7 @@ import {
   DEFAULT_EXPENSES,
   getDefaultsForUser
 } from './mockData';
-import { Menu, X, Coins, Bell, AlertTriangle, Users, Sun, Moon, LogOut } from 'lucide-react';
+import { Menu, X, Coins, Bell, AlertTriangle, Users, Sun, Moon, LogOut, Calendar } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
 // Firebase core & auth configuration
@@ -201,6 +201,10 @@ export default function App() {
   const [isCloudLoading, setIsCloudLoading] = useState(false);
   const [isBackupReminderOpen, setIsBackupReminderOpen] = useState(false);
   const [initialStatusFilter, setInitialStatusFilter] = useState<string>('all');
+
+  // Payment date modal states for toggling service status from PENDENTE to PAGO
+  const [pendingStatusToggleId, setPendingStatusToggleId] = useState<string | null>(null);
+  const [togglePaymentDate, setTogglePaymentDate] = useState<string>('');
 
   // Auto-Backup state variables
   const [autoBackupFileName, setAutoBackupFileName] = useState<string | null>(() => {
@@ -911,14 +915,37 @@ export default function App() {
     }
   };
 
+  const getLocalDateString = () => {
+    const d = new Date();
+    const year = d.getFullYear();
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  };
+
   const handleToggleServiceStatus = async (id: string) => {
+    const srv = services.find(s => s.id === id);
+    if (!srv) return;
+
+    if (srv.status === 'PENDENTE') {
+      // Pergunta a data de pagamento
+      setPendingStatusToggleId(id);
+      setTogglePaymentDate(getLocalDateString());
+    } else {
+      // Reverte para pendente sem precisar perguntar data
+      await executeToggleServiceStatus(id, srv.date);
+    }
+  };
+
+  const executeToggleServiceStatus = async (id: string, customDate?: string) => {
     let updatedService: Service | null = null;
     setServices(prev => {
       const updated = prev.map(srv => {
         if (srv.id === id) {
           const next = {
             ...srv,
-            status: (srv.status === 'PAGO' ? 'PENDENTE' : 'PAGO') as 'PAGO' | 'PENDENTE'
+            status: (srv.status === 'PAGO' ? 'PENDENTE' : 'PAGO') as 'PAGO' | 'PENDENTE',
+            ...(customDate ? { date: customDate } : {})
           };
           updatedService = next;
           return next;
@@ -1609,7 +1636,7 @@ export default function App() {
         </header>
 
         {/* Scrollable primary router layout view */}
-        <main className="flex-1 overflow-y-auto px-4 py-8 sm:px-6 md:px-8 max-w-7xl mx-auto w-full transition-all duration-300">
+        <main className="flex-1 overflow-y-auto px-4 py-8 sm:px-6 md:px-8 max-w-7xl mx-auto w-full">
 
           {currentTab === 'dashboard' && (
             <Dashboard
@@ -1866,6 +1893,72 @@ export default function App() {
               <X size={14} />
             </button>
           </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Payment Date Selection Modal */}
+      <AnimatePresence>
+        {pendingStatusToggleId !== null && (
+          <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-4">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="bg-[#161B22] border-2 border-emerald-500/30 rounded-2xl w-full max-w-md overflow-hidden shadow-2xl flex flex-col p-6 relative"
+            >
+              <div className="absolute top-0 left-0 w-full h-1.5 bg-gradient-to-r from-emerald-500 to-teal-400"></div>
+              
+              <div className="space-y-4">
+                <div className="mx-auto w-12 h-12 bg-emerald-500/10 border border-emerald-500/20 rounded-full flex items-center justify-center text-emerald-400">
+                  <Calendar size={24} />
+                </div>
+                
+                <div className="space-y-1 text-center">
+                  <span className="text-[10px] font-extrabold text-emerald-400 uppercase tracking-widest block">
+                    Confirmar Recebimento
+                  </span>
+                  <h3 className="text-sm font-black text-white leading-relaxed uppercase tracking-wide">
+                    Selecionar Data de Pagamento
+                  </h3>
+                  <p className="text-xs text-slate-400 leading-relaxed">
+                    Escolha a data em que este pagamento foi realmente efetuado para fins de contabilização no fluxo de caixa.
+                  </p>
+                </div>
+
+                <div className="space-y-1.5">
+                  <label htmlFor="toggle-pay-date" className="block text-[10px] font-bold text-slate-400 uppercase tracking-wide">
+                    Data do Pagamento
+                  </label>
+                  <input
+                    type="date"
+                    id="toggle-pay-date"
+                    value={togglePaymentDate}
+                    onChange={(e) => setTogglePaymentDate(e.target.value)}
+                    className="w-full bg-[#0F1115] border border-slate-850 focus:border-emerald-500/60 focus:ring-1 focus:ring-emerald-500/20 rounded-xl px-4 py-2.5 text-xs text-white placeholder-slate-500 outline-none transition-all font-mono"
+                  />
+                </div>
+
+                <div className="flex gap-3 pt-2">
+                  <button
+                    onClick={() => setPendingStatusToggleId(null)}
+                    className="flex-1 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-750 text-slate-300 hover:text-white font-bold text-xs uppercase cursor-pointer transition-all active:scale-[0.98]"
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    onClick={async () => {
+                      const id = pendingStatusToggleId;
+                      setPendingStatusToggleId(null);
+                      await executeToggleServiceStatus(id, togglePaymentDate);
+                    }}
+                    className="flex-1 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs uppercase cursor-pointer transition-all shadow-lg shadow-emerald-650/20 active:scale-[0.98]"
+                  >
+                    Confirmar Pago
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+          </div>
         )}
       </AnimatePresence>
 
