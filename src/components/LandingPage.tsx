@@ -413,7 +413,7 @@ export default function LandingPage({ onGoToLogin }: LandingPageProps) {
               O Investimento que se paga no primeiro dia
             </h2>
             <p className="text-slate-400 text-xs sm:text-sm">
-              Escolha a licença ideal para o tamanho do seu escritório. Sem multas de fidelidade, cancele quando desejar.
+              Escolha a licença ideal para o seu escritório. Todos os planos dão acesso ilimitado a 100% dos recursos do sistema, sem qualquer limite de funções.
             </p>
           </div>
 
@@ -423,26 +423,26 @@ export default function LandingPage({ onGoToLogin }: LandingPageProps) {
             <div className="bg-[#161B22] border border-slate-800 p-8 rounded-2xl space-y-6 hover:border-slate-700 transition-all text-left relative flex flex-col justify-between">
               <div className="space-y-6">
                 <div className="space-y-2">
-                  <h3 className="text-base font-bold text-white uppercase tracking-wider">Plano Básico</h3>
+                  <h3 className="text-base font-bold text-white uppercase tracking-wider">Plano Mensal</h3>
                   <p className="text-xs text-slate-400 leading-normal">
-                    Para escritórios individuais ou despachantes autônomos que estão começando.
+                    Ideal para experimentar o sistema com baixo investimento mensal e cancelamento a qualquer momento.
                   </p>
                 </div>
 
                 <div className="flex items-baseline gap-1 font-sans">
                   <span className="text-slate-400 text-xs font-bold font-mono">R$</span>
-                  <span className="text-3xl font-black text-white font-mono">89</span>
+                  <span className="text-3xl font-black text-white font-mono">35</span>
                   <span className="text-slate-500 text-xs font-medium">/mês</span>
                 </div>
 
                 <ul className="space-y-3 pt-4 border-t border-slate-800 text-xs text-slate-300">
                   <li className="flex items-center gap-2">
                     <Check size={14} className="text-emerald-400 shrink-0" />
-                    <span>Acesso Completo do Gestor</span>
+                    <span>Acesso Completo ao Sistema</span>
                   </li>
                   <li className="flex items-center gap-2">
                     <Check size={14} className="text-emerald-400 shrink-0" />
-                    <span>Lançamentos Ilimitados</span>
+                    <span>Lançamentos e Fluxo Ilimitados</span>
                   </li>
                   <li className="flex items-center gap-2">
                     <Check size={14} className="text-emerald-400 shrink-0" />
@@ -450,11 +450,11 @@ export default function LandingPage({ onGoToLogin }: LandingPageProps) {
                   </li>
                   <li className="flex items-center gap-2">
                     <Check size={14} className="text-emerald-400 shrink-0" />
-                    <span>Relatórios Semanais Portáteis</span>
+                    <span>Sincronização Segura em Nuvem</span>
                   </li>
                   <li className="flex items-center gap-2">
                     <Check size={14} className="text-emerald-400 shrink-0" />
-                    <span>Sistema de Backup Local JSON</span>
+                    <span>Sistema de Backup em JSON</span>
                   </li>
                 </ul>
               </div>
@@ -478,43 +478,39 @@ export default function LandingPage({ onGoToLogin }: LandingPageProps) {
               <div className="space-y-6">
                 <div className="space-y-2">
                   <h3 className="text-base font-bold text-white uppercase tracking-wider flex items-center gap-1.5">
-                    <span>Plano Profissional</span>
+                    <span>Plano Anual</span>
                   </h3>
                   <p className="text-xs text-slate-400 leading-normal">
-                    Para escritórios consolidados que precisam de sincronização constante em nuvem e histórico completo.
+                    Economia garantida com faturamento anual único, equivalente a apenas R$ 21 por mês.
                   </p>
                 </div>
 
                 <div className="flex items-baseline gap-1 font-sans">
                   <span className="text-slate-400 text-xs font-bold font-mono">R$</span>
-                  <span className="text-4xl font-black text-white font-mono">149</span>
-                  <span className="text-slate-500 text-xs font-medium">/mês</span>
+                  <span className="text-4xl font-black text-white font-mono">250</span>
+                  <span className="text-slate-500 text-xs font-medium">/ano</span>
                 </div>
 
                 <ul className="space-y-3 pt-4 border-t border-slate-800 text-xs text-slate-200">
-                  <li className="flex items-center gap-2 font-bold text-emerald-400">
+                  <li className="flex items-center gap-2">
                     <Check size={14} className="text-emerald-400 shrink-0" />
-                    <span>Controle de Caixa Avançado</span>
+                    <span className="font-bold text-emerald-400">Acesso Completo ao Sistema</span>
                   </li>
                   <li className="flex items-center gap-2">
                     <Check size={14} className="text-emerald-400 shrink-0" />
-                    <span>Lançamentos Ilimitados</span>
+                    <span>Lançamentos e Fluxo Ilimitados</span>
+                  </li>
+                  <li className="flex items-center gap-2">
+                    <Check size={14} className="text-emerald-400 shrink-0" />
+                    <span>Controle de Repasses e Honorários</span>
                   </li>
                   <li className="flex items-center gap-2">
                     <Check size={14} className="text-emerald-400 shrink-0" />
                     <span>Sincronização Segura em Nuvem</span>
                   </li>
-                  <li className="flex items-center gap-2 font-bold text-slate-100">
-                    <Check size={14} className="text-emerald-400 shrink-0" />
-                    <span>Controle e Fechamento por Caixa</span>
-                  </li>
-                  <li className="flex items-center gap-2 font-bold text-slate-100">
-                    <Check size={14} className="text-emerald-400 shrink-0" />
-                    <span>Auditoria Geral de Lançamentos</span>
-                  </li>
                   <li className="flex items-center gap-2">
                     <Check size={14} className="text-emerald-400 shrink-0" />
-                    <span>Lembretes Inteligentes Pós-16h</span>
+                    <span>Sistema de Backup em JSON</span>
                   </li>
                 </ul>
               </div>
@@ -523,7 +519,7 @@ export default function LandingPage({ onGoToLogin }: LandingPageProps) {
                 href="#demonstracao"
                 className="w-full py-3.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-black text-xs uppercase tracking-wider transition-all text-center block cursor-pointer shadow-lg shadow-emerald-600/10 mt-8 active:scale-[0.98]"
               >
-                Testar 14 Dias Grátis
+                Garantir Plano Anual
               </a>
             </div>
 
@@ -531,38 +527,38 @@ export default function LandingPage({ onGoToLogin }: LandingPageProps) {
             <div className="bg-[#161B22] border border-slate-800 p-8 rounded-2xl space-y-6 hover:border-slate-700 transition-all text-left relative flex flex-col justify-between">
               <div className="space-y-6">
                 <div className="space-y-2">
-                  <h3 className="text-base font-bold text-white uppercase tracking-wider">Multi-Sistemas / Redes</h3>
+                  <h3 className="text-base font-bold text-white uppercase tracking-wider">Assinatura Definitiva</h3>
                   <p className="text-xs text-slate-400 leading-normal">
-                    Para redes de escritórios ou despachantes que desejam licenças independentes e isoladas por filial.
+                    Pagamento único para acesso vitalício e sem qualquer tipo de mensalidade futura.
                   </p>
                 </div>
 
                 <div className="flex items-baseline gap-1 font-sans">
                   <span className="text-slate-400 text-xs font-bold font-mono">R$</span>
-                  <span className="text-3xl font-black text-white font-mono">299</span>
-                  <span className="text-slate-500 text-xs font-medium">/mês</span>
+                  <span className="text-3xl font-black text-white font-mono">550</span>
+                  <span className="text-slate-500 text-xs font-medium">/único</span>
                 </div>
 
                 <ul className="space-y-3 pt-4 border-t border-slate-800 text-xs text-slate-300">
                   <li className="flex items-center gap-2">
                     <Check size={14} className="text-emerald-400 shrink-0" />
-                    <span>Sistemas Totalmente Isolados por Filial</span>
+                    <span>Acesso Completo ao Sistema</span>
                   </li>
                   <li className="flex items-center gap-2">
                     <Check size={14} className="text-emerald-400 shrink-0" />
-                    <span>Nuvem Dedicada com Alta Disponibilidade</span>
+                    <span>Lançamentos e Fluxo Ilimitados</span>
                   </li>
                   <li className="flex items-center gap-2">
                     <Check size={14} className="text-emerald-400 shrink-0" />
-                    <span>Consolidação de Relatórios Gerenciais</span>
+                    <span>Controle de Repasses e Honorários</span>
                   </li>
                   <li className="flex items-center gap-2">
                     <Check size={14} className="text-emerald-400 shrink-0" />
-                    <span>Treinamento de Equipe e Onboarding</span>
+                    <span>Sincronização Segura em Nuvem</span>
                   </li>
                   <li className="flex items-center gap-2">
                     <Check size={14} className="text-emerald-400 shrink-0" />
-                    <span>Suporte VIP via WhatsApp 24h</span>
+                    <span>Sistema de Backup em JSON</span>
                   </li>
                 </ul>
               </div>
@@ -571,7 +567,7 @@ export default function LandingPage({ onGoToLogin }: LandingPageProps) {
                 href="#demonstracao"
                 className="w-full py-3 rounded-xl bg-slate-800 hover:bg-slate-750 text-slate-200 hover:text-white font-black text-xs uppercase tracking-wider transition-all text-center block cursor-pointer border border-slate-700 mt-8 active:scale-[0.98]"
               >
-                Falar com Consultor
+                Garantir Licença Definitiva
               </a>
             </div>
 
