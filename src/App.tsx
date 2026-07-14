@@ -16,7 +16,6 @@ import SubCategories from './components/SubCategories';
 import Expenses from './components/Expenses';
 import Reports from './components/Reports';
 import Clients from './components/Clients';
-import HelpManual from './components/HelpManual';
 import SystemLogo from './components/SystemLogo';
 
 import { SubCategory, Service, Expense, ExpenseCategory, PersonalExpense, Client, InternalUser, UserSession } from './types';
@@ -1564,7 +1563,6 @@ export default function App() {
                  currentTab === 'reports-services' ? 'Relatório de Serviços' :
                  currentTab === 'reports-expenses' ? 'Relatório de Saídas' :
                  currentTab === 'usermanagement' ? 'Usuários' :
-                 currentTab === 'help' ? 'Manual & Ajuda' :
                  currentTab.toUpperCase()}
               </span>
             </div>
@@ -1766,10 +1764,6 @@ export default function App() {
               onRemoveUser={handleRevokeUser}
               onUpdateUser={handleUpdateUser}
             />
-          )}
-
-          {currentTab === 'help' && (
-            <HelpManual />
           )}
         </main>
       </div>

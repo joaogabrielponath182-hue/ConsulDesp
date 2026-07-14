@@ -147,7 +147,6 @@ export default function Sidebar({
         { id: 'reports-expenses', name: 'Relatório de Saídas' }
       ]
     },
-    { id: 'help', name: 'Manual & Ajuda', icon: HelpCircle },
     ...(currentSession?.isAdmin ? [
       { id: 'usermanagement', name: 'Controle de Usuários', icon: ShieldCheck }
     ] : [])

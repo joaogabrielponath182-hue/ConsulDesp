@@ -78,7 +78,7 @@ export default function TestDrivePage({ onBackToLanding, onGoToLoginPrefilled, o
       title: "Painel de Rentabilidade Real",
       icon: <LayoutDashboard className="text-blue-400" size={18} />,
       badge: "Passo 3",
-      description: "Chega de somar papéis no final do dia. O painel central exibe em tempo real o total bruto de entradas, as saídas de custo operacional e o lucro líquido real limpo por operador. Gráficos de pizza dividem as receitas por tipo e categoria automaticamente.",
+      description: "Chega de somar papéis no final do dia. O painel central exibe em tempo real o total bruto de entradas, as saídas de custo operacional e o lucro líquido real limpo por operador. Indicadores e listas de desempenho dividem as receitas por tipo e subcategoria de forma automatizada.",
     },
     {
       title: "Auto-Backup em Nuvem e Local",
@@ -511,6 +511,35 @@ export default function TestDrivePage({ onBackToLanding, onGoToLoginPrefilled, o
         </div>
 
       </main>
+
+      {/* Video Training Section */}
+      <section className="py-6 relative z-10 max-w-4xl mx-auto w-full px-4 sm:px-6 lg:px-8">
+        <div className="bg-[#161B22]/40 border border-slate-800/80 rounded-3xl p-6 md:p-8 flex flex-col md:flex-row items-center justify-between gap-6 relative overflow-hidden shadow-xl">
+          <div className="absolute top-0 right-0 w-64 h-64 bg-emerald-500/5 rounded-full blur-[80px] pointer-events-none"></div>
+          
+          <div className="flex items-center gap-4 text-left">
+            <div className="w-12 h-12 bg-emerald-500/10 border border-emerald-500/20 rounded-2xl flex items-center justify-center text-emerald-400 shrink-0 shadow-lg">
+              <Play className="animate-pulse" size={20} fill="currentColor" />
+            </div>
+            <div>
+              <h3 className="text-sm font-black uppercase text-white tracking-wider">Ainda está com dúvida?</h3>
+              <p className="text-xs text-slate-400 leading-relaxed mt-1 max-w-xl">
+                Preparamos uma série de vídeos rápidos explicativos demonstrando o uso prático de cada recurso do sistema. Veja como é simples e intuitivo otimizar as finanças do seu escritório!
+              </p>
+            </div>
+          </div>
+
+          <a
+            href="https://drive.google.com/drive/folders/1izvu7ehWsFSSb6R8-V9wfxWSqEhqIXLm"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="w-full md:w-auto inline-flex items-center justify-center gap-2 px-6 py-3.5 rounded-xl bg-[#161B22] hover:bg-slate-850 text-slate-300 hover:text-white font-black text-xs uppercase tracking-widest transition-all border border-slate-800 hover:border-slate-700 active:scale-[0.98] cursor-pointer"
+          >
+            <span>Ver Vídeos Explicativos</span>
+            <ArrowUpRight size={14} className="text-emerald-400" />
+          </a>
+        </div>
+      </section>
 
       {/* Bottom Section: Credentials & Access Action */}
       <section className="bg-[#161B22]/60 border-t border-slate-800/80 py-12 lg:py-16 relative z-10">
