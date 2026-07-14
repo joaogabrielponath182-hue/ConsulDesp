@@ -144,7 +144,8 @@ export default function Sidebar({
       children: [
         { id: 'reports-general', name: 'Relatório Geral' },
         { id: 'reports-services', name: 'Relatório de Serviços' },
-        { id: 'reports-expenses', name: 'Relatório de Saídas' }
+        { id: 'reports-expenses', name: 'Relatório de Saídas' },
+        { id: 'reports-comparative', name: 'Relatório Comparativo' }
       ]
     },
     ...(currentSession?.isAdmin ? [

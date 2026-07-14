@@ -15,6 +15,7 @@ import Services from './components/Services';
 import SubCategories from './components/SubCategories';
 import Expenses from './components/Expenses';
 import Reports from './components/Reports';
+import ReportsComparative from './components/ReportsComparative';
 import Clients from './components/Clients';
 import SystemLogo from './components/SystemLogo';
 
@@ -1589,6 +1590,7 @@ export default function App() {
                  currentTab === 'reports-general' ? 'Relatório Geral' :
                  currentTab === 'reports-services' ? 'Relatório de Serviços' :
                  currentTab === 'reports-expenses' ? 'Relatório de Saídas' :
+                 currentTab === 'reports-comparative' ? 'Relatório Comparativo' :
                  currentTab === 'usermanagement' ? 'Usuários' :
                  currentTab.toUpperCase()}
               </span>
@@ -1658,17 +1660,19 @@ export default function App() {
                     {currentTab === 'reports-general' && 'Relatório Geral (Consolidado)'}
                     {currentTab === 'reports-services' && 'Relatório de Serviços Lançados'}
                     {currentTab === 'reports-expenses' && 'Relatório de Saídas / Despesas'}
+                    {currentTab === 'reports-comparative' && 'Relatório Comparativo de Períodos'}
                   </h1>
                   <p className="text-slate-400 text-xs mt-0.5">
                     {currentTab === 'reports-general' && 'Confira o demonstrativo do balanço de caixa do seu despachante.'}
                     {currentTab === 'reports-services' && 'Visualize o arquivo completo dos serviços prestados e das subtaxas.'}
                     {currentTab === 'reports-expenses' && 'Acompanhe as saídas detalhadas de gastos e despesas.'}
+                    {currentTab === 'reports-comparative' && 'Compare o faturamento, as saídas e os quantitativos entre dois períodos distintos.'}
                   </p>
                 </div>
               </div>
  
               {/* Sub tabs pills */}
-              <div className="flex bg-[#161B22] p-1.5 rounded-xl border border-slate-850 gap-1.5 w-full sm:w-max">
+              <div className="flex flex-wrap bg-[#161B22] p-1.5 rounded-xl border border-slate-850 gap-1.5 w-full sm:w-max">
                 <button
                   onClick={() => setCurrentTab('reports-general')}
                   className={`flex-1 sm:flex-none px-4 py-2 rounded-lg text-xs font-bold tracking-wide transition-all cursor-pointer ${
@@ -1698,6 +1702,16 @@ export default function App() {
                   }`}
                 >
                   Relatório de Saídas
+                </button>
+                <button
+                  onClick={() => setCurrentTab('reports-comparative')}
+                  className={`flex-1 sm:flex-none px-4 py-2 rounded-lg text-xs font-bold tracking-wide transition-all cursor-pointer ${
+                    currentTab === 'reports-comparative'
+                      ? 'bg-emerald-600 text-white shadow-md'
+                      : 'text-slate-400 hover:text-white hover:bg-slate-800/40'
+                  }`}
+                >
+                  Relatório Comparativo
                 </button>
               </div>
             </div>
@@ -1778,6 +1792,14 @@ export default function App() {
 
           {currentTab === 'reports-general' && (
             <Reports
+              services={filteredServices}
+              expenses={filteredExpenses}
+              subCategories={filteredSubCategories}
+            />
+          )}
+
+          {currentTab === 'reports-comparative' && (
+            <ReportsComparative
               services={filteredServices}
               expenses={filteredExpenses}
               subCategories={filteredSubCategories}

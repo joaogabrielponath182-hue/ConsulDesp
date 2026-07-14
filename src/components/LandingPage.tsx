@@ -397,6 +397,25 @@ export default function LandingPage({ onGoToLogin, onGoToTestDrive }: LandingPag
               </span>
             </div>
 
+            {/* Benefit 7 */}
+            <div className="bg-[#161B22] border border-slate-800 p-6 rounded-2xl space-y-4 hover:border-emerald-500/20 transition-all flex flex-col justify-between">
+              <div className="space-y-3">
+                <div className="w-10 h-10 rounded-xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-400">
+                  <TrendingUp size={20} />
+                </div>
+                <h3 className="text-sm font-bold text-white uppercase tracking-wider">
+                  Relatório Comparativo de Períodos
+                </h3>
+                <p className="text-xs text-slate-400 leading-relaxed">
+                  Compare o faturamento, as despesas, o lucro líquido e os quantitativos de serviços entre dois períodos personalizados. Obtenha insights descritivos automáticos indicando exatamente as variações e os itens que impulsionaram o caixa.
+                </p>
+              </div>
+              <span className="text-[10px] text-emerald-400 font-mono font-bold flex items-center gap-1 pt-4 border-t border-slate-800 mt-4">
+                <CheckCircle2 size={12} />
+                Inteligência Analítica Ativa
+              </span>
+            </div>
+
           </div>
         </div>
       </section>
