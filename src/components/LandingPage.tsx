@@ -71,7 +71,7 @@ export default function LandingPage({ onGoToLogin, onGoToTestDrive }: LandingPag
     },
     {
       q: "Como é feita a segurança dos dados e o backup?",
-      a: "Trabalhamos com o modelo híbrido inteligente: sincronização automática em nuvem central segura e a segurança do Backup Offline Automático. Todos os dias, às 16:35, o sistema realiza o auto-backup automático gravando e substituindo o arquivo JSON local de forma transparente, garantindo autonomia e integridade sem complicação."
+      a: "Trabalhamos com o modelo híbrido inteligente: sincronização automática em nuvem de forma transparente, nativa e sem custos adicionais (sem necessidade de logins extras ou sistemas terceiros), além da segurança do Backup Offline Automático. Todos os dias, às 16:35, o sistema também realiza o auto-backup local gravando e substituindo o arquivo JSON local de forma transparente, garantindo máxima integridade dos dados."
     }
   ];
 
@@ -365,15 +365,16 @@ export default function LandingPage({ onGoToLogin, onGoToTestDrive }: LandingPag
                   <Download size={20} />
                 </div>
                 <h3 className="text-sm font-bold text-white uppercase tracking-wider">
-                  Auto-Backup Local Automático
+                  Auto-Backup em Nuvem e Local
                 </h3>
                 <p className="text-xs text-slate-400 leading-relaxed">
-                  Compromisso total com sua segurança. Todos os dias, pontualmente às 16:35, o sistema realiza de forma automatizada a regravação e atualização silenciosa do seu arquivo de backup local, eliminando cliques manuais e diálogos repetitivos de salvamento.
+                  Contamos com um serviço de backup em nuvem automático e integrado. Ele funciona de forma silenciosa e transparente: os dados são salvos e sincronizados de maneira segura na nuvem sem que o usuário precise fazer logins extras ou contratar sistemas terceiros para esse fim — é tudo 100% nativo e sem custos adicionais. 
+                  <span className="block mt-2">Além disso, todos os dias, pontualmente às 16:35, o sistema realiza de forma automatizada a regravação e atualização silenciosa do seu arquivo de backup local físico para garantir dupla proteção aos seus dados.</span>
                 </p>
               </div>
               <span className="text-[10px] text-emerald-400 font-mono font-bold flex items-center gap-1 pt-4 border-t border-slate-800 mt-4">
                 <CheckCircle2 size={12} />
-                Autonomia Total dos Seus Dados
+                Segurança Nativa Sem Custos
               </span>
             </div>
 

@@ -81,10 +81,10 @@ export default function TestDrivePage({ onBackToLanding, onGoToLoginPrefilled, o
       description: "Chega de somar papéis no final do dia. O painel central exibe em tempo real o total bruto de entradas, as saídas de custo operacional e o lucro líquido real limpo por operador. Gráficos de pizza dividem as receitas por tipo e categoria automaticamente.",
     },
     {
-      title: "Auto-Backup Silencioso diário",
+      title: "Auto-Backup em Nuvem e Local",
       icon: <Clock className="text-amber-400" size={18} />,
       badge: "Passo 4",
-      description: "Segurança total sem depender da sua memória. Todos os dias, pontualmente às 16:35, o ConsulDesp realiza de forma automatizada o auto-backup silencioso gravando e substituindo o arquivo JSON local de forma transparente, além da sincronização em nuvem segura.",
+      description: "Segurança nativa e dupla proteção. O ConsulDesp conta com serviço integrado de backup em nuvem automático que sincroniza seus dados de forma silenciosa e segura, sem logins extras ou taxas de sistemas terceiros. Além disso, diariamente às 16:35, o sistema realiza o auto-backup físico local automaticamente.",
     }
   ];
 
@@ -478,9 +478,9 @@ export default function TestDrivePage({ onBackToLanding, onGoToLoginPrefilled, o
                           <Clock size={18} className="animate-pulse" />
                         </div>
                         <div className="flex-1 space-y-0.5">
-                          <p className="text-[10px] font-extrabold uppercase text-white tracking-wider">Disparador Diário às 16:35</p>
+                          <p className="text-[10px] font-extrabold uppercase text-white tracking-wider">Serviço de Backup em Nuvem Integrado</p>
                           <p className="text-[9px] text-slate-400 leading-normal">
-                            O sistema está configurado para sobrescrever seu arquivo físico de backup local ou gerar o download portátil de segurança automaticamente ao bater as 16:35 no relógio do seu navegador.
+                            Os dados do escritório são sincronizados e salvos com segurança de forma nativa e silenciosa na nuvem, sem que o usuário precise configurar contas extras ou pagar por serviços de terceiros. Além disso, pontualmente às 16:35 no navegador, é gerada a regravação automática do arquivo físico de backup local.
                           </p>
                         </div>
                       </div>
