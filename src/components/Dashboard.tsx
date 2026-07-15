@@ -931,40 +931,121 @@ export default function Dashboard({
           </div>
         </div>
 
-        {/* Metric Card: Total do Mês & Gastos Pessoais */}
+        {/* Metric Card: Total do Mês */}
+        <div className="bg-[#161B22] border border-slate-800 rounded-2xl p-6 shadow-sm relative overflow-hidden group">
+          <div className="absolute top-0 left-0 w-1.5 h-full bg-blue-500"></div>
+          <div className="flex justify-between items-start">
+            <div className="w-full">
+              <p className="text-slate-400 text-xs font-semibold uppercase tracking-wider">Total do Mês</p>
+              <div className="space-y-1 mt-2">
+                <div className="flex justify-between gap-12 text-sm text-slate-350">
+                  <span className="font-semibold text-emerald-400">ENTRADA TOTAL:</span>
+                  <span className="font-semibold text-emerald-400">
+                    {formatCurrency(totalRevenuesThisMonth)}
+                  </span>
+                </div>
+                <div className="flex justify-between text-sm text-slate-350">
+                  <span className="font-semibold text-rose-400">SAÍDA TOTAL:</span>
+                  <span className="font-semibold text-rose-400">
+                    {formatCurrency(totalExpensesThisMonth)}
+                  </span>
+                </div>
+                <div className="flex justify-between text-sm text-slate-350 border-t border-slate-800/80 pt-1 mt-1">
+                  <span className="font-semibold text-slate-300">SALDO DO MÊS:</span>
+                  <span className={`font-bold ${netBalanceThisMonth >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+                    {formatCurrency(netBalanceThisMonth)}
+                  </span>
+                </div>
+              </div>
+            </div>
+            <div className="p-3 rounded-xl bg-blue-500/10 text-blue-400 shrink-0 ml-2">
+              <DollarSign size={20} />
+            </div>
+          </div>
+          <div className="mt-4 text-[10px] text-slate-500 border-t border-slate-800/80 pt-3">
+            Estatísticas consolidadas do mês selecionado
+          </div>
+        </div>
+
+        {/* Column 4: Lucro Livre and Gastos Pessoais stacked */}
         <div className="space-y-6">
+          {/* Metric Card: Lucro Livre */}
           <div className="bg-[#161B22] border border-slate-800 rounded-2xl p-6 shadow-sm relative overflow-hidden group">
-            <div className="absolute top-0 left-0 w-1.5 h-full bg-blue-500"></div>
+            <div className="absolute top-0 left-0 w-1.5 h-full bg-indigo-500"></div>
             <div className="flex justify-between items-start">
               <div className="w-full">
-                <p className="text-slate-400 text-xs font-semibold uppercase tracking-wider">Total do Mês</p>
-                <div className="space-y-1 mt-2">
-                  <div className="flex justify-between gap-12 text-sm text-slate-350">
-                    <span className="font-semibold text-emerald-400">ENTRADA TOTAL:</span>
-                    <span className="font-semibold text-emerald-400">
-                      {formatCurrency(totalRevenuesThisMonth)}
+                <p className="text-slate-400 text-xs font-semibold uppercase tracking-wider flex items-center justify-between">
+                  <span>Lucro Livre</span>
+                </p>
+                
+                <div className="flex flex-col gap-3 mt-2.5 pb-2">
+                  {/* Entradas */}
+                  <div className="bg-[#0F1115] p-2.5 rounded-xl border border-slate-850">
+                    <div className="flex items-center justify-between mb-1.5">
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-[10px] font-bold text-emerald-400 uppercase tracking-wider">Entradas</span>
+                        <span className="text-[9px] text-slate-500 font-medium" title={selectedRevenueCats.join(', ')}>
+                          ({selectedRevenueCats.length} {selectedRevenueCats.length === 1 ? 'cat.' : 'cat.'})
+                        </span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setTempSelectedCats([...selectedRevenueCats]);
+                          setEditingType('RECEITA');
+                        }}
+                        className="text-slate-400 hover:text-white p-1 hover:bg-slate-800 rounded transition-all cursor-pointer"
+                        title="Editar categorias de entrada"
+                      >
+                        <Pencil size={11} />
+                      </button>
+                    </div>
+                    <span className="text-xs font-semibold text-slate-200 block font-mono">
+                      {formatCurrency(selectedRevenuesSumThisMonth)}
                     </span>
                   </div>
-                  <div className="flex justify-between text-sm text-slate-350">
-                    <span className="font-semibold text-rose-400">SAÍDA TOTAL:</span>
-                    <span className="font-semibold text-rose-400">
-                      {formatCurrency(totalExpensesThisMonth)}
-                    </span>
-                  </div>
-                  <div className="flex justify-between text-sm text-slate-350 border-t border-slate-800/80 pt-1 mt-1">
-                    <span className="font-semibold text-slate-300">SALDO DO MÊS:</span>
-                    <span className={`font-bold ${netBalanceThisMonth >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
-                      {formatCurrency(netBalanceThisMonth)}
+
+                  {/* Saídas */}
+                  <div className="bg-[#0F1115] p-2.5 rounded-xl border border-slate-850">
+                    <div className="flex items-center justify-between mb-1.5">
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-[10px] font-bold text-rose-400 uppercase tracking-wider">Saídas</span>
+                        <span className="text-[9px] text-slate-500 font-medium" title={selectedExpenseCats.join(', ')}>
+                          ({selectedExpenseCats.length} {selectedExpenseCats.length === 1 ? 'cat.' : 'cat.'})
+                        </span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setTempSelectedCats([...selectedExpenseCats]);
+                          setEditingType('GASTO');
+                        }}
+                        className="text-slate-400 hover:text-white p-1 hover:bg-slate-800 rounded transition-all cursor-pointer"
+                        title="Editar categorias de saída"
+                      >
+                        <Pencil size={11} />
+                      </button>
+                    </div>
+                    <span className="text-xs font-semibold text-slate-200 block font-mono">
+                      {formatCurrency(selectedExpensesSumThisMonth)}
                     </span>
                   </div>
                 </div>
+
+                {/* Total Row */}
+                <div className="flex justify-between text-sm text-slate-350 border-t border-slate-800/80 pt-2.5 mt-1">
+                  <span className="font-semibold text-slate-300 text-xs">TOTAL LIVRE:</span>
+                  <span className={`font-bold text-xs ${lucroLivreTotalThisMonth >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+                    {formatCurrency(lucroLivreTotalThisMonth)}
+                  </span>
+                </div>
               </div>
-              <div className="p-3 rounded-xl bg-blue-500/10 text-blue-400 shrink-0 ml-2">
-                <DollarSign size={20} />
+              <div className="p-3 rounded-xl bg-indigo-500/10 text-indigo-400 shrink-0 ml-2">
+                <TrendingUp size={20} />
               </div>
             </div>
             <div className="mt-4 text-[10px] text-slate-500 border-t border-slate-800/80 pt-3">
-              Estatísticas consolidadas do mês selecionado
+              Estatísticas personalizadas do mês selecionado
             </div>
           </div>
 
@@ -1007,86 +1088,6 @@ export default function Dashboard({
             <div className="mt-4 text-[10px] text-slate-500 border-t border-slate-800/80 pt-3">
               Gastos de caráter pessoal do mês selecionado
             </div>
-          </div>
-        </div>
-
-        {/* Metric Card: Lucro Livre */}
-        <div className="bg-[#161B22] border border-slate-800 rounded-2xl p-6 shadow-sm relative overflow-hidden group">
-          <div className="absolute top-0 left-0 w-1.5 h-full bg-indigo-500"></div>
-          <div className="flex justify-between items-start">
-            <div className="w-full">
-              <p className="text-slate-400 text-xs font-semibold uppercase tracking-wider flex items-center justify-between">
-                <span>Lucro Livre</span>
-              </p>
-              
-              <div className="flex flex-col gap-3 mt-2.5 pb-2">
-                {/* Entradas */}
-                <div className="bg-[#0F1115] p-2.5 rounded-xl border border-slate-850">
-                  <div className="flex items-center justify-between mb-1.5">
-                    <div className="flex items-center gap-1.5">
-                      <span className="text-[10px] font-bold text-emerald-400 uppercase tracking-wider">Entradas</span>
-                      <span className="text-[9px] text-slate-500 font-medium" title={selectedRevenueCats.join(', ')}>
-                        ({selectedRevenueCats.length} {selectedRevenueCats.length === 1 ? 'cat.' : 'cat.'})
-                      </span>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setTempSelectedCats([...selectedRevenueCats]);
-                        setEditingType('RECEITA');
-                      }}
-                      className="text-slate-400 hover:text-white p-1 hover:bg-slate-800 rounded transition-all cursor-pointer"
-                      title="Editar categorias de entrada"
-                    >
-                      <Pencil size={11} />
-                    </button>
-                  </div>
-                  <span className="text-xs font-semibold text-slate-200 block font-mono">
-                    {formatCurrency(selectedRevenuesSumThisMonth)}
-                  </span>
-                </div>
-
-                {/* Saídas */}
-                <div className="bg-[#0F1115] p-2.5 rounded-xl border border-slate-850">
-                  <div className="flex items-center justify-between mb-1.5">
-                    <div className="flex items-center gap-1.5">
-                      <span className="text-[10px] font-bold text-rose-400 uppercase tracking-wider">Saídas</span>
-                      <span className="text-[9px] text-slate-500 font-medium" title={selectedExpenseCats.join(', ')}>
-                        ({selectedExpenseCats.length} {selectedExpenseCats.length === 1 ? 'cat.' : 'cat.'})
-                      </span>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setTempSelectedCats([...selectedExpenseCats]);
-                        setEditingType('GASTO');
-                      }}
-                      className="text-slate-400 hover:text-white p-1 hover:bg-slate-800 rounded transition-all cursor-pointer"
-                      title="Editar categorias de saída"
-                    >
-                      <Pencil size={11} />
-                    </button>
-                  </div>
-                  <span className="text-xs font-semibold text-slate-200 block font-mono">
-                    {formatCurrency(selectedExpensesSumThisMonth)}
-                  </span>
-                </div>
-              </div>
-
-              {/* Total Row */}
-              <div className="flex justify-between text-sm text-slate-350 border-t border-slate-800/80 pt-2.5 mt-1">
-                <span className="font-semibold text-slate-300 text-xs">TOTAL LIVRE:</span>
-                <span className={`font-bold text-xs ${lucroLivreTotalThisMonth >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
-                  {formatCurrency(lucroLivreTotalThisMonth)}
-                </span>
-              </div>
-            </div>
-            <div className="p-3 rounded-xl bg-indigo-500/10 text-indigo-400 shrink-0 ml-2">
-              <TrendingUp size={20} />
-            </div>
-          </div>
-          <div className="mt-4 text-[10px] text-slate-500 border-t border-slate-800/80 pt-3">
-            Estatísticas personalizadas do mês selecionado
           </div>
         </div>
       </div>

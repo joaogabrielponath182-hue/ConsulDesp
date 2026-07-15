@@ -78,7 +78,11 @@ export default function LoginScreen({
           const sessionId = `sess-joao-${Date.now()}-${Math.floor(Math.random() * 100000)}`;
           
           // Try to sync session ID to Firestore/local
-          await onUpdateUserSession('joao.desp', sessionId);
+          try {
+            await onUpdateUserSession('joao.desp', sessionId);
+          } catch (sessionErr) {
+            console.warn("Could not sync session to cloud, continuing locally:", sessionErr);
+          }
 
           onLoginSuccess({
             username: 'joao.desp',
@@ -129,7 +133,11 @@ export default function LoginScreen({
       const sessionId = `sess-${foundUser.username}-${Date.now()}-${Math.floor(Math.random() * 100000)}`;
       
       // Update the current session ID in the DB to terminate other existing logins
-      await onUpdateUserSession(foundUser.id, sessionId);
+      try {
+        await onUpdateUserSession(foundUser.id, sessionId);
+      } catch (sessionErr) {
+        console.warn("Could not sync session to cloud, continuing locally:", sessionErr);
+      }
 
       onLoginSuccess({
         username: foundUser.username,
@@ -215,7 +223,7 @@ export default function LoginScreen({
 
         {/* Info Banner */}
         <div className="p-3 bg-[#0F1115] border border-slate-850 rounded-xl text-[11px] text-slate-400 leading-normal text-center">
-          🔑 Autenticação obrigatória. Insira suas credenciais fornecidas pelo administrador para acessar o painel financeiro.
+          <p>🔑 Autenticação obrigatória. Insira suas credenciais para acessar o painel financeiro.</p>
         </div>
 
         {/* Error Feedback */}

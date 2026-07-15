@@ -353,8 +353,8 @@ export default function ReportsComparative({ services, expenses, subCategories, 
 
   const lucroLivreRevenuesComparison = useMemo(() => {
     return selectedRevenueCats.map(cat => {
-      const valA = metricsA.selectedRevenueCatsPaidBreakdown[cat] || 0;
-      const valB = metricsB.selectedRevenueCatsPaidBreakdown[cat] || 0;
+      const valA = metricsA.selectedRevenueCatsBreakdown[cat] || 0;
+      const valB = metricsB.selectedRevenueCatsBreakdown[cat] || 0;
       const { diff, pct } = getVariance(valA, valB);
       return { category: cat, valA, valB, diff, pct };
     }).sort((a, b) => b.valA - a.valA);
@@ -367,11 +367,11 @@ export default function ReportsComparative({ services, expenses, subCategories, 
       const { diff, pct } = getVariance(valA, valB);
       return { category: cat, valA, valB, diff, pct };
     }).sort((a, b) => b.valA - a.valA);
-  }, [metricsA, metricsB, selectedExpenseCats]);
-
-  // Generate Portuguese descriptive textual analysis
+  }, [metricsA, metricsB, selectedExpenseCats]);  // Generate Portuguese descriptive textual analysis
   const textualAnalysis = useMemo(() => {
-    const profitVar = getVariance(metricsA.netProfitRealized, metricsB.netProfitRealized);
+    const lucroLivreA = metricsA.selectedTotalRevenues - metricsA.selectedExpenses;
+    const lucroLivreB = metricsB.selectedTotalRevenues - metricsB.selectedExpenses;
+    const profitVar = getVariance(lucroLivreA, lucroLivreB);
     const revVar = getVariance(metricsA.paidRevenues, metricsB.paidRevenues);
     const expVar = getVariance(metricsA.totalExpenses, metricsB.totalExpenses);
 
@@ -390,16 +390,16 @@ export default function ReportsComparative({ services, expenses, subCategories, 
       .sort((a, b) => b.diff - a.diff)[0];
 
     let summaryText = "";
-    summaryText += `No primeiro período selecionado (${formatDateLabel(startDateA)} até ${formatDateLabel(endDateA)}), as receitas totais lançadas foram de ${formatCurrency(metricsA.totalRevenues)} (sendo ${formatCurrency(metricsA.paidRevenues)} pagas) e as despesas totais somaram ${formatCurrency(metricsA.totalExpenses)}. Considerando apenas as categorias selecionadas para a configuração do Lucro Livre / Lucro Líquido, isso resultou em um lucro líquido realizado de ${formatCurrency(metricsA.netProfitRealized)}. `;
+    summaryText += `No primeiro período selecionado (${formatDateLabel(startDateA)} até ${formatDateLabel(endDateA)}), as receitas totais lançadas foram de ${formatCurrency(metricsA.totalRevenues)} e as despesas totais somaram ${formatCurrency(metricsA.totalExpenses)}. Considerando apenas as categorias configuradas para o Lucro Livre no painel geral, obtivemos no Período A um total de ${formatCurrency(lucroLivreA)} de Lucro Livre. `;
     
-    summaryText += `Em comparação, no segundo período selecionado (${formatDateLabel(startDateB)} até ${formatDateLabel(endDateB)}), as receitas totais foram de ${formatCurrency(metricsB.totalRevenues)} (sendo ${formatCurrency(metricsB.paidRevenues)} pagas) e as despesas foram de ${formatCurrency(metricsB.totalExpenses)}, gerando um lucro líquido realizado (Lucro Livre) de ${formatCurrency(metricsB.netProfitRealized)}. `;
+    summaryText += `Em comparação, no segundo período selecionado (${formatDateLabel(startDateB)} até ${formatDateLabel(endDateB)}), as receitas totais foram de ${formatCurrency(metricsB.totalRevenues)} e as despesas foram de ${formatCurrency(metricsB.totalExpenses)}, gerando um Lucro Livre de ${formatCurrency(lucroLivreB)}. `;
 
     if (profitVar.diff > 0) {
-      summaryText += `Dessa forma, o primeiro período obteve um lucro livre realizado ${formatCurrency(profitVar.diff)} maior (+${profitVar.pct.toFixed(1)}%) em relação ao segundo período analisado, considerando apenas as categorias configuradas. `;
+      summaryText += `Dessa forma, o primeiro período obteve um Lucro Livre ${formatCurrency(profitVar.diff)} maior (+${profitVar.pct.toFixed(1)}%) em relação ao segundo período analisado, com base na seleção de categorias ativas. `;
     } else if (profitVar.diff < 0) {
-      summaryText += `Dessa forma, o primeiro período obteve um lucro livre realizado ${formatCurrency(Math.abs(profitVar.diff))} menor (${profitVar.pct.toFixed(1)}%) em relação ao segundo período analisado, considerando apenas as categorias configuradas. `;
+      summaryText += `Dessa forma, o primeiro período obteve um Lucro Livre ${formatCurrency(Math.abs(profitVar.diff))} menor (${profitVar.pct.toFixed(1)}%) em relação ao segundo período analisado, com base na seleção de categorias ativas. `;
     } else {
-      summaryText += `Os dois períodos apresentaram lucros livres realizados equivalentes com base nas categorias selecionadas. `;
+      summaryText += `Os dois períodos apresentaram lucros livres equivalentes com base nas categorias selecionadas no painel principal. `;
     }
 
     // Category insights
@@ -619,119 +619,59 @@ export default function ReportsComparative({ services, expenses, subCategories, 
           </div>
         </div>
 
-        {/* Lucro Líquido & Gastos Pessoais Column */}
-        <div className="space-y-6">
-          {/* Lucro Líquido */}
-          <div className="bg-[#161B22] border border-slate-800 rounded-2xl p-6 relative overflow-hidden">
-            <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-blue-500 to-teal-400"></div>
-            
-            {/* Lucro Líquido Realizado Section */}
-            <div className="mb-5">
-              <div className="flex justify-between items-start mb-3">
-                <div>
-                  <span className="text-[10px] font-bold text-emerald-400 uppercase tracking-wider block">Lucro Líquido Realizado</span>
-                  <span className="text-[9px] text-slate-450 uppercase tracking-wide block">(Apenas Entradas com Status PAGO)</span>
-                </div>
-                <div className="p-2 rounded-lg bg-emerald-500/10 text-emerald-400">
-                  <Coins size={16} />
-                </div>
-              </div>
-              
-              <div className="space-y-2">
-                <div className="flex justify-between items-baseline">
-                  <span className="text-xs text-slate-450">Período A:</span>
-                  <span className={`text-base font-black font-mono ${metricsA.netProfitRealized >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
-                    {formatCurrency(metricsA.netProfitRealized)}
-                  </span>
-                </div>
-                <div className="flex justify-between items-baseline border-b border-slate-850/60 pb-2">
-                  <span className="text-xs text-slate-450">Período B:</span>
-                  <span className={`text-xs font-bold font-mono ${metricsB.netProfitRealized >= 0 ? 'text-emerald-450' : 'text-rose-400'}`}>
-                    {formatCurrency(metricsB.netProfitRealized)}
-                  </span>
-                </div>
-                
-                {/* Variance */}
-                {(() => {
-                  const { diff, pct } = getVariance(metricsA.netProfitRealized, metricsB.netProfitRealized);
-                  return (
-                    <div className="flex justify-between items-center text-[11px] pt-0.5">
-                      <span className="text-slate-405">Variação Realizada:</span>
-                      <span className={`font-bold font-mono flex items-center gap-1 ${diff >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
-                        {diff >= 0 ? '+' : ''}{formatCurrency(diff)} ({diff >= 0 ? '+' : ''}{pct.toFixed(1)}%)
-                      </span>
-                    </div>
-                  );
-                })()}
-              </div>
-            </div>
-
-            {/* Separator line */}
-            <div className="border-t border-slate-800/80 my-4"></div>
-
-            {/* Lucro Líquido Previsto / Geral Section */}
-            <div>
-              <div className="flex justify-between items-start mb-3">
-                <div>
-                  <span className="text-[10px] font-bold text-blue-400 uppercase tracking-wider block">Lucro Líquido Geral / Previsto</span>
-                  <span className="text-[9px] text-slate-450 uppercase tracking-wide block">(Todas as Entradas: Pagas + Pendentes)</span>
-                </div>
-                <div className="p-2 rounded-lg bg-blue-500/10 text-blue-400">
-                  <Coins size={16} />
-                </div>
-              </div>
-              
-              <div className="space-y-2">
-                <div className="flex justify-between items-baseline">
-                  <span className="text-xs text-slate-450">Período A:</span>
-                  <span className={`text-base font-black font-mono ${metricsA.netProfitTotal >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
-                    {formatCurrency(metricsA.netProfitTotal)}
-                  </span>
-                </div>
-                <div className="flex justify-between items-baseline border-b border-slate-850/60 pb-2">
-                  <span className="text-xs text-slate-450">Período B:</span>
-                  <span className={`text-xs font-bold font-mono ${metricsB.netProfitTotal >= 0 ? 'text-emerald-450' : 'text-rose-400'}`}>
-                    {formatCurrency(metricsB.netProfitTotal)}
-                  </span>
-                </div>
-                
-                {/* Variance */}
-                {(() => {
-                  const { diff, pct } = getVariance(metricsA.netProfitTotal, metricsB.netProfitTotal);
-                  return (
-                    <div className="flex justify-between items-center text-[11px] pt-0.5">
-                      <span className="text-slate-405">Variação Geral:</span>
-                      <span className={`font-bold font-mono flex items-center gap-1 ${diff >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
-                        {diff >= 0 ? '+' : ''}{formatCurrency(diff)} ({diff >= 0 ? '+' : ''}{pct.toFixed(1)}%)
-                      </span>
-                    </div>
-                  );
-                })()}
-              </div>
+      {/* Lucro Livre & Gastos Pessoais Column */}
+      <div className="space-y-6">
+        {/* Lucro Livre Comparativo Card */}
+        <div className="bg-[#161B22] border border-slate-800 rounded-2xl p-6 relative overflow-hidden">
+          <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-emerald-500 to-indigo-500"></div>
+          <div className="flex justify-between items-start mb-3">
+            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Lucro Livre Comparativo</span>
+            <div className="p-2 rounded-lg bg-emerald-500/10 text-emerald-400">
+              <TrendingUpIcon size={16} />
             </div>
           </div>
+          
+          <div className="space-y-3">
+            {(() => {
+              const totalLivreA = metricsA.selectedTotalRevenues - metricsA.selectedExpenses;
+              const totalLivreB = metricsB.selectedTotalRevenues - metricsB.selectedExpenses;
+              const { diff, pct } = getVariance(totalLivreA, totalLivreB);
 
-          {/* Detalhamento de Categorias de Lucro Livre (Entradas e Saídas) */}
-          <div className="bg-[#161B22] border border-slate-800 rounded-2xl p-6 relative overflow-hidden">
-            <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-emerald-500 to-teal-400"></div>
-            <div className="flex justify-between items-start mb-3">
-              <div>
-                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Categorias do Lucro Livre</span>
-                <span className="text-[9px] text-slate-450 uppercase tracking-wide block">Comparativo de Categorias Selecionadas</span>
-              </div>
-              <div className="p-2 rounded-lg bg-teal-500/10 text-teal-400">
-                <TrendingUpIcon size={16} />
-              </div>
-            </div>
+              return (
+                <>
+                  <div className="flex justify-between items-baseline">
+                    <span className="text-xs text-slate-455">Período A:</span>
+                    <span className={`text-lg font-black font-mono ${totalLivreA >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+                      {formatCurrency(totalLivreA)}
+                    </span>
+                  </div>
+                  <div className="flex justify-between items-baseline border-b border-slate-850 pb-2.5">
+                    <span className="text-xs text-slate-455">Período B:</span>
+                    <span className={`text-sm font-bold font-mono ${totalLivreB >= 0 ? 'text-slate-300' : 'text-rose-450'}`}>
+                      {formatCurrency(totalLivreB)}
+                    </span>
+                  </div>
+                  
+                  {/* Variance */}
+                  <div className="flex justify-between items-center text-xs pt-1 border-b border-slate-850 pb-3">
+                    <span className="text-slate-400">Variação:</span>
+                    <span className={`font-bold font-mono flex items-center gap-1 ${diff >= 0 ? 'text-emerald-400' : 'text-rose-455'}`}>
+                      {diff >= 0 ? '+' : ''}{formatCurrency(diff)} ({diff >= 0 ? '+' : ''}{pct.toFixed(1)}%)
+                    </span>
+                  </div>
+                </>
+              );
+            })()}
 
-            <div className="space-y-4">
-              {/* ENTRADAS SELECIONADAS */}
+            {/* Category breakdown (Entradas and Saídas) */}
+            <div className="space-y-4 pt-1 animate-fadeIn">
+              {/* ENTRADAS */}
               <div className="space-y-2">
-                <span className="text-[9px] font-extrabold text-emerald-400 uppercase tracking-widest block">Entradas Selecionadas (Pago)</span>
+                <span className="text-[9px] font-extrabold text-emerald-400 uppercase tracking-widest block">Entradas Selecionadas</span>
                 {lucroLivreRevenuesComparison.length === 0 ? (
-                  <p className="text-[10px] text-slate-500 italic">Nenhuma categoria de entrada selecionada.</p>
+                  <p className="text-[10px] text-slate-500 italic">Nenhuma categoria de entrada selecionada no painel principal.</p>
                 ) : (
-                  <div className="space-y-2 max-h-[150px] overflow-y-auto pr-1 select-none scrollbar-thin">
+                  <div className="space-y-2 max-h-[140px] overflow-y-auto pr-1 select-none scrollbar-thin">
                     {lucroLivreRevenuesComparison.map(item => {
                       const hasA = item.valA > 0;
                       const hasB = item.valB > 0;
@@ -766,16 +706,16 @@ export default function ReportsComparative({ services, expenses, subCategories, 
                 )}
               </div>
 
-              {/* Separator line */}
-              <div className="border-t border-slate-800/60 my-2"></div>
+              {/* Separator */}
+              <div className="border-t border-slate-800/60 my-1"></div>
 
-              {/* SAÍDAS SELECIONADAS */}
+              {/* SAÍDAS */}
               <div className="space-y-2">
                 <span className="text-[9px] font-extrabold text-rose-450 uppercase tracking-widest block">Saídas Selecionadas</span>
                 {lucroLivreExpensesComparison.length === 0 ? (
-                  <p className="text-[10px] text-slate-500 italic">Nenhuma categoria de saída selecionada.</p>
+                  <p className="text-[10px] text-slate-500 italic">Nenhuma categoria de saída selecionada no painel principal.</p>
                 ) : (
-                  <div className="space-y-2 max-h-[150px] overflow-y-auto pr-1 select-none scrollbar-thin">
+                  <div className="space-y-2 max-h-[140px] overflow-y-auto pr-1 select-none scrollbar-thin">
                     {lucroLivreExpensesComparison.map(item => {
                       const hasA = item.valA > 0;
                       const hasB = item.valB > 0;
@@ -809,9 +749,9 @@ export default function ReportsComparative({ services, expenses, subCategories, 
                   </div>
                 )}
               </div>
-
             </div>
           </div>
+        </div>
 
           {/* Gastos Pessoais Comparativo Card */}
           <div className="bg-[#161B22] border border-slate-800 rounded-2xl p-6 relative overflow-hidden">
