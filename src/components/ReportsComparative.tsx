@@ -126,9 +126,9 @@ export default function ReportsComparative({ services, expenses, subCategories, 
     }
   }, [username, subCategories]);
 
-  // Helper to compute metrics for a single period
+  // Helper to compute metrics for a single period (strictly PAID services as per user request)
   const computePeriodMetrics = (start: string, end: string) => {
-    const filteredServices = services.filter(s => s.date >= start && s.date <= end);
+    const filteredServices = services.filter(s => s.date >= start && s.date <= end && s.status === 'PAGO');
     const filteredExpenses = expenses.filter(e => e.date >= start && e.date <= end);
 
     // 1. Core revenues
