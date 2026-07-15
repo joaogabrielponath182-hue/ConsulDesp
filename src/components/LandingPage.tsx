@@ -63,19 +63,6 @@ export default function LandingPage({ onGoToLogin, onGoToTestDrive }: LandingPag
 
       // Save to Cloud Firestore
       await saveLead(newLead);
-
-      // Formulate WhatsApp message
-      const formattedMessage = `Olá! Acabo de preencher o formulário no site ConsulDesp Financeiro para solicitar uma demonstração gratuita:\n\n` +
-        `• *Nome*: ${leadName}\n` +
-        `• *E-mail*: ${leadEmail}\n` +
-        `• *WhatsApp*: ${leadPhone}\n` +
-        (leadAgency ? `• *Escritório*: ${leadAgency}\n` : '') +
-        `\nPor favor, libere meu acesso de teste gratuito de 14 dias!`;
-
-      const whatsappUrl = `https://api.whatsapp.com/send?phone=5527998862214&text=${encodeURIComponent(formattedMessage)}`;
-      
-      // Auto-open WhatsApp
-      window.open(whatsappUrl, '_blank');
     } catch (err) {
       console.error("Erro ao salvar lead no Firestore:", err);
     } finally {
@@ -802,10 +789,10 @@ export default function LandingPage({ onGoToLogin, onGoToTestDrive }: LandingPag
                   <div className="space-y-2">
                     <h4 className="text-base font-black text-white uppercase tracking-wider">Solicitação Enviada com Sucesso!</h4>
                     <p className="text-xs text-slate-300 leading-relaxed">
-                      Sua solicitação de teste gratuito foi registrada no banco de dados em nuvem do ConsulDesp!
+                      Sua solicitação de teste gratuito de 14 dias foi registrada com sucesso no banco de dados em nuvem do ConsulDesp!
                     </p>
                     <p className="text-xs text-slate-400 leading-relaxed">
-                      Tentamos abrir o seu WhatsApp automaticamente para iniciar o atendimento imediato. Caso a conversa não tenha sido iniciada, escolha uma das opções de contato direto abaixo para falar com o administrador <strong>João Gabriel</strong>:
+                      Nossa equipe especializada analisará seus dados e entrará em contato via WhatsApp ou E-mail para configurar sua demonstração. Se preferir atendimento imediato, você também pode falar conosco diretamente:
                     </p>
                   </div>
 
