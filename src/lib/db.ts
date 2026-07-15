@@ -15,7 +15,7 @@ import {
   where,
   writeBatch 
 } from 'firebase/firestore';
-import { Service, Expense, SubCategory, PersonalExpense, Client, InternalUser } from '../types';
+import { Service, Expense, SubCategory, PersonalExpense, Client, InternalUser, Lead } from '../types';
 
 
 export enum OperationType {
@@ -71,6 +71,7 @@ const EXPENSES_COLL = 'expenses';
 const SUBCATEGORIES_COLL = 'subcategories';
 const PERSONAL_EXPENSES_COLL = 'personal_expenses';
 const CLIENTS_COLL = 'clients';
+const LEADS_COLL = 'leads';
 
 /**
  * Removes all properties with value of `undefined` recursively to prevent Firestore errors
@@ -827,6 +828,69 @@ export function cleanAndDeduplicateSubcategories(list: SubCategory[]): SubCatego
   });
 
   return cleaned;
+}
+
+/**
+ * Save/Update a single Lead doc
+ */
+export async function saveLead(lead: Lead) {
+  try {
+    const docRef = doc(db, LEADS_COLL, lead.id);
+    await setDoc(docRef, cleanObject(lead));
+    trackFirestoreOp('write', 1);
+  } catch (err) {
+    console.error("Error saving lead to Firestore: ", err);
+    handleFirestoreError(err, OperationType.WRITE, `${LEADS_COLL}/${lead.id}`);
+    throw err;
+  }
+}
+
+/**
+ * Delete a single Lead doc
+ */
+export async function deleteLead(leadId: string) {
+  try {
+    const docRef = doc(db, LEADS_COLL, leadId);
+    await deleteDoc(docRef);
+    trackFirestoreOp('delete', 1);
+  } catch (err) {
+    console.error("Error deleting lead from Firestore: ", err);
+    handleFirestoreError(err, OperationType.DELETE, `${LEADS_COLL}/${leadId}`);
+    throw err;
+  }
+}
+
+/**
+ * Fetch all Leads sorted by date (newest first)
+ */
+export async function fetchLeads() {
+  try {
+    const leadsQuery = query(collection(db, LEADS_COLL));
+    const snap = await getDocs(leadsQuery);
+    trackFirestoreOp('read', snap.size);
+    
+    const leads: Lead[] = [];
+    snap.forEach((docSnap) => {
+      const data = docSnap.data();
+      leads.push({
+        id: docSnap.id,
+        name: data.name || '',
+        email: data.email || '',
+        phone: data.phone || '',
+        agency: data.agency || '',
+        createdAt: data.createdAt || '',
+        status: data.status || 'PENDENTE'
+      });
+    });
+    
+    // Sort in memory by createdAt descending
+    leads.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+    return leads;
+  } catch (err) {
+    console.error("Error fetching leads from Firestore: ", err);
+    handleFirestoreError(err, OperationType.GET, LEADS_COLL);
+    throw err;
+  }
 }
 
 

@@ -29,5 +29,9 @@ service cloud.firestore {
     match /internal_users/{id} {
       allow read, write: if true;
     }
+
+    match /leads/{id} {
+      allow read, write: if true;
+    }
   }
 }

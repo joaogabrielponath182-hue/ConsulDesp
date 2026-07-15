@@ -54,6 +54,7 @@ import {
 import AuthModal from './components/AuthModal';
 import LoginScreen from './components/LoginScreen';
 import UserManagement from './components/UserManagement';
+import LeadsManagement from './components/LeadsManagement';
 import LandingPage from './components/LandingPage';
 import TestDrivePage from './components/TestDrivePage';
 
@@ -1592,6 +1593,7 @@ export default function App() {
                  currentTab === 'reports-expenses' ? 'Relatório de Saídas' :
                  currentTab === 'reports-comparative' ? 'Relatório Comparativo' :
                  currentTab === 'usermanagement' ? 'Usuários' :
+                 currentTab === 'leads' ? 'Leads do Site' :
                  currentTab.toUpperCase()}
               </span>
             </div>
@@ -1814,6 +1816,10 @@ export default function App() {
               onRemoveUser={handleRevokeUser}
               onUpdateUser={handleUpdateUser}
             />
+          )}
+
+          {currentTab === 'leads' && currentSession?.isAdmin && (
+            <LeadsManagement />
           )}
         </main>
       </div>

@@ -23,11 +23,12 @@ import {
   LogOut,
   HelpCircle,
   Database,
-  RefreshCw
+  RefreshCw,
+  MessageSquare
 } from 'lucide-react';
 import { motion } from 'motion/react';
 import { User } from 'firebase/auth';
-import { Service, Expense, SubCategory, UserSession, Client, InternalUser, PersonalExpense } from '../types';
+import { Service, Expense, SubCategory, UserSession, Client, InternalUser, PersonalExpense, Lead } from '../types';
 import { getFirestoreUsageMetrics, UsageMetrics } from '../lib/db';
 
 
@@ -149,7 +150,8 @@ export default function Sidebar({
       ]
     },
     ...(currentSession?.isAdmin ? [
-      { id: 'usermanagement', name: 'Controle de Usuários', icon: ShieldCheck }
+      { id: 'usermanagement', name: 'Controle de Usuários', icon: ShieldCheck },
+      { id: 'leads', name: 'Leads do Site', icon: MessageSquare }
     ] : [])
   ];
 

@@ -20,9 +20,13 @@ import {
   Layers,
   FileCheck2,
   Calendar,
-  Check
+  Check,
+  Mail,
+  Phone
 } from 'lucide-react';
 import SystemLogo from './SystemLogo';
+import { saveLead } from '../lib/db';
+import { Lead } from '../types';
 
 interface LandingPageProps {
   onGoToLogin: () => void;
@@ -46,10 +50,38 @@ export default function LandingPage({ onGoToLogin, onGoToTestDrive }: LandingPag
     if (!leadName || !leadEmail || !leadPhone) return;
 
     setLeadLoading(true);
-    // Simulate API registration delay
-    await new Promise((resolve) => setTimeout(resolve, 800));
-    setLeadLoading(false);
-    setLeadSubmitted(true);
+    try {
+      const newLead: Lead = {
+        id: 'lead-' + Math.random().toString(36).substring(2, 11),
+        name: leadName,
+        email: leadEmail,
+        phone: leadPhone,
+        agency: leadAgency || '',
+        createdAt: new Date().toISOString(),
+        status: 'PENDENTE'
+      };
+
+      // Save to Cloud Firestore
+      await saveLead(newLead);
+
+      // Formulate WhatsApp message
+      const formattedMessage = `Olá! Acabo de preencher o formulário no site ConsulDesp Financeiro para solicitar uma demonstração gratuita:\n\n` +
+        `• *Nome*: ${leadName}\n` +
+        `• *E-mail*: ${leadEmail}\n` +
+        `• *WhatsApp*: ${leadPhone}\n` +
+        (leadAgency ? `• *Escritório*: ${leadAgency}\n` : '') +
+        `\nPor favor, libere meu acesso de teste gratuito de 14 dias!`;
+
+      const whatsappUrl = `https://api.whatsapp.com/send?phone=5527998862214&text=${encodeURIComponent(formattedMessage)}`;
+      
+      // Auto-open WhatsApp
+      window.open(whatsappUrl, '_blank');
+    } catch (err) {
+      console.error("Erro ao salvar lead no Firestore:", err);
+    } finally {
+      setLeadLoading(false);
+      setLeadSubmitted(true);
+    }
   };
 
   const toggleFaq = (index: number) => {
@@ -761,23 +793,73 @@ export default function LandingPage({ onGoToLogin, onGoToTestDrive }: LandingPag
                   key="lead-success"
                   initial={{ opacity: 0, scale: 0.95 }}
                   animate={{ opacity: 1, scale: 1 }}
-                  className="p-8 bg-emerald-500/5 border border-emerald-500/10 rounded-2xl max-w-md mx-auto space-y-4 text-center"
+                  className="p-8 bg-emerald-500/5 border border-emerald-500/10 rounded-2xl max-w-lg mx-auto space-y-6 text-center"
                 >
                   <div className="mx-auto w-12 h-12 bg-emerald-500/15 border border-emerald-500/30 rounded-full flex items-center justify-center text-emerald-400">
                     <CheckCircle2 size={24} />
                   </div>
-                  <div className="space-y-1">
-                    <h4 className="text-sm font-black text-white uppercase tracking-wider">Solicitação Registrada!</h4>
+                  
+                  <div className="space-y-2">
+                    <h4 className="text-base font-black text-white uppercase tracking-wider">Solicitação Enviada com Sucesso!</h4>
                     <p className="text-xs text-slate-300 leading-relaxed">
-                      Obrigado pelo seu interesse! Um de nossos consultores financeiros especializados entrará em contato via WhatsApp no número <strong>{leadPhone}</strong> em até 15 minutos para configurar e liberar sua conta de demonstração.
+                      Sua solicitação de teste gratuito foi registrada no banco de dados em nuvem do ConsulDesp!
+                    </p>
+                    <p className="text-xs text-slate-400 leading-relaxed">
+                      Tentamos abrir o seu WhatsApp automaticamente para iniciar o atendimento imediato. Caso a conversa não tenha sido iniciada, escolha uma das opções de contato direto abaixo para falar com o administrador <strong>João Gabriel</strong>:
                     </p>
                   </div>
-                  <button
-                    onClick={() => setLeadSubmitted(false)}
-                    className="py-2 px-4 rounded-lg bg-slate-800 hover:bg-slate-750 text-slate-300 hover:text-white text-[10px] font-bold uppercase tracking-wider transition-all cursor-pointer"
-                  >
-                    Enviar Outro Contato
-                  </button>
+
+                  {/* Direct Contact Buttons */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2">
+                    {/* WhatsApp Button */}
+                    <a
+                      href={`https://api.whatsapp.com/send?phone=5527998862214&text=${encodeURIComponent(
+                        `Olá! Acabo de preencher o formulário no site ConsulDesp Financeiro para solicitar uma demonstração gratuita:\n\n` +
+                        `• *Nome*: ${leadName}\n` +
+                        `• *E-mail*: ${leadEmail}\n` +
+                        `• *WhatsApp*: ${leadPhone}\n` +
+                        (leadAgency ? `• *Escritório*: ${leadAgency}\n` : '') +
+                        `\nPor favor, libere meu acesso de teste gratuito de 14 dias!`
+                      )}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-center justify-center gap-2 py-3 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold uppercase tracking-wider transition-all shadow-md shadow-emerald-600/10 active:scale-[0.98]"
+                    >
+                      <MessageSquare size={16} />
+                      <span>Falar no WhatsApp</span>
+                    </a>
+
+                    {/* Email Button */}
+                    <a
+                      href={`mailto:jgdespachantesmj@outlook.com?subject=${encodeURIComponent('Solicitação de Demonstração - ConsulDesp')}&body=${encodeURIComponent(
+                        `Olá João Gabriel,\n\nAcabo de preencher o formulário no site ConsulDesp Financeiro para solicitar um teste gratuito de 14 dias com os seguintes dados:\n\n` +
+                        `• Nome: ${leadName}\n` +
+                        `• E-mail: ${leadEmail}\n` +
+                        `• WhatsApp: ${leadPhone}\n` +
+                        (leadAgency ? `• Escritório: ${leadAgency}\n` : '') +
+                        `\nPor favor, libere meu acesso de demonstração!\n\nAtenciosamente,\n${leadName}`
+                      )}`}
+                      className="flex items-center justify-center gap-2 py-3 px-4 rounded-xl bg-slate-800 hover:bg-slate-750 border border-slate-700 text-slate-200 hover:text-white text-xs font-bold uppercase tracking-wider transition-all active:scale-[0.98]"
+                    >
+                      <Mail size={16} className="text-sky-400" />
+                      <span>Enviar E-mail</span>
+                    </a>
+                  </div>
+
+                  <div className="pt-2 border-t border-slate-800/50">
+                    <button
+                      onClick={() => {
+                        setLeadName('');
+                        setLeadEmail('');
+                        setLeadPhone('');
+                        setLeadAgency('');
+                        setLeadSubmitted(false);
+                      }}
+                      className="text-slate-400 hover:text-white text-[10px] font-bold uppercase tracking-widest transition-all cursor-pointer underline decoration-dotted"
+                    >
+                      Enviar Outro Contato
+                    </button>
+                  </div>
                 </motion.div>
               )}
             </AnimatePresence>

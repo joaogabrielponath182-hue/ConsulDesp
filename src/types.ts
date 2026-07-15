@@ -97,3 +97,13 @@ export interface UserSession {
   sessionId: string;
 }
 
+export interface Lead {
+  id: string;
+  name: string;
+  email: string;
+  phone: string;
+  agency?: string;
+  createdAt: string;
+  status: 'PENDENTE' | 'CONTATADO' | 'REJEITADO';
+}
+
