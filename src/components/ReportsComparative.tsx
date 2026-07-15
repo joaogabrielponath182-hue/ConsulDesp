@@ -66,14 +66,28 @@ export default function ReportsComparative({ services, expenses, subCategories, 
     return `${year}-${month}-${day}`;
   };
 
-  // State for date ranges
-  // Period A defaults: Current month start to end
-  const [startDateA, setStartDateA] = useState<string>(getMonthStartString(0));
-  const [endDateA, setEndDateA] = useState<string>(getMonthEndString(0));
+  const getSameDayPreviousMonthString = () => {
+    const d = new Date();
+    const todayDay = d.getDate();
+    d.setDate(1);
+    d.setMonth(d.getMonth() - 1);
+    const maxDays = new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate();
+    const targetDay = Math.min(todayDay, maxDays);
+    d.setDate(targetDay);
+    const year = d.getFullYear();
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  };
 
-  // Period B defaults: Previous month start to end
+  // State for date ranges
+  // Period A defaults: Current month start to today
+  const [startDateA, setStartDateA] = useState<string>(getMonthStartString(0));
+  const [endDateA, setEndDateA] = useState<string>(getLocalDateString(0));
+
+  // Period B defaults: Previous month start to previous month same day
   const [startDateB, setStartDateB] = useState<string>(getMonthStartString(1));
-  const [endDateB, setEndDateB] = useState<string>(getMonthEndString(1));
+  const [endDateB, setEndDateB] = useState<string>(getSameDayPreviousMonthString());
 
   const formatCurrency = (val: number) => {
     return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(val);
@@ -562,9 +576,220 @@ export default function ReportsComparative({ services, expenses, subCategories, 
         </div>
       </div>
 
-      {/* Side-by-Side KPI Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        
+      {/* Main Comparisons (Lucro Livre & Gastos Pessoais Side-by-Side) */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* Lucro Livre Comparativo Card */}
+        <div className="bg-[#161B22] border border-slate-800 rounded-2xl p-6 relative overflow-hidden">
+          <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-emerald-500 to-indigo-500"></div>
+          <div className="flex justify-between items-start mb-3">
+            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Lucro Livre Comparativo</span>
+            <div className="p-2 rounded-lg bg-emerald-500/10 text-emerald-400">
+              <TrendingUpIcon size={16} />
+            </div>
+          </div>
+          
+          <div className="space-y-3">
+            {(() => {
+              const totalLivreA = metricsA.selectedPaidRevenues - metricsA.selectedExpenses;
+              const totalLivreB = metricsB.selectedPaidRevenues - metricsB.selectedExpenses;
+              const { diff, pct } = getVariance(totalLivreA, totalLivreB);
+
+              return (
+                <>
+                  <div className="flex justify-between items-baseline">
+                    <span className="text-xs text-slate-455">Período A:</span>
+                    <span className={`text-lg font-black font-mono ${totalLivreA >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+                      {formatCurrency(totalLivreA)}
+                    </span>
+                  </div>
+                  <div className="flex justify-between items-baseline border-b border-slate-850 pb-2.5">
+                    <span className="text-xs text-slate-455">Período B:</span>
+                    <span className={`text-sm font-bold font-mono ${totalLivreB >= 0 ? 'text-slate-300' : 'text-rose-450'}`}>
+                      {formatCurrency(totalLivreB)}
+                    </span>
+                  </div>
+                  
+                  {/* Variance */}
+                  <div className="flex justify-between items-center text-xs pt-1 border-b border-slate-850 pb-3">
+                    <span className="text-slate-400">Variação:</span>
+                    <span className={`font-bold font-mono flex items-center gap-1 ${diff >= 0 ? 'text-emerald-400' : 'text-rose-455'}`}>
+                      {diff >= 0 ? '+' : ''}{formatCurrency(diff)} ({diff >= 0 ? '+' : ''}{pct.toFixed(1)}%)
+                    </span>
+                  </div>
+                </>
+              );
+            })()}
+
+            {/* Category breakdown (Entradas and Saídas Side-by-Side) */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-1 animate-fadeIn">
+              {/* ENTRADAS */}
+              <div className="space-y-2">
+                <span className="text-[9px] font-extrabold text-emerald-400 uppercase tracking-widest block border-b border-slate-800/40 pb-1">Entradas Selecionadas</span>
+                {lucroLivreRevenuesComparison.length === 0 ? (
+                  <p className="text-[10px] text-slate-500 italic">Nenhuma categoria de entrada selecionada no painel principal.</p>
+                ) : (
+                  <div className="space-y-2 select-none">
+                    {lucroLivreRevenuesComparison.map(item => {
+                      const hasA = item.valA > 0;
+                      const hasB = item.valB > 0;
+                      if (!hasA && !hasB) return null; // skip empty
+
+                      const diffVal = item.valA - item.valB;
+                      const trendColor = diffVal >= 0 ? 'text-emerald-400' : 'text-rose-455';
+                      const trendIcon = diffVal > 0 ? '🔺' : diffVal < 0 ? '🔻' : '➖';
+                      const trendText = diffVal > 0 ? 'Aumentou' : diffVal < 0 ? 'Diminuiu' : 'Estável';
+
+                      return (
+                        <div key={item.category} className="p-2 bg-[#0F1115] rounded-xl border border-slate-850 text-[11px] space-y-1">
+                          <div className="flex justify-between font-bold text-slate-200 uppercase tracking-wide">
+                            <span className="truncate max-w-[120px]" title={item.category}>{item.category}</span>
+                            <span className={`${trendColor} flex items-center gap-0.5 text-[10px]`}>
+                              {trendText} {trendIcon}
+                            </span>
+                          </div>
+                          <div className="flex justify-between text-[10px] text-slate-450 font-medium font-mono">
+                            <span>A: {formatCurrency(item.valA)}</span>
+                            <span>B: {formatCurrency(item.valB)}</span>
+                          </div>
+                          {diffVal !== 0 && (
+                            <div className={`text-[9px] font-mono font-bold ${trendColor} text-right`}>
+                              Var: {diffVal > 0 ? '+' : ''}{formatCurrency(diffVal)} ({diffVal > 0 ? '+' : ''}{item.pct.toFixed(1)}%)
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+
+              {/* SAÍDAS */}
+              <div className="space-y-2 md:border-l md:border-slate-800/40 md:pl-3">
+                <span className="text-[9px] font-extrabold text-rose-455 uppercase tracking-widest block border-b border-slate-800/40 pb-1">Saídas Selecionadas</span>
+                {lucroLivreExpensesComparison.length === 0 ? (
+                  <p className="text-[10px] text-slate-500 italic">Nenhuma categoria de saída selecionada no painel principal.</p>
+                ) : (
+                  <div className="space-y-2 select-none">
+                    {lucroLivreExpensesComparison.map(item => {
+                      const hasA = item.valA > 0;
+                      const hasB = item.valB > 0;
+                      if (!hasA && !hasB) return null; // skip empty
+
+                      const diffVal = item.valA - item.valB;
+                      const trendColor = diffVal <= 0 ? 'text-emerald-400' : 'text-rose-455';
+                      const trendIcon = diffVal > 0 ? '🔺' : diffVal < 0 ? '🔻' : '➖';
+                      const trendText = diffVal > 0 ? 'Aumentou' : diffVal < 0 ? 'Diminuiu' : 'Estável';
+
+                      return (
+                        <div key={item.category} className="p-2 bg-[#0F1115] rounded-xl border border-slate-850 text-[11px] space-y-1">
+                          <div className="flex justify-between font-bold text-slate-200 uppercase tracking-wide">
+                            <span className="truncate max-w-[120px]" title={item.category}>{item.category}</span>
+                            <span className={`${trendColor} flex items-center gap-0.5 text-[10px]`}>
+                              {trendText} {trendIcon}
+                            </span>
+                          </div>
+                          <div className="flex justify-between text-[10px] text-slate-450 font-medium font-mono">
+                            <span>A: {formatCurrency(item.valA)}</span>
+                            <span>B: {formatCurrency(item.valB)}</span>
+                          </div>
+                          {diffVal !== 0 && (
+                            <div className={`text-[9px] font-mono font-bold ${trendColor} text-right`}>
+                              Var: {diffVal > 0 ? '+' : ''}{formatCurrency(diffVal)} ({diffVal > 0 ? '+' : ''}{item.pct.toFixed(1)}%)
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Gastos Pessoais Comparativo Card */}
+        <div className="bg-[#161B22] border border-slate-800 rounded-2xl p-6 relative overflow-hidden">
+          <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-violet-500 to-fuchsia-500"></div>
+          <div className="flex justify-between items-start mb-3">
+            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Gastos Pessoais Comparativo</span>
+            <div className="p-2 rounded-lg bg-violet-500/10 text-violet-400">
+              <User size={16} />
+            </div>
+          </div>
+          
+          <div className="space-y-3">
+            <div className="flex justify-between items-baseline">
+              <span className="text-xs text-slate-450">Período A:</span>
+              <span className="text-lg font-black text-white font-mono">
+                {formatCurrency(metricsA.personalExpensesTotal)}
+              </span>
+            </div>
+            <div className="flex justify-between items-baseline border-b border-slate-850 pb-2.5">
+              <span className="text-xs text-slate-450">Período B:</span>
+              <span className="text-sm font-bold text-slate-400 font-mono">
+                {formatCurrency(metricsB.personalExpensesTotal)}
+              </span>
+            </div>
+            
+            {/* Variance */}
+            {(() => {
+              const { diff, pct } = getVariance(metricsA.personalExpensesTotal, metricsB.personalExpensesTotal);
+              return (
+                <div className="flex justify-between items-center text-xs pt-1 border-b border-slate-850 pb-2.5">
+                  <span className="text-slate-400">Variação:</span>
+                  <span className={`font-bold font-mono flex items-center gap-1 ${diff <= 0 ? 'text-emerald-400' : 'text-rose-455'}`}>
+                    {diff > 0 ? '+' : ''}{formatCurrency(diff)} ({diff > 0 ? '+' : ''}{pct.toFixed(1)}%)
+                  </span>
+                </div>
+              );
+            })()}
+
+            {/* Category-by-category considerations */}
+            <div className="space-y-2 pt-1.5 animate-fadeIn">
+              <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider block border-b border-slate-880/40 pb-1">Considerações por Categoria</span>
+              {personalExpenseCategoriesComparison.length === 0 ? (
+                <p className="text-[10px] text-slate-500 italic">Nenhuma categoria de gasto pessoal selecionada no painel principal.</p>
+              ) : (
+                <div className="space-y-2 select-none">
+                  {personalExpenseCategoriesComparison.map(item => {
+                    const hasA = item.valA > 0;
+                    const hasB = item.valB > 0;
+                    if (!hasA && !hasB) return null; // skip empty categories in both periods
+
+                    const diffVal = item.valA - item.valB;
+                    const trendColor = diffVal <= 0 ? 'text-emerald-400' : 'text-rose-455';
+                    const trendIcon = diffVal > 0 ? '🔺' : diffVal < 0 ? '🔻' : '➖';
+                    const trendText = diffVal > 0 ? 'Aumentou' : diffVal < 0 ? 'Diminuiu' : 'Estável';
+
+                    return (
+                      <div key={item.category} className="p-2 bg-[#0F1115] rounded-xl border border-slate-850 text-[11px] space-y-1">
+                        <div className="flex justify-between font-bold text-slate-200 uppercase tracking-wide">
+                          <span className="truncate max-w-[120px]" title={item.category}>{item.category}</span>
+                          <span className={`${trendColor} flex items-center gap-0.5 text-[10px]`}>
+                            {trendText} {trendIcon}
+                          </span>
+                        </div>
+                        <div className="flex justify-between text-[10px] text-slate-450 font-medium font-mono">
+                          <span>A: {formatCurrency(item.valA)}</span>
+                          <span>B: {formatCurrency(item.valB)}</span>
+                        </div>
+                        {diffVal !== 0 && (
+                          <div className={`text-[9px] font-mono font-bold ${trendColor} text-right`}>
+                            Var: {diffVal > 0 ? '+' : ''}{formatCurrency(diffVal)} ({diffVal > 0 ? '+' : ''}{item.pct.toFixed(1)}%)
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* General Recorded Metrics (Entradas & Saídas stacked vertically) */}
+      <div className="space-y-6">
         {/* Entradas Realizadas (PAGO) */}
         <div className="bg-[#161B22] border border-slate-800 rounded-2xl p-6 relative overflow-hidden">
           <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-emerald-500 to-emerald-400"></div>
@@ -634,222 +859,6 @@ export default function ReportsComparative({ services, expenses, subCategories, 
             })()}
           </div>
         </div>
-
-      {/* Lucro Livre & Gastos Pessoais Column */}
-      <div className="space-y-6">
-        {/* Lucro Livre Comparativo Card */}
-        <div className="bg-[#161B22] border border-slate-800 rounded-2xl p-6 relative overflow-hidden">
-          <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-emerald-500 to-indigo-500"></div>
-          <div className="flex justify-between items-start mb-3">
-            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Lucro Livre Comparativo</span>
-            <div className="p-2 rounded-lg bg-emerald-500/10 text-emerald-400">
-              <TrendingUpIcon size={16} />
-            </div>
-          </div>
-          
-          <div className="space-y-3">
-            {(() => {
-              const totalLivreA = metricsA.selectedPaidRevenues - metricsA.selectedExpenses;
-              const totalLivreB = metricsB.selectedPaidRevenues - metricsB.selectedExpenses;
-              const { diff, pct } = getVariance(totalLivreA, totalLivreB);
-
-              return (
-                <>
-                  <div className="flex justify-between items-baseline">
-                    <span className="text-xs text-slate-455">Período A:</span>
-                    <span className={`text-lg font-black font-mono ${totalLivreA >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
-                      {formatCurrency(totalLivreA)}
-                    </span>
-                  </div>
-                  <div className="flex justify-between items-baseline border-b border-slate-850 pb-2.5">
-                    <span className="text-xs text-slate-455">Período B:</span>
-                    <span className={`text-sm font-bold font-mono ${totalLivreB >= 0 ? 'text-slate-300' : 'text-rose-450'}`}>
-                      {formatCurrency(totalLivreB)}
-                    </span>
-                  </div>
-                  
-                  {/* Variance */}
-                  <div className="flex justify-between items-center text-xs pt-1 border-b border-slate-850 pb-3">
-                    <span className="text-slate-400">Variação:</span>
-                    <span className={`font-bold font-mono flex items-center gap-1 ${diff >= 0 ? 'text-emerald-400' : 'text-rose-455'}`}>
-                      {diff >= 0 ? '+' : ''}{formatCurrency(diff)} ({diff >= 0 ? '+' : ''}{pct.toFixed(1)}%)
-                    </span>
-                  </div>
-                </>
-              );
-            })()}
-
-            {/* Category breakdown (Entradas and Saídas) */}
-            <div className="space-y-4 pt-1 animate-fadeIn">
-              {/* ENTRADAS */}
-              <div className="space-y-2">
-                <span className="text-[9px] font-extrabold text-emerald-400 uppercase tracking-widest block">Entradas Selecionadas</span>
-                {lucroLivreRevenuesComparison.length === 0 ? (
-                  <p className="text-[10px] text-slate-500 italic">Nenhuma categoria de entrada selecionada no painel principal.</p>
-                ) : (
-                  <div className="space-y-2 max-h-[140px] overflow-y-auto pr-1 select-none scrollbar-thin">
-                    {lucroLivreRevenuesComparison.map(item => {
-                      const hasA = item.valA > 0;
-                      const hasB = item.valB > 0;
-                      if (!hasA && !hasB) return null; // skip empty
-
-                      const diffVal = item.valA - item.valB;
-                      const trendColor = diffVal >= 0 ? 'text-emerald-400' : 'text-rose-455';
-                      const trendIcon = diffVal > 0 ? '🔺' : diffVal < 0 ? '🔻' : '➖';
-                      const trendText = diffVal > 0 ? 'Aumentou' : diffVal < 0 ? 'Diminuiu' : 'Estável';
-
-                      return (
-                        <div key={item.category} className="p-2 bg-[#0F1115] rounded-xl border border-slate-850 text-[11px] space-y-1">
-                          <div className="flex justify-between font-bold text-slate-200 uppercase tracking-wide">
-                            <span className="truncate max-w-[120px]">{item.category}</span>
-                            <span className={`${trendColor} flex items-center gap-0.5 text-[10px]`}>
-                              {trendText} {trendIcon}
-                            </span>
-                          </div>
-                          <div className="flex justify-between text-[10px] text-slate-450 font-medium font-mono">
-                            <span>A: {formatCurrency(item.valA)}</span>
-                            <span>B: {formatCurrency(item.valB)}</span>
-                          </div>
-                          {diffVal !== 0 && (
-                            <div className={`text-[9px] font-mono font-bold ${trendColor} text-right`}>
-                              Var: {diffVal > 0 ? '+' : ''}{formatCurrency(diffVal)} ({diffVal > 0 ? '+' : ''}{item.pct.toFixed(1)}%)
-                            </div>
-                          )}
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
-              </div>
-
-              {/* Separator */}
-              <div className="border-t border-slate-800/60 my-1"></div>
-
-              {/* SAÍDAS */}
-              <div className="space-y-2">
-                <span className="text-[9px] font-extrabold text-rose-450 uppercase tracking-widest block">Saídas Selecionadas</span>
-                {lucroLivreExpensesComparison.length === 0 ? (
-                  <p className="text-[10px] text-slate-500 italic">Nenhuma categoria de saída selecionada no painel principal.</p>
-                ) : (
-                  <div className="space-y-2 max-h-[140px] overflow-y-auto pr-1 select-none scrollbar-thin">
-                    {lucroLivreExpensesComparison.map(item => {
-                      const hasA = item.valA > 0;
-                      const hasB = item.valB > 0;
-                      if (!hasA && !hasB) return null; // skip empty
-
-                      const diffVal = item.valA - item.valB;
-                      const trendColor = diffVal <= 0 ? 'text-emerald-400' : 'text-rose-455';
-                      const trendIcon = diffVal > 0 ? '🔺' : diffVal < 0 ? '🔻' : '➖';
-                      const trendText = diffVal > 0 ? 'Aumentou' : diffVal < 0 ? 'Diminuiu' : 'Estável';
-
-                      return (
-                        <div key={item.category} className="p-2 bg-[#0F1115] rounded-xl border border-slate-850 text-[11px] space-y-1">
-                          <div className="flex justify-between font-bold text-slate-200 uppercase tracking-wide">
-                            <span className="truncate max-w-[120px]">{item.category}</span>
-                            <span className={`${trendColor} flex items-center gap-0.5 text-[10px]`}>
-                              {trendText} {trendIcon}
-                            </span>
-                          </div>
-                          <div className="flex justify-between text-[10px] text-slate-450 font-medium font-mono">
-                            <span>A: {formatCurrency(item.valA)}</span>
-                            <span>B: {formatCurrency(item.valB)}</span>
-                          </div>
-                          {diffVal !== 0 && (
-                            <div className={`text-[9px] font-mono font-bold ${trendColor} text-right`}>
-                              Var: {diffVal > 0 ? '+' : ''}{formatCurrency(diffVal)} ({diffVal > 0 ? '+' : ''}{item.pct.toFixed(1)}%)
-                            </div>
-                          )}
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
-        </div>
-
-          {/* Gastos Pessoais Comparativo Card */}
-          <div className="bg-[#161B22] border border-slate-800 rounded-2xl p-6 relative overflow-hidden">
-            <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-violet-500 to-fuchsia-500"></div>
-            <div className="flex justify-between items-start mb-3">
-              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Gastos Pessoais Comparativo</span>
-              <div className="p-2 rounded-lg bg-violet-500/10 text-violet-400">
-                <User size={16} />
-              </div>
-            </div>
-            
-            <div className="space-y-3">
-              <div className="flex justify-between items-baseline">
-                <span className="text-xs text-slate-450">Período A:</span>
-                <span className="text-lg font-black text-white font-mono">
-                  {formatCurrency(metricsA.personalExpensesTotal)}
-                </span>
-              </div>
-              <div className="flex justify-between items-baseline border-b border-slate-850 pb-2.5">
-                <span className="text-xs text-slate-450">Período B:</span>
-                <span className="text-sm font-bold text-slate-400 font-mono">
-                  {formatCurrency(metricsB.personalExpensesTotal)}
-                </span>
-              </div>
-              
-              {/* Variance */}
-              {(() => {
-                const { diff, pct } = getVariance(metricsA.personalExpensesTotal, metricsB.personalExpensesTotal);
-                return (
-                  <div className="flex justify-between items-center text-xs pt-1 border-b border-slate-850 pb-2.5">
-                    <span className="text-slate-400">Variação:</span>
-                    <span className={`font-bold font-mono flex items-center gap-1 ${diff <= 0 ? 'text-emerald-400' : 'text-rose-455'}`}>
-                      {diff > 0 ? '+' : ''}{formatCurrency(diff)} ({diff > 0 ? '+' : ''}{pct.toFixed(1)}%)
-                    </span>
-                  </div>
-                );
-              })()}
-
-              {/* Category-by-category considerations */}
-              <div className="space-y-2 pt-1.5 animate-fadeIn">
-                <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider block">Considerações por Categoria:</span>
-                {personalExpenseCategoriesComparison.length === 0 ? (
-                  <p className="text-[10px] text-slate-500 italic">Nenhuma categoria de gasto pessoal selecionada no painel principal.</p>
-                ) : (
-                  <div className="space-y-2 max-h-[160px] overflow-y-auto pr-1 select-none scrollbar-thin">
-                    {personalExpenseCategoriesComparison.map(item => {
-                      const hasA = item.valA > 0;
-                      const hasB = item.valB > 0;
-                      if (!hasA && !hasB) return null; // skip empty categories in both periods
-
-                      const diffVal = item.valA - item.valB;
-                      const trendColor = diffVal <= 0 ? 'text-emerald-400' : 'text-rose-455';
-                      const trendIcon = diffVal > 0 ? '🔺' : diffVal < 0 ? '🔻' : '➖';
-                      const trendText = diffVal > 0 ? 'Aumentou' : diffVal < 0 ? 'Diminuiu' : 'Estável';
-
-                      return (
-                        <div key={item.category} className="p-2 bg-[#0F1115] rounded-xl border border-slate-850 text-[11px] space-y-1">
-                          <div className="flex justify-between font-bold text-slate-200 uppercase tracking-wide">
-                            <span className="truncate max-w-[120px]">{item.category}</span>
-                            <span className={`${trendColor} flex items-center gap-0.5 text-[10px]`}>
-                              {trendText} {trendIcon}
-                            </span>
-                          </div>
-                          <div className="flex justify-between text-[10px] text-slate-450 font-medium font-mono">
-                            <span>A: {formatCurrency(item.valA)}</span>
-                            <span>B: {formatCurrency(item.valB)}</span>
-                          </div>
-                          {diffVal !== 0 && (
-                            <div className={`text-[9px] font-mono font-bold ${trendColor} text-right`}>
-                              Var: {diffVal > 0 ? '+' : ''}{formatCurrency(diffVal)} ({diffVal > 0 ? '+' : ''}{item.pct.toFixed(1)}%)
-                            </div>
-                          )}
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
-        </div>
-
       </div>
 
       {/* Segmented Payment Methods Comparison Grid */}
