@@ -86,6 +86,46 @@ export default function ReportsComparative({ services, expenses, subCategories, 
     return [] as string[];
   }, [username]);
 
+  const selectedRevenueCats = useMemo(() => {
+    const saved = localStorage.getItem(`lucro_livre_revenue_cats_${username}`);
+    if (saved) {
+      try {
+        return JSON.parse(saved) as string[];
+      } catch (e) {
+        // Fallback
+      }
+    }
+    // Default matching logic from Dashboard
+    const userSubs = subCategories.filter(s => (s.type || 'RECEITA') === 'RECEITA');
+    const defaultNames = ["HONORARIO", "HONORÁRIO", "RET. CRLV-E", "ATPV-E"];
+    const matched = userSubs.filter(s => defaultNames.includes(s.name.toUpperCase().trim())).map(s => s.name.toUpperCase().trim());
+    if (matched.length > 0) {
+      return matched;
+    } else {
+      return userSubs.map(s => s.name.toUpperCase().trim());
+    }
+  }, [username, subCategories]);
+
+  const selectedExpenseCats = useMemo(() => {
+    const saved = localStorage.getItem(`lucro_livre_expense_cats_${username}`);
+    if (saved) {
+      try {
+        return JSON.parse(saved) as string[];
+      } catch (e) {
+        // Fallback
+      }
+    }
+    // Default matching logic from Dashboard
+    const userSubs = subCategories.filter(s => (s.type || 'RECEITA') === 'GASTO');
+    const defaultNames = ["ALUGUEL", "EDP", "PLANO DE SAÚDE", "TAMANINI", "VIVO", "GRUPO LIMA", "TERMOS", "DAS MEI"];
+    const matched = userSubs.filter(s => defaultNames.includes(s.name.toUpperCase().trim())).map(s => s.name.toUpperCase().trim());
+    if (matched.length > 0) {
+      return matched;
+    } else {
+      return userSubs.map(s => s.name.toUpperCase().trim());
+    }
+  }, [username, subCategories]);
+
   // Helper to compute metrics for a single period
   const computePeriodMetrics = (start: string, end: string) => {
     const filteredServices = services.filter(s => s.date >= start && s.date <= end);
@@ -99,9 +139,65 @@ export default function ReportsComparative({ services, expenses, subCategories, 
     // 2. Core expenses
     const totalExpenses = filteredExpenses.reduce((sum, e) => sum + e.value, 0);
 
-    // 3. Net profits
-    const netProfitRealized = paidRevenues - totalExpenses;
-    const netProfitTotal = totalRevenues - totalExpenses;
+    // 3. Lucro Livre selections and breakdowns
+    let selectedPaidRevenues = 0;
+    let selectedTotalRevenues = 0;
+    let selectedExpenses = 0;
+
+    const selectedRevenueCatsBreakdown: Record<string, number> = {};
+    const selectedRevenueCatsPaidBreakdown: Record<string, number> = {};
+    const selectedExpenseCatsBreakdown: Record<string, number> = {};
+
+    // Pre-populate with 0s to avoid missing fields
+    selectedRevenueCats.forEach(cat => {
+      selectedRevenueCatsBreakdown[cat] = 0;
+      selectedRevenueCatsPaidBreakdown[cat] = 0;
+    });
+    selectedExpenseCats.forEach(cat => {
+      selectedExpenseCatsBreakdown[cat] = 0;
+    });
+
+    filteredServices.forEach(srv => {
+      if (srv.items) {
+        srv.items.forEach(item => {
+          const catName = (item.name || '').trim().toUpperCase();
+          const normCatName = catName.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+          const matchedCat = selectedRevenueCats.find(sel => {
+            const selNorm = sel.trim().toUpperCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+            return selNorm === normCatName || sel.trim().toUpperCase() === catName;
+          });
+
+          if (matchedCat) {
+            selectedTotalRevenues += item.value;
+            selectedRevenueCatsBreakdown[matchedCat] = (selectedRevenueCatsBreakdown[matchedCat] || 0) + item.value;
+            if (srv.status === 'PAGO') {
+              selectedPaidRevenues += item.value;
+              selectedRevenueCatsPaidBreakdown[matchedCat] = (selectedRevenueCatsPaidBreakdown[matchedCat] || 0) + item.value;
+            }
+          }
+        });
+      }
+    });
+
+    filteredExpenses.forEach(exp => {
+      if (exp.category) {
+        const catName = exp.category.trim().toUpperCase();
+        const normCatName = catName.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+        const matchedCat = selectedExpenseCats.find(sel => {
+          const selNorm = sel.trim().toUpperCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+          return selNorm === normCatName || sel.trim().toUpperCase() === catName;
+        });
+
+        if (matchedCat) {
+          selectedExpenses += exp.value;
+          selectedExpenseCatsBreakdown[matchedCat] = (selectedExpenseCatsBreakdown[matchedCat] || 0) + exp.value;
+        }
+      }
+    });
+
+    // Net profits based on Lucro Livre selected categories as requested
+    const netProfitRealized = selectedPaidRevenues - selectedExpenses;
+    const netProfitTotal = selectedTotalRevenues - selectedExpenses;
 
     // 4. Segmented payments (Pix vs Cash) for PAGO revenues
     const pixRevenues = filteredServices
@@ -201,13 +297,19 @@ export default function ReportsComparative({ services, expenses, subCategories, 
       rawServicesCount: filteredServices.length,
       rawExpensesCount: filteredExpenses.length,
       personalExpensesTotal,
-      personalExpensesByCategory
+      personalExpensesByCategory,
+      selectedRevenueCatsBreakdown,
+      selectedRevenueCatsPaidBreakdown,
+      selectedExpenseCatsBreakdown,
+      selectedPaidRevenues,
+      selectedTotalRevenues,
+      selectedExpenses
     };
   };
 
   // Compute metrics for both periods
-  const metricsA = useMemo(() => computePeriodMetrics(startDateA, endDateA), [startDateA, endDateA, services, expenses, selectedPersonalExpenseCats]);
-  const metricsB = useMemo(() => computePeriodMetrics(startDateB, endDateB), [startDateB, endDateB, services, expenses, selectedPersonalExpenseCats]);
+  const metricsA = useMemo(() => computePeriodMetrics(startDateA, endDateA), [startDateA, endDateA, services, expenses, selectedPersonalExpenseCats, selectedRevenueCats, selectedExpenseCats]);
+  const metricsB = useMemo(() => computePeriodMetrics(startDateB, endDateB), [startDateB, endDateB, services, expenses, selectedPersonalExpenseCats, selectedRevenueCats, selectedExpenseCats]);
 
   // Helper to calculate percentage variance
   const getVariance = (valA: number, valB: number) => {
@@ -249,6 +351,24 @@ export default function ReportsComparative({ services, expenses, subCategories, 
     }).sort((a, b) => b.valA - a.valA);
   }, [metricsA, metricsB, selectedPersonalExpenseCats]);
 
+  const lucroLivreRevenuesComparison = useMemo(() => {
+    return selectedRevenueCats.map(cat => {
+      const valA = metricsA.selectedRevenueCatsPaidBreakdown[cat] || 0;
+      const valB = metricsB.selectedRevenueCatsPaidBreakdown[cat] || 0;
+      const { diff, pct } = getVariance(valA, valB);
+      return { category: cat, valA, valB, diff, pct };
+    }).sort((a, b) => b.valA - a.valA);
+  }, [metricsA, metricsB, selectedRevenueCats]);
+
+  const lucroLivreExpensesComparison = useMemo(() => {
+    return selectedExpenseCats.map(cat => {
+      const valA = metricsA.selectedExpenseCatsBreakdown[cat] || 0;
+      const valB = metricsB.selectedExpenseCatsBreakdown[cat] || 0;
+      const { diff, pct } = getVariance(valA, valB);
+      return { category: cat, valA, valB, diff, pct };
+    }).sort((a, b) => b.valA - a.valA);
+  }, [metricsA, metricsB, selectedExpenseCats]);
+
   // Generate Portuguese descriptive textual analysis
   const textualAnalysis = useMemo(() => {
     const profitVar = getVariance(metricsA.netProfitRealized, metricsB.netProfitRealized);
@@ -270,16 +390,16 @@ export default function ReportsComparative({ services, expenses, subCategories, 
       .sort((a, b) => b.diff - a.diff)[0];
 
     let summaryText = "";
-    summaryText += `No primeiro período selecionado (${formatDateLabel(startDateA)} até ${formatDateLabel(endDateA)}), o faturamento líquido realizado (entradas pagas) foi de ${formatCurrency(metricsA.paidRevenues)}, enquanto as despesas totalizaram ${formatCurrency(metricsA.totalExpenses)}. Isso resultou em um lucro líquido realizado de ${formatCurrency(metricsA.netProfitRealized)}. `;
+    summaryText += `No primeiro período selecionado (${formatDateLabel(startDateA)} até ${formatDateLabel(endDateA)}), as receitas totais lançadas foram de ${formatCurrency(metricsA.totalRevenues)} (sendo ${formatCurrency(metricsA.paidRevenues)} pagas) e as despesas totais somaram ${formatCurrency(metricsA.totalExpenses)}. Considerando apenas as categorias selecionadas para a configuração do Lucro Livre / Lucro Líquido, isso resultou em um lucro líquido realizado de ${formatCurrency(metricsA.netProfitRealized)}. `;
     
-    summaryText += `Em comparação, no segundo período selecionado (${formatDateLabel(startDateB)} até ${formatDateLabel(endDateB)}), as entradas pagas foram de ${formatCurrency(metricsB.paidRevenues)} e as despesas foram de ${formatCurrency(metricsB.totalExpenses)}, gerando um lucro líquido realizado de ${formatCurrency(metricsB.netProfitRealized)}. `;
+    summaryText += `Em comparação, no segundo período selecionado (${formatDateLabel(startDateB)} até ${formatDateLabel(endDateB)}), as receitas totais foram de ${formatCurrency(metricsB.totalRevenues)} (sendo ${formatCurrency(metricsB.paidRevenues)} pagas) e as despesas foram de ${formatCurrency(metricsB.totalExpenses)}, gerando um lucro líquido realizado (Lucro Livre) de ${formatCurrency(metricsB.netProfitRealized)}. `;
 
     if (profitVar.diff > 0) {
-      summaryText += `Dessa forma, o primeiro período obteve um lucro líquido realizado ${formatCurrency(profitVar.diff)} maior (+${profitVar.pct.toFixed(1)}%) em relação ao segundo período analisado. `;
+      summaryText += `Dessa forma, o primeiro período obteve um lucro livre realizado ${formatCurrency(profitVar.diff)} maior (+${profitVar.pct.toFixed(1)}%) em relação ao segundo período analisado, considerando apenas as categorias configuradas. `;
     } else if (profitVar.diff < 0) {
-      summaryText += `Dessa forma, o primeiro período obteve um lucro líquido realizado ${formatCurrency(Math.abs(profitVar.diff))} menor (${profitVar.pct.toFixed(1)}%) em relação ao segundo período analisado. `;
+      summaryText += `Dessa forma, o primeiro período obteve um lucro livre realizado ${formatCurrency(Math.abs(profitVar.diff))} menor (${profitVar.pct.toFixed(1)}%) em relação ao segundo período analisado, considerando apenas as categorias configuradas. `;
     } else {
-      summaryText += `Os dois períodos apresentaram lucros líquidos realizados equivalentes. `;
+      summaryText += `Os dois períodos apresentaram lucros livres realizados equivalentes com base nas categorias selecionadas. `;
     }
 
     // Category insights
@@ -320,7 +440,7 @@ export default function ReportsComparative({ services, expenses, subCategories, 
     }
 
     return summaryText;
-  }, [metricsA, metricsB, revenueCategoriesComparison, expenseCategoriesComparison, startDateA, endDateA, startDateB, endDateB, selectedPersonalExpenseCats]);
+  }, [metricsA, metricsB, revenueCategoriesComparison, expenseCategoriesComparison, startDateA, endDateA, startDateB, endDateB, selectedPersonalExpenseCats, selectedRevenueCats, selectedExpenseCats]);
 
   // Handle printing
   const handlePrint = () => {
@@ -588,6 +708,108 @@ export default function ReportsComparative({ services, expenses, subCategories, 
                   );
                 })()}
               </div>
+            </div>
+          </div>
+
+          {/* Detalhamento de Categorias de Lucro Livre (Entradas e Saídas) */}
+          <div className="bg-[#161B22] border border-slate-800 rounded-2xl p-6 relative overflow-hidden">
+            <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-emerald-500 to-teal-400"></div>
+            <div className="flex justify-between items-start mb-3">
+              <div>
+                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Categorias do Lucro Livre</span>
+                <span className="text-[9px] text-slate-450 uppercase tracking-wide block">Comparativo de Categorias Selecionadas</span>
+              </div>
+              <div className="p-2 rounded-lg bg-teal-500/10 text-teal-400">
+                <TrendingUpIcon size={16} />
+              </div>
+            </div>
+
+            <div className="space-y-4">
+              {/* ENTRADAS SELECIONADAS */}
+              <div className="space-y-2">
+                <span className="text-[9px] font-extrabold text-emerald-400 uppercase tracking-widest block">Entradas Selecionadas (Pago)</span>
+                {lucroLivreRevenuesComparison.length === 0 ? (
+                  <p className="text-[10px] text-slate-500 italic">Nenhuma categoria de entrada selecionada.</p>
+                ) : (
+                  <div className="space-y-2 max-h-[150px] overflow-y-auto pr-1 select-none scrollbar-thin">
+                    {lucroLivreRevenuesComparison.map(item => {
+                      const hasA = item.valA > 0;
+                      const hasB = item.valB > 0;
+                      if (!hasA && !hasB) return null; // skip empty
+
+                      const diffVal = item.valA - item.valB;
+                      const trendColor = diffVal >= 0 ? 'text-emerald-400' : 'text-rose-455';
+                      const trendIcon = diffVal > 0 ? '🔺' : diffVal < 0 ? '🔻' : '➖';
+                      const trendText = diffVal > 0 ? 'Aumentou' : diffVal < 0 ? 'Diminuiu' : 'Estável';
+
+                      return (
+                        <div key={item.category} className="p-2 bg-[#0F1115] rounded-xl border border-slate-850 text-[11px] space-y-1">
+                          <div className="flex justify-between font-bold text-slate-200 uppercase tracking-wide">
+                            <span className="truncate max-w-[120px]">{item.category}</span>
+                            <span className={`${trendColor} flex items-center gap-0.5 text-[10px]`}>
+                              {trendText} {trendIcon}
+                            </span>
+                          </div>
+                          <div className="flex justify-between text-[10px] text-slate-450 font-medium font-mono">
+                            <span>A: {formatCurrency(item.valA)}</span>
+                            <span>B: {formatCurrency(item.valB)}</span>
+                          </div>
+                          {diffVal !== 0 && (
+                            <div className={`text-[9px] font-mono font-bold ${trendColor} text-right`}>
+                              Var: {diffVal > 0 ? '+' : ''}{formatCurrency(diffVal)} ({diffVal > 0 ? '+' : ''}{item.pct.toFixed(1)}%)
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+
+              {/* Separator line */}
+              <div className="border-t border-slate-800/60 my-2"></div>
+
+              {/* SAÍDAS SELECIONADAS */}
+              <div className="space-y-2">
+                <span className="text-[9px] font-extrabold text-rose-450 uppercase tracking-widest block">Saídas Selecionadas</span>
+                {lucroLivreExpensesComparison.length === 0 ? (
+                  <p className="text-[10px] text-slate-500 italic">Nenhuma categoria de saída selecionada.</p>
+                ) : (
+                  <div className="space-y-2 max-h-[150px] overflow-y-auto pr-1 select-none scrollbar-thin">
+                    {lucroLivreExpensesComparison.map(item => {
+                      const hasA = item.valA > 0;
+                      const hasB = item.valB > 0;
+                      if (!hasA && !hasB) return null; // skip empty
+
+                      const diffVal = item.valA - item.valB;
+                      const trendColor = diffVal <= 0 ? 'text-emerald-400' : 'text-rose-455';
+                      const trendIcon = diffVal > 0 ? '🔺' : diffVal < 0 ? '🔻' : '➖';
+                      const trendText = diffVal > 0 ? 'Aumentou' : diffVal < 0 ? 'Diminuiu' : 'Estável';
+
+                      return (
+                        <div key={item.category} className="p-2 bg-[#0F1115] rounded-xl border border-slate-850 text-[11px] space-y-1">
+                          <div className="flex justify-between font-bold text-slate-200 uppercase tracking-wide">
+                            <span className="truncate max-w-[120px]">{item.category}</span>
+                            <span className={`${trendColor} flex items-center gap-0.5 text-[10px]`}>
+                              {trendText} {trendIcon}
+                            </span>
+                          </div>
+                          <div className="flex justify-between text-[10px] text-slate-450 font-medium font-mono">
+                            <span>A: {formatCurrency(item.valA)}</span>
+                            <span>B: {formatCurrency(item.valB)}</span>
+                          </div>
+                          {diffVal !== 0 && (
+                            <div className={`text-[9px] font-mono font-bold ${trendColor} text-right`}>
+                              Var: {diffVal > 0 ? '+' : ''}{formatCurrency(diffVal)} ({diffVal > 0 ? '+' : ''}{item.pct.toFixed(1)}%)
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+
             </div>
           </div>
 
