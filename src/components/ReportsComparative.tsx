@@ -50,14 +50,30 @@ export default function ReportsComparative({ services, expenses, subCategories, 
     return `${year}-${month}-01`;
   };
 
-  // State for date ranges
-  // Period A defaults: Current month start to today
-  const [startDateA, setStartDateA] = useState<string>(getMonthStartString(0));
-  const [endDateA, setEndDateA] = useState<string>(getLocalDateString(0));
+  const getMonthEndString = (monthOffset = 0) => {
+    const d = new Date();
+    d.setDate(1);
+    if (monthOffset !== 0) {
+      d.setMonth(d.getMonth() - monthOffset);
+    }
+    const nextMonth = new Date(d);
+    nextMonth.setMonth(nextMonth.getMonth() + 1);
+    nextMonth.setDate(0);
+    
+    const year = nextMonth.getFullYear();
+    const month = String(nextMonth.getMonth() + 1).padStart(2, '0');
+    const day = String(nextMonth.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  };
 
-  // Period B defaults: Previous month start to previous month today equivalent
+  // State for date ranges
+  // Period A defaults: Current month start to end
+  const [startDateA, setStartDateA] = useState<string>(getMonthStartString(0));
+  const [endDateA, setEndDateA] = useState<string>(getMonthEndString(0));
+
+  // Period B defaults: Previous month start to end
   const [startDateB, setStartDateB] = useState<string>(getMonthStartString(1));
-  const [endDateB, setEndDateB] = useState<string>(getLocalDateString(30)); // approx 30 days ago
+  const [endDateB, setEndDateB] = useState<string>(getMonthEndString(1));
 
   const formatCurrency = (val: number) => {
     return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(val);
@@ -353,8 +369,8 @@ export default function ReportsComparative({ services, expenses, subCategories, 
 
   const lucroLivreRevenuesComparison = useMemo(() => {
     return selectedRevenueCats.map(cat => {
-      const valA = metricsA.selectedRevenueCatsBreakdown[cat] || 0;
-      const valB = metricsB.selectedRevenueCatsBreakdown[cat] || 0;
+      const valA = metricsA.selectedRevenueCatsPaidBreakdown[cat] || 0;
+      const valB = metricsB.selectedRevenueCatsPaidBreakdown[cat] || 0;
       const { diff, pct } = getVariance(valA, valB);
       return { category: cat, valA, valB, diff, pct };
     }).sort((a, b) => b.valA - a.valA);
@@ -369,8 +385,8 @@ export default function ReportsComparative({ services, expenses, subCategories, 
     }).sort((a, b) => b.valA - a.valA);
   }, [metricsA, metricsB, selectedExpenseCats]);  // Generate Portuguese descriptive textual analysis
   const textualAnalysis = useMemo(() => {
-    const lucroLivreA = metricsA.selectedTotalRevenues - metricsA.selectedExpenses;
-    const lucroLivreB = metricsB.selectedTotalRevenues - metricsB.selectedExpenses;
+    const lucroLivreA = metricsA.selectedPaidRevenues - metricsA.selectedExpenses;
+    const lucroLivreB = metricsB.selectedPaidRevenues - metricsB.selectedExpenses;
     const profitVar = getVariance(lucroLivreA, lucroLivreB);
     const revVar = getVariance(metricsA.paidRevenues, metricsB.paidRevenues);
     const expVar = getVariance(metricsA.totalExpenses, metricsB.totalExpenses);
@@ -633,8 +649,8 @@ export default function ReportsComparative({ services, expenses, subCategories, 
           
           <div className="space-y-3">
             {(() => {
-              const totalLivreA = metricsA.selectedTotalRevenues - metricsA.selectedExpenses;
-              const totalLivreB = metricsB.selectedTotalRevenues - metricsB.selectedExpenses;
+              const totalLivreA = metricsA.selectedPaidRevenues - metricsA.selectedExpenses;
+              const totalLivreB = metricsB.selectedPaidRevenues - metricsB.selectedExpenses;
               const { diff, pct } = getVariance(totalLivreA, totalLivreB);
 
               return (
