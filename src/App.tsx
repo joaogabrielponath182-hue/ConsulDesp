@@ -1803,6 +1803,7 @@ export default function App() {
               services={filteredServices}
               expenses={filteredExpenses}
               subCategories={filteredSubCategories}
+              currentSession={currentSession}
             />
           )}
 

@@ -58,6 +58,7 @@ export default function Dashboard({
   // "Lucro Livre" settings and calculations state
   const [selectedRevenueCats, setSelectedRevenueCats] = useState<string[]>([]);
   const [selectedExpenseCats, setSelectedExpenseCats] = useState<string[]>([]);
+  const [selectedPersonalExpenseCats, setSelectedPersonalExpenseCats] = useState<string[]>([]);
 
   const username = currentSession?.username || 'admin';
 
@@ -99,9 +100,20 @@ export default function Dashboard({
         setSelectedExpenseCats(userSubs.map(s => s.name.toUpperCase().trim()));
       }
     }
+
+    const savedPersonalExp = localStorage.getItem(`personal_expense_cats_${username}`);
+    if (savedPersonalExp) {
+      try {
+        setSelectedPersonalExpenseCats(JSON.parse(savedPersonalExp));
+      } catch (e) {
+        // Fallback
+      }
+    } else {
+      setSelectedPersonalExpenseCats([]);
+    }
   }, [username, subCategories]);
 
-  const [editingType, setEditingType] = useState<'RECEITA' | 'GASTO' | null>(null);
+  const [editingType, setEditingType] = useState<'RECEITA' | 'GASTO' | 'PERSONAL_GASTO' | null>(null);
   const [tempSelectedCats, setTempSelectedCats] = useState<string[]>([]);
 
   // States to toggle collapse/expand details of Faturamento and Gastos cards
@@ -264,6 +276,25 @@ export default function Dashboard({
     });
     return sum;
   }, [expensesThisMonth, selectedExpenseCats]);
+
+  // Filter and sum selected personal expenses for this month
+  const personalExpensesSumThisMonth = React.useMemo(() => {
+    let sum = 0;
+    expensesThisMonth.forEach(exp => {
+      if (exp.category) {
+        const catName = exp.category.trim().toUpperCase();
+        const normCatName = catName.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+        const isSelected = selectedPersonalExpenseCats.some(sel => {
+          const selNorm = sel.trim().toUpperCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+          return selNorm === normCatName || sel.trim().toUpperCase() === catName;
+        });
+        if (isSelected) {
+          sum += exp.value;
+        }
+      }
+    });
+    return sum;
+  }, [expensesThisMonth, selectedPersonalExpenseCats]);
 
   const lucroLivreTotalThisMonth = selectedRevenuesSumThisMonth - selectedExpensesSumThisMonth;
 
@@ -900,39 +931,82 @@ export default function Dashboard({
           </div>
         </div>
 
-        {/* Metric Card: Total do Mês */}
-        <div className="bg-[#161B22] border border-slate-800 rounded-2xl p-6 shadow-sm relative overflow-hidden group">
-          <div className="absolute top-0 left-0 w-1.5 h-full bg-blue-500"></div>
-          <div className="flex justify-between items-start">
-            <div className="w-full">
-              <p className="text-slate-400 text-xs font-semibold uppercase tracking-wider">Total do Mês</p>
-              <div className="space-y-1 mt-2">
-                <div className="flex justify-between gap-12 text-sm text-slate-350">
-                  <span className="font-semibold text-emerald-400">ENTRADA TOTAL:</span>
-                  <span className="font-semibold text-emerald-400">
-                    {formatCurrency(totalRevenuesThisMonth)}
-                  </span>
-                </div>
-                <div className="flex justify-between text-sm text-slate-350">
-                  <span className="font-semibold text-rose-400">SAÍDA TOTAL:</span>
-                  <span className="font-semibold text-rose-400">
-                    {formatCurrency(totalExpensesThisMonth)}
-                  </span>
-                </div>
-                <div className="flex justify-between text-sm text-slate-350 border-t border-slate-800/80 pt-1 mt-1">
-                  <span className="font-semibold text-slate-300">SALDO DO MÊS:</span>
-                  <span className={`font-bold ${netBalanceThisMonth >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
-                    {formatCurrency(netBalanceThisMonth)}
-                  </span>
+        {/* Metric Card: Total do Mês & Gastos Pessoais */}
+        <div className="space-y-6">
+          <div className="bg-[#161B22] border border-slate-800 rounded-2xl p-6 shadow-sm relative overflow-hidden group">
+            <div className="absolute top-0 left-0 w-1.5 h-full bg-blue-500"></div>
+            <div className="flex justify-between items-start">
+              <div className="w-full">
+                <p className="text-slate-400 text-xs font-semibold uppercase tracking-wider">Total do Mês</p>
+                <div className="space-y-1 mt-2">
+                  <div className="flex justify-between gap-12 text-sm text-slate-350">
+                    <span className="font-semibold text-emerald-400">ENTRADA TOTAL:</span>
+                    <span className="font-semibold text-emerald-400">
+                      {formatCurrency(totalRevenuesThisMonth)}
+                    </span>
+                  </div>
+                  <div className="flex justify-between text-sm text-slate-350">
+                    <span className="font-semibold text-rose-400">SAÍDA TOTAL:</span>
+                    <span className="font-semibold text-rose-400">
+                      {formatCurrency(totalExpensesThisMonth)}
+                    </span>
+                  </div>
+                  <div className="flex justify-between text-sm text-slate-350 border-t border-slate-800/80 pt-1 mt-1">
+                    <span className="font-semibold text-slate-300">SALDO DO MÊS:</span>
+                    <span className={`font-bold ${netBalanceThisMonth >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+                      {formatCurrency(netBalanceThisMonth)}
+                    </span>
+                  </div>
                 </div>
               </div>
+              <div className="p-3 rounded-xl bg-blue-500/10 text-blue-400 shrink-0 ml-2">
+                <DollarSign size={20} />
+              </div>
             </div>
-            <div className="p-3 rounded-xl bg-blue-500/10 text-blue-400 shrink-0 ml-2">
-              <DollarSign size={20} />
+            <div className="mt-4 text-[10px] text-slate-500 border-t border-slate-800/80 pt-3">
+              Estatísticas consolidadas do mês selecionado
             </div>
           </div>
-          <div className="mt-4 text-[10px] text-slate-500 border-t border-slate-800/80 pt-3">
-            Estatísticas consolidadas do mês selecionado
+
+          {/* Metric Card: Gastos Pessoais */}
+          <div className="bg-[#161B22] border border-slate-800 rounded-2xl p-6 shadow-sm relative overflow-hidden group">
+            <div className="absolute top-0 left-0 w-1.5 h-full bg-violet-500"></div>
+            <div className="flex justify-between items-start">
+              <div className="w-full">
+                <p className="text-slate-400 text-xs font-semibold uppercase tracking-wider flex items-center justify-between">
+                  <span>Gastos Pessoais</span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setTempSelectedCats([...selectedPersonalExpenseCats]);
+                      setEditingType('PERSONAL_GASTO');
+                    }}
+                    className="text-slate-400 hover:text-white p-1 hover:bg-slate-800 rounded transition-all cursor-pointer"
+                    title="Editar categorias de gastos pessoais"
+                  >
+                    <Pencil size={11} />
+                  </button>
+                </p>
+                
+                <div className="mt-3 space-y-2">
+                  <div className="text-[11px] text-slate-400 leading-normal">
+                    Categorias: <span className="text-slate-300 font-semibold">{selectedPersonalExpenseCats.length === 0 ? 'Nenhuma selecionada' : selectedPersonalExpenseCats.join(', ')}</span>
+                  </div>
+                  <div className="bg-[#0F1115] p-3 rounded-xl border border-slate-850">
+                    <span className="text-[10px] font-bold text-violet-400 uppercase tracking-wider block mb-1">Total do Mês</span>
+                    <span className="text-xl font-black text-white block font-mono">
+                      {formatCurrency(personalExpensesSumThisMonth)}
+                    </span>
+                  </div>
+                </div>
+              </div>
+              <div className="p-3 rounded-xl bg-violet-500/10 text-violet-400 shrink-0 ml-2">
+                <User size={20} />
+              </div>
+            </div>
+            <div className="mt-4 text-[10px] text-slate-500 border-t border-slate-800/80 pt-3">
+              Gastos de caráter pessoal do mês selecionado
+            </div>
           </div>
         </div>
 
@@ -1211,10 +1285,10 @@ export default function Dashboard({
               <div>
                 <h3 className="text-sm font-bold text-white uppercase tracking-wider flex items-center gap-2">
                   <Pencil size={14} className="text-indigo-400" />
-                  <span>Configurar {editingType === 'RECEITA' ? 'Entradas' : 'Saídas'}</span>
+                  <span>Configurar {editingType === 'RECEITA' ? 'Entradas' : editingType === 'GASTO' ? 'Saídas' : 'Gastos Pessoais'}</span>
                 </h3>
                 <p className="text-[11px] text-slate-400 mt-0.5">
-                  Selecione as categorias do Lucro Livre
+                  {editingType === 'PERSONAL_GASTO' ? 'Selecione as categorias de Gastos Pessoais' : 'Selecione as categorias do Lucro Livre'}
                 </p>
               </div>
               <button
@@ -1290,9 +1364,12 @@ export default function Dashboard({
                   if (editingType === 'RECEITA') {
                     setSelectedRevenueCats(tempSelectedCats);
                     localStorage.setItem(`lucro_livre_revenue_cats_${username}`, JSON.stringify(tempSelectedCats));
-                  } else {
+                  } else if (editingType === 'GASTO') {
                     setSelectedExpenseCats(tempSelectedCats);
                     localStorage.setItem(`lucro_livre_expense_cats_${username}`, JSON.stringify(tempSelectedCats));
+                  } else if (editingType === 'PERSONAL_GASTO') {
+                    setSelectedPersonalExpenseCats(tempSelectedCats);
+                    localStorage.setItem(`personal_expense_cats_${username}`, JSON.stringify(tempSelectedCats));
                   }
                   setEditingType(null);
                 }}

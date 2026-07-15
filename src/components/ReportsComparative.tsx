@@ -16,16 +16,18 @@ import {
   ArrowRight,
   TrendingUp as TrendingUpIcon,
   Sparkles,
-  Printer
+  Printer,
+  User
 } from 'lucide-react';
 
 interface ReportsComparativeProps {
   services: Service[];
   expenses: Expense[];
   subCategories: SubCategory[];
+  currentSession?: { username: string } | null;
 }
 
-export default function ReportsComparative({ services, expenses, subCategories }: ReportsComparativeProps) {
+export default function ReportsComparative({ services, expenses, subCategories, currentSession }: ReportsComparativeProps) {
   // Helper to get formatted dates
   const getLocalDateString = (offsetDays = 0) => {
     const d = new Date();
@@ -69,6 +71,20 @@ export default function ReportsComparative({ services, expenses, subCategories }
     }
     return dateStr;
   };
+
+  const username = currentSession?.username || 'admin';
+
+  const selectedPersonalExpenseCats = useMemo(() => {
+    const saved = localStorage.getItem(`personal_expense_cats_${username}`);
+    if (saved) {
+      try {
+        return JSON.parse(saved) as string[];
+      } catch (e) {
+        // Fallback
+      }
+    }
+    return [] as string[];
+  }, [username]);
 
   // Helper to compute metrics for a single period
   const computePeriodMetrics = (start: string, end: string) => {
@@ -148,6 +164,26 @@ export default function ReportsComparative({ services, expenses, subCategories }
       expensesByCategory[catName] = (expensesByCategory[catName] || 0) + e.value;
     });
 
+    // 7. Personal expenses total and breakdown
+    let personalExpensesTotal = 0;
+    const personalExpensesByCategory: Record<string, number> = {};
+
+    filteredExpenses.forEach(e => {
+      if (e.category) {
+        const catName = e.category.trim().toUpperCase();
+        const normCatName = catName.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+        const matchedCat = selectedPersonalExpenseCats.find(sel => {
+          const selNorm = sel.trim().toUpperCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+          return selNorm === normCatName || sel.trim().toUpperCase() === catName;
+        });
+
+        if (matchedCat) {
+          personalExpensesTotal += e.value;
+          personalExpensesByCategory[matchedCat] = (personalExpensesByCategory[matchedCat] || 0) + e.value;
+        }
+      }
+    });
+
     return {
       totalRevenues,
       paidRevenues,
@@ -163,13 +199,15 @@ export default function ReportsComparative({ services, expenses, subCategories }
       revenuesByCategory,
       expensesByCategory,
       rawServicesCount: filteredServices.length,
-      rawExpensesCount: filteredExpenses.length
+      rawExpensesCount: filteredExpenses.length,
+      personalExpensesTotal,
+      personalExpensesByCategory
     };
   };
 
   // Compute metrics for both periods
-  const metricsA = useMemo(() => computePeriodMetrics(startDateA, endDateA), [startDateA, endDateA, services, expenses]);
-  const metricsB = useMemo(() => computePeriodMetrics(startDateB, endDateB), [startDateB, endDateB, services, expenses]);
+  const metricsA = useMemo(() => computePeriodMetrics(startDateA, endDateA), [startDateA, endDateA, services, expenses, selectedPersonalExpenseCats]);
+  const metricsB = useMemo(() => computePeriodMetrics(startDateB, endDateB), [startDateB, endDateB, services, expenses, selectedPersonalExpenseCats]);
 
   // Helper to calculate percentage variance
   const getVariance = (valA: number, valB: number) => {
@@ -201,6 +239,15 @@ export default function ReportsComparative({ services, expenses, subCategories }
       return { category: cat, valA, valB, diff, pct };
     }).sort((a, b) => b.valA - a.valA);
   }, [metricsA, metricsB]);
+
+  const personalExpenseCategoriesComparison = useMemo(() => {
+    return selectedPersonalExpenseCats.map(cat => {
+      const valA = metricsA.personalExpensesByCategory[cat] || 0;
+      const valB = metricsB.personalExpensesByCategory[cat] || 0;
+      const { diff, pct } = getVariance(valA, valB);
+      return { category: cat, valA, valB, diff, pct };
+    }).sort((a, b) => b.valA - a.valA);
+  }, [metricsA, metricsB, selectedPersonalExpenseCats]);
 
   // Generate Portuguese descriptive textual analysis
   const textualAnalysis = useMemo(() => {
@@ -258,8 +305,22 @@ export default function ReportsComparative({ services, expenses, subCategories }
     const pixVar = getVariance(metricsA.pixRevenues, metricsB.pixRevenues);
     summaryText += `Adicionalmente, os recebimentos via PIX foram de ${formatCurrency(metricsA.pixRevenues)} (Período A) contra ${formatCurrency(metricsB.pixRevenues)} (Período B), indicando uma variação de ${pixVar.diff >= 0 ? '+' : ''}${pixVar.pct.toFixed(1)}% nesta modalidade de pagamento.`;
 
+    // Personal expenses insight
+    if (selectedPersonalExpenseCats.length > 0) {
+      const personalVar = getVariance(metricsA.personalExpensesTotal, metricsB.personalExpensesTotal);
+      summaryText += `\n\n**Análise de Gastos Pessoais**: `;
+      summaryText += `Os gastos de caráter pessoal nas categorias selecionadas totalizaram ${formatCurrency(metricsA.personalExpensesTotal)} no Período A, comparado com ${formatCurrency(metricsB.personalExpensesTotal)} no Período B. `;
+      if (personalVar.diff > 0) {
+        summaryText += `Isso representa um aumento de ${formatCurrency(personalVar.diff)} (+${personalVar.pct.toFixed(1)}%) nas despesas pessoais do primeiro período em relação ao segundo. `;
+      } else if (personalVar.diff < 0) {
+        summaryText += `Isso representa uma redução de ${formatCurrency(Math.abs(personalVar.diff))} (${personalVar.pct.toFixed(1)}%) nas despesas pessoais do primeiro período em relação ao segundo. `;
+      } else {
+        summaryText += `As despesas pessoais mantiveram-se estáveis e idênticas em ambos os períodos. `;
+      }
+    }
+
     return summaryText;
-  }, [metricsA, metricsB, revenueCategoriesComparison, expenseCategoriesComparison, startDateA, endDateA, startDateB, endDateB]);
+  }, [metricsA, metricsB, revenueCategoriesComparison, expenseCategoriesComparison, startDateA, endDateA, startDateB, endDateB, selectedPersonalExpenseCats]);
 
   // Handle printing
   const handlePrint = () => {
@@ -438,42 +499,176 @@ export default function ReportsComparative({ services, expenses, subCategories }
           </div>
         </div>
 
-        {/* Lucro Líquido Realizado */}
-        <div className="bg-[#161B22] border border-slate-800 rounded-2xl p-6 relative overflow-hidden">
-          <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-blue-500 to-teal-400"></div>
-          <div className="flex justify-between items-start mb-3">
-            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Lucro Líquido Realizado</span>
-            <div className="p-2 rounded-lg bg-blue-500/10 text-blue-400">
-              <Coins size={16} />
-            </div>
-          </div>
-          
-          <div className="space-y-3">
-            <div className="flex justify-between items-baseline">
-              <span className="text-xs text-slate-450">Período A:</span>
-              <span className={`text-lg font-black font-mono ${metricsA.netProfitRealized >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
-                {formatCurrency(metricsA.netProfitRealized)}
-              </span>
-            </div>
-            <div className="flex justify-between items-baseline border-b border-slate-850 pb-2.5">
-              <span className="text-xs text-slate-450">Período B:</span>
-              <span className={`text-sm font-bold font-mono ${metricsB.netProfitRealized >= 0 ? 'text-emerald-450' : 'text-rose-400'}`}>
-                {formatCurrency(metricsB.netProfitRealized)}
-              </span>
-            </div>
+        {/* Lucro Líquido & Gastos Pessoais Column */}
+        <div className="space-y-6">
+          {/* Lucro Líquido */}
+          <div className="bg-[#161B22] border border-slate-800 rounded-2xl p-6 relative overflow-hidden">
+            <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-blue-500 to-teal-400"></div>
             
-            {/* Variance */}
-            {(() => {
-              const { diff, pct } = getVariance(metricsA.netProfitRealized, metricsB.netProfitRealized);
-              return (
-                <div className="flex justify-between items-center text-xs pt-1">
-                  <span className="text-slate-400">Variação:</span>
-                  <span className={`font-bold font-mono flex items-center gap-1 ${diff >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
-                    {diff >= 0 ? '+' : ''}{formatCurrency(diff)} ({diff >= 0 ? '+' : ''}{pct.toFixed(1)}%)
+            {/* Lucro Líquido Realizado Section */}
+            <div className="mb-5">
+              <div className="flex justify-between items-start mb-3">
+                <div>
+                  <span className="text-[10px] font-bold text-emerald-400 uppercase tracking-wider block">Lucro Líquido Realizado</span>
+                  <span className="text-[9px] text-slate-450 uppercase tracking-wide block">(Apenas Entradas com Status PAGO)</span>
+                </div>
+                <div className="p-2 rounded-lg bg-emerald-500/10 text-emerald-400">
+                  <Coins size={16} />
+                </div>
+              </div>
+              
+              <div className="space-y-2">
+                <div className="flex justify-between items-baseline">
+                  <span className="text-xs text-slate-450">Período A:</span>
+                  <span className={`text-base font-black font-mono ${metricsA.netProfitRealized >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+                    {formatCurrency(metricsA.netProfitRealized)}
                   </span>
                 </div>
-              );
-            })()}
+                <div className="flex justify-between items-baseline border-b border-slate-850/60 pb-2">
+                  <span className="text-xs text-slate-450">Período B:</span>
+                  <span className={`text-xs font-bold font-mono ${metricsB.netProfitRealized >= 0 ? 'text-emerald-450' : 'text-rose-400'}`}>
+                    {formatCurrency(metricsB.netProfitRealized)}
+                  </span>
+                </div>
+                
+                {/* Variance */}
+                {(() => {
+                  const { diff, pct } = getVariance(metricsA.netProfitRealized, metricsB.netProfitRealized);
+                  return (
+                    <div className="flex justify-between items-center text-[11px] pt-0.5">
+                      <span className="text-slate-405">Variação Realizada:</span>
+                      <span className={`font-bold font-mono flex items-center gap-1 ${diff >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+                        {diff >= 0 ? '+' : ''}{formatCurrency(diff)} ({diff >= 0 ? '+' : ''}{pct.toFixed(1)}%)
+                      </span>
+                    </div>
+                  );
+                })()}
+              </div>
+            </div>
+
+            {/* Separator line */}
+            <div className="border-t border-slate-800/80 my-4"></div>
+
+            {/* Lucro Líquido Previsto / Geral Section */}
+            <div>
+              <div className="flex justify-between items-start mb-3">
+                <div>
+                  <span className="text-[10px] font-bold text-blue-400 uppercase tracking-wider block">Lucro Líquido Geral / Previsto</span>
+                  <span className="text-[9px] text-slate-450 uppercase tracking-wide block">(Todas as Entradas: Pagas + Pendentes)</span>
+                </div>
+                <div className="p-2 rounded-lg bg-blue-500/10 text-blue-400">
+                  <Coins size={16} />
+                </div>
+              </div>
+              
+              <div className="space-y-2">
+                <div className="flex justify-between items-baseline">
+                  <span className="text-xs text-slate-450">Período A:</span>
+                  <span className={`text-base font-black font-mono ${metricsA.netProfitTotal >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+                    {formatCurrency(metricsA.netProfitTotal)}
+                  </span>
+                </div>
+                <div className="flex justify-between items-baseline border-b border-slate-850/60 pb-2">
+                  <span className="text-xs text-slate-450">Período B:</span>
+                  <span className={`text-xs font-bold font-mono ${metricsB.netProfitTotal >= 0 ? 'text-emerald-450' : 'text-rose-400'}`}>
+                    {formatCurrency(metricsB.netProfitTotal)}
+                  </span>
+                </div>
+                
+                {/* Variance */}
+                {(() => {
+                  const { diff, pct } = getVariance(metricsA.netProfitTotal, metricsB.netProfitTotal);
+                  return (
+                    <div className="flex justify-between items-center text-[11px] pt-0.5">
+                      <span className="text-slate-405">Variação Geral:</span>
+                      <span className={`font-bold font-mono flex items-center gap-1 ${diff >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+                        {diff >= 0 ? '+' : ''}{formatCurrency(diff)} ({diff >= 0 ? '+' : ''}{pct.toFixed(1)}%)
+                      </span>
+                    </div>
+                  );
+                })()}
+              </div>
+            </div>
+          </div>
+
+          {/* Gastos Pessoais Comparativo Card */}
+          <div className="bg-[#161B22] border border-slate-800 rounded-2xl p-6 relative overflow-hidden">
+            <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-violet-500 to-fuchsia-500"></div>
+            <div className="flex justify-between items-start mb-3">
+              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Gastos Pessoais Comparativo</span>
+              <div className="p-2 rounded-lg bg-violet-500/10 text-violet-400">
+                <User size={16} />
+              </div>
+            </div>
+            
+            <div className="space-y-3">
+              <div className="flex justify-between items-baseline">
+                <span className="text-xs text-slate-450">Período A:</span>
+                <span className="text-lg font-black text-white font-mono">
+                  {formatCurrency(metricsA.personalExpensesTotal)}
+                </span>
+              </div>
+              <div className="flex justify-between items-baseline border-b border-slate-850 pb-2.5">
+                <span className="text-xs text-slate-450">Período B:</span>
+                <span className="text-sm font-bold text-slate-400 font-mono">
+                  {formatCurrency(metricsB.personalExpensesTotal)}
+                </span>
+              </div>
+              
+              {/* Variance */}
+              {(() => {
+                const { diff, pct } = getVariance(metricsA.personalExpensesTotal, metricsB.personalExpensesTotal);
+                return (
+                  <div className="flex justify-between items-center text-xs pt-1 border-b border-slate-850 pb-2.5">
+                    <span className="text-slate-400">Variação:</span>
+                    <span className={`font-bold font-mono flex items-center gap-1 ${diff <= 0 ? 'text-emerald-400' : 'text-rose-455'}`}>
+                      {diff > 0 ? '+' : ''}{formatCurrency(diff)} ({diff > 0 ? '+' : ''}{pct.toFixed(1)}%)
+                    </span>
+                  </div>
+                );
+              })()}
+
+              {/* Category-by-category considerations */}
+              <div className="space-y-2 pt-1.5 animate-fadeIn">
+                <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider block">Considerações por Categoria:</span>
+                {personalExpenseCategoriesComparison.length === 0 ? (
+                  <p className="text-[10px] text-slate-500 italic">Nenhuma categoria de gasto pessoal selecionada no painel principal.</p>
+                ) : (
+                  <div className="space-y-2 max-h-[160px] overflow-y-auto pr-1 select-none scrollbar-thin">
+                    {personalExpenseCategoriesComparison.map(item => {
+                      const hasA = item.valA > 0;
+                      const hasB = item.valB > 0;
+                      if (!hasA && !hasB) return null; // skip empty categories in both periods
+
+                      const diffVal = item.valA - item.valB;
+                      const trendColor = diffVal <= 0 ? 'text-emerald-400' : 'text-rose-455';
+                      const trendIcon = diffVal > 0 ? '🔺' : diffVal < 0 ? '🔻' : '➖';
+                      const trendText = diffVal > 0 ? 'Aumentou' : diffVal < 0 ? 'Diminuiu' : 'Estável';
+
+                      return (
+                        <div key={item.category} className="p-2 bg-[#0F1115] rounded-xl border border-slate-850 text-[11px] space-y-1">
+                          <div className="flex justify-between font-bold text-slate-200 uppercase tracking-wide">
+                            <span className="truncate max-w-[120px]">{item.category}</span>
+                            <span className={`${trendColor} flex items-center gap-0.5 text-[10px]`}>
+                              {trendText} {trendIcon}
+                            </span>
+                          </div>
+                          <div className="flex justify-between text-[10px] text-slate-450 font-medium font-mono">
+                            <span>A: {formatCurrency(item.valA)}</span>
+                            <span>B: {formatCurrency(item.valB)}</span>
+                          </div>
+                          {diffVal !== 0 && (
+                            <div className={`text-[9px] font-mono font-bold ${trendColor} text-right`}>
+                              Var: {diffVal > 0 ? '+' : ''}{formatCurrency(diffVal)} ({diffVal > 0 ? '+' : ''}{item.pct.toFixed(1)}%)
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            </div>
           </div>
         </div>
 
