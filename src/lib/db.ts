@@ -101,11 +101,14 @@ function cleanObject<T>(obj: T): T {
  */
 export async function fetchUserData(userId: string, isAdmin: boolean = false) {
   try {
-    const servicesQuery = query(collection(db, SERVICES_COLL), where('userId', '==', userId));
-    const expensesQuery = query(collection(db, EXPENSES_COLL), where('userId', '==', userId));
-    const subCategoriesQuery = query(collection(db, SUBCATEGORIES_COLL), where('userId', '==', userId));
-    const personalExpensesQuery = query(collection(db, PERSONAL_EXPENSES_COLL), where('userId', '==', userId));
-    const clientsQuery = query(collection(db, CLIENTS_COLL), where('userId', '==', userId));
+    const isDemo = userId.toLowerCase() === 'user' || userId === 'user-demo-default' || userId === 'user-demo';
+    const userIds = isDemo ? ['user', 'user-demo-default', 'user-demo'] : [userId];
+
+    const servicesQuery = query(collection(db, SERVICES_COLL), where('userId', 'in', userIds));
+    const expensesQuery = query(collection(db, EXPENSES_COLL), where('userId', 'in', userIds));
+    const subCategoriesQuery = query(collection(db, SUBCATEGORIES_COLL), where('userId', 'in', userIds));
+    const personalExpensesQuery = query(collection(db, PERSONAL_EXPENSES_COLL), where('userId', 'in', userIds));
+    const clientsQuery = query(collection(db, CLIENTS_COLL), where('userId', 'in', userIds));
 
     const [servicesSnap, expensesSnap, subCatsSnap, personalExpensesSnap, clientsSnap] = await Promise.all([
       getDocs(servicesQuery),
@@ -494,7 +497,9 @@ export async function saveBackupToFirestore(
  */
 export async function fetchBackupsFromFirestore(userId: string) {
   try {
-    const backupsQuery = query(collection(db, BACKUPS_COLL), where('userId', '==', userId));
+    const isDemo = userId.toLowerCase() === 'user' || userId === 'user-demo-default' || userId === 'user-demo';
+    const userIds = isDemo ? ['user', 'user-demo-default', 'user-demo'] : [userId];
+    const backupsQuery = query(collection(db, BACKUPS_COLL), where('userId', 'in', userIds));
     const querySnapshot = await getDocs(backupsQuery);
     trackFirestoreOp('read', querySnapshot.size);
     const backups: any[] = [];

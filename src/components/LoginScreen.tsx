@@ -99,6 +99,27 @@ export default function LoginScreen({
         }
       }
 
+      // Check Hardcoded Demo Account
+      if (cleanUsername === 'user') {
+        if (password === 'teste') {
+          const sessionId = `sess-user-demo-${Date.now()}-${Math.floor(Math.random() * 100000)}`;
+          
+          // We intentionally bypass session updating on the cloud for 'user' to allow multiple concurrent users
+          onLoginSuccess({
+            username: 'user',
+            fullName: 'Usuário de Teste (Demonstração)',
+            isAdmin: false,
+            sessionId
+          });
+          setIsLoading(false);
+          return;
+        } else {
+          setErrorMsg('Senha incorreta para o usuário demonstrativo.');
+          setIsLoading(false);
+          return;
+        }
+      }
+
       // 2. Check Standard Custom Users
       const foundUser = internalUsers.find(
         (u) => u.username.toLowerCase() === cleanUsername

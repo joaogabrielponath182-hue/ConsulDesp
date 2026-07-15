@@ -307,9 +307,13 @@ export default function App() {
   // Derived filtered state for data isolation per operator/session
   const filteredServices = React.useMemo(() => {
     if (!currentSession) return [];
+    const isDemo = currentSession.username.toLowerCase() === 'user' || currentSession.username === 'user-demo-default' || currentSession.username === 'user-demo';
     return services.filter(s => {
       if (currentSession.username === 'joao.desp') {
         return s.operator === 'joao.desp' || !s.operator || s.operator === 'admin';
+      }
+      if (isDemo) {
+        return s.operator === 'user' || s.operator === 'user-demo-default' || s.operator === 'user-demo' || s.operator?.toLowerCase() === 'user';
       }
       return s.operator === currentSession.username;
     });
@@ -317,9 +321,13 @@ export default function App() {
 
   const filteredExpenses = React.useMemo(() => {
     if (!currentSession) return [];
+    const isDemo = currentSession.username.toLowerCase() === 'user' || currentSession.username === 'user-demo-default' || currentSession.username === 'user-demo';
     return expenses.filter(e => {
       if (currentSession.username === 'joao.desp') {
         return e.operator === 'joao.desp' || !e.operator || e.operator === 'admin';
+      }
+      if (isDemo) {
+        return e.operator === 'user' || e.operator === 'user-demo-default' || e.operator === 'user-demo' || e.operator?.toLowerCase() === 'user';
       }
       return e.operator === currentSession.username;
     });
@@ -327,9 +335,13 @@ export default function App() {
 
   const filteredPersonalExpenses = React.useMemo(() => {
     if (!currentSession) return [];
+    const isDemo = currentSession.username.toLowerCase() === 'user' || currentSession.username === 'user-demo-default' || currentSession.username === 'user-demo';
     return personalExpenses.filter(pe => {
       if (currentSession.username === 'joao.desp') {
         return pe.operator === 'joao.desp' || !pe.operator || pe.operator === 'admin';
+      }
+      if (isDemo) {
+        return pe.operator === 'user' || pe.operator === 'user-demo-default' || pe.operator === 'user-demo' || pe.operator?.toLowerCase() === 'user';
       }
       return pe.operator === currentSession.username;
     });
@@ -337,9 +349,13 @@ export default function App() {
 
   const filteredClients = React.useMemo(() => {
     if (!currentSession) return [];
+    const isDemo = currentSession.username.toLowerCase() === 'user' || currentSession.username === 'user-demo-default' || currentSession.username === 'user-demo';
     return clients.filter(c => {
       if (currentSession.username === 'joao.desp') {
         return c.operator === 'joao.desp' || !c.operator || c.operator === 'admin';
+      }
+      if (isDemo) {
+        return c.operator === 'user' || c.operator === 'user-demo-default' || c.operator === 'user-demo' || c.operator?.toLowerCase() === 'user';
       }
       return c.operator === currentSession.username;
     });
@@ -347,10 +363,14 @@ export default function App() {
 
   const filteredSubCategories = React.useMemo(() => {
     if (!currentSession) return subCategories;
+    const isDemo = currentSession.username.toLowerCase() === 'user' || currentSession.username === 'user-demo-default' || currentSession.username === 'user-demo';
     
     return subCategories.filter(sub => {
       if (currentSession.username === 'joao.desp') {
         return sub.operator === 'joao.desp' || !sub.operator || sub.operator === 'admin';
+      }
+      if (isDemo) {
+        return sub.operator === 'user' || sub.operator === 'user-demo-default' || sub.operator === 'user-demo' || sub.operator?.toLowerCase() === 'user';
       }
       return sub.operator === currentSession.username;
     });
@@ -1212,6 +1232,11 @@ export default function App() {
         return;
       }
 
+      // Bypass simultaneous login checks for the standard public demo user 'user'
+      if (currentSession.username.toLowerCase() === 'user') {
+        return;
+      }
+
       // Optimization 2: Find target user ID from local state to fetch only their single document (1 read instead of 500)
       const localMatched = internalUsers.find(
         (u) => u.username.toLowerCase() === currentSession.username.toLowerCase()
@@ -1312,6 +1337,14 @@ export default function App() {
   };
 
   const handleUpdateUserSession = async (userId: string, sessionId: string) => {
+    // Bypass updating session identifier for 'user' (demo) to allow multiple simultaneous testers
+    const isDemoUser = userId === 'user-demo-default' || userId === 'user' || 
+      internalUsers.some(u => u.id === userId && u.username.toLowerCase() === 'user');
+    
+    if (isDemoUser) {
+      return;
+    }
+
     let targetUser: InternalUser | null = null;
     const prevUsers = [...internalUsers];
     let found = false;
