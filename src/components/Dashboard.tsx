@@ -204,9 +204,9 @@ export default function Dashboard({
     }).format(val);
   };
 
-  // Filter items for selected Year-Month
+  // Filter items for selected Year-Month (strictly PAID services only, as per user requirement)
   const servicesThisMonth = React.useMemo(() => {
-    return services.filter(s => s.date.startsWith(currentYearMonth));
+    return services.filter(s => s.date.startsWith(currentYearMonth) && s.status === 'PAGO');
   }, [services, currentYearMonth]);
 
   const expensesThisMonth = React.useMemo(() => {
@@ -310,10 +310,10 @@ export default function Dashboard({
   }, [servicesThisMonth]);
 
   const pendingRevenuesThisMonth = React.useMemo(() => {
-    return servicesThisMonth
-      .filter(s => s.status === 'PENDENTE')
+    return services
+      .filter(s => s.date.startsWith(currentYearMonth) && s.status === 'PENDENTE')
       .reduce((acc, curr) => acc + curr.totalValue, 0);
-  }, [servicesThisMonth]);
+  }, [services, currentYearMonth]);
 
   const totalExpensesThisMonth = React.useMemo(() => {
     return expensesThisMonth.reduce((acc, curr) => acc + curr.value, 0);
@@ -500,7 +500,7 @@ export default function Dashboard({
 
   const chartData = React.useMemo(() => {
     return monthsList.map(month => {
-      const monthServices = services.filter(s => s.date.startsWith(month.key));
+      const monthServices = services.filter(s => s.date.startsWith(month.key) && s.status === 'PAGO');
       const monthExpenses = expenses.filter(e => e.date.startsWith(month.key));
       
       return {
