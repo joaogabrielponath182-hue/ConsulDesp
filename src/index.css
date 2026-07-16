@@ -57,6 +57,7 @@ html.light,
 }
 
 /* Inner Informational Boxes (cash/pix detail blocks, category lists, balances etc. inside cards) */
+.light .bg-\[\#11141B\],
 .light .bg-\[\#0F1115\],
 .light .bg-\[\#0d0e12\],
 .light .bg-\[\#141820\],
