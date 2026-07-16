@@ -84,6 +84,7 @@ export default function Sidebar({
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [isReportsExpanded, setIsReportsExpanded] = useState(currentTab.startsWith('reports'));
+  const [isUserManagementExpanded, setIsUserManagementExpanded] = useState(currentTab === 'usermanagement' || currentTab === 'leads');
   const [isConfirmingLogout, setIsConfirmingLogout] = useState(false);
 
   useEffect(() => {
@@ -92,7 +93,31 @@ export default function Sidebar({
     } else {
       setIsReportsExpanded(false);
     }
+    if (currentTab === 'usermanagement' || currentTab === 'leads') {
+      setIsUserManagementExpanded(true);
+    } else {
+      setIsUserManagementExpanded(false);
+    }
   }, [currentTab]);
+
+  const [isBackupExpanded, setIsBackupExpanded] = useState(() => {
+    try {
+      const stored = localStorage.getItem('dep_backup_expanded');
+      return stored !== 'false'; // defaults to true
+    } catch {
+      return true;
+    }
+  });
+
+  const toggleBackupExpanded = () => {
+    setIsBackupExpanded(prev => {
+      const newVal = !prev;
+      try {
+        localStorage.setItem('dep_backup_expanded', String(newVal));
+      } catch (err) {}
+      return newVal;
+    });
+  };
 
   const [metrics, setMetrics] = useState<UsageMetrics | null>(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -130,7 +155,7 @@ export default function Sidebar({
     if (currentSession?.isAdmin) {
       setMetrics(getFirestoreUsageMetrics());
     }
-  }, [currentSession, services, expenses, subCategories, clients, internalUsers, personalExpenses, isCloudMetricsExpanded]);
+  }, [currentSession?.isAdmin]);
 
   const menuItems = [
     { id: 'dashboard', name: 'Painel Geral', icon: LayoutDashboard },
@@ -150,8 +175,15 @@ export default function Sidebar({
       ]
     },
     ...(currentSession?.isAdmin ? [
-      { id: 'usermanagement', name: 'Controle de Usuários', icon: ShieldCheck },
-      { id: 'leads', name: 'Leads do Site', icon: MessageSquare }
+      { 
+        id: 'usermanagement-parent', 
+        name: 'Controle de Usuários', 
+        icon: ShieldCheck,
+        children: [
+          { id: 'usermanagement', name: 'Cadastro de Usuários' },
+          { id: 'leads', name: 'Leads do Site' }
+        ]
+      }
     ] : [])
   ];
 
@@ -231,8 +263,14 @@ export default function Sidebar({
           {menuItems.map(item => {
             const Icon = item.icon;
             const hasChildren = !!item.children;
-            const isParentActive = currentTab === item.id || (hasChildren && currentTab.startsWith('reports'));
-            const isChildOpen = hasChildren && isReportsExpanded;
+            const isParentActive = currentTab === item.id || (hasChildren && (
+              item.id === 'reports' ? currentTab.startsWith('reports') :
+              item.id === 'usermanagement-parent' ? (currentTab === 'usermanagement' || currentTab === 'leads') : false
+            ));
+            const isChildOpen = hasChildren && (
+              item.id === 'reports' ? isReportsExpanded :
+              item.id === 'usermanagement-parent' ? isUserManagementExpanded : false
+            );
 
             return (
               <div key={item.id} className="space-y-1">
@@ -240,8 +278,12 @@ export default function Sidebar({
                 <button
                   type="button"
                   onClick={() => {
-                    if (hasChildren && item.id === 'reports') {
-                      setIsReportsExpanded(prev => !prev);
+                    if (hasChildren) {
+                      if (item.id === 'reports') {
+                        setIsReportsExpanded(prev => !prev);
+                      } else if (item.id === 'usermanagement-parent') {
+                        setIsUserManagementExpanded(prev => !prev);
+                      }
                     } else {
                       onNavigate(item.id);
                     }
@@ -266,7 +308,7 @@ export default function Sidebar({
                 </button>
 
                 {/* Consumo de Nuvem Widget (Only for Administrator right below Controle de Usuários) */}
-                {item.id === 'usermanagement' && metrics && (
+                {item.id === 'usermanagement-parent' && metrics && (
                   <div className="mx-1 my-3 p-3 bg-slate-900/60 rounded-xl border border-slate-800/80 space-y-2.5">
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-1.5">
@@ -468,81 +510,128 @@ export default function Sidebar({
 
       {/* Safety Backups Section */}
       <div className="space-y-4 border-t border-slate-800 pt-5 mt-6">
-        <span className="text-[9px] font-bold text-slate-500 px-2 uppercase tracking-widest block">
-          Backup de Segurança
-        </span>
+        <button
+          type="button"
+          onClick={toggleBackupExpanded}
+          className="w-full flex items-center justify-between px-2 cursor-pointer select-none text-left"
+          title={isBackupExpanded ? "Recolher painel de backup" : "Expandir painel de backup"}
+        >
+          <span className="text-[9px] font-bold text-slate-500 uppercase tracking-widest block">
+            Backup de Segurança
+          </span>
+          <ChevronDown 
+            size={12} 
+            className={`text-slate-500 transform transition-transform duration-200 ${isBackupExpanded ? 'rotate-180 text-emerald-400' : ''}`} 
+          />
+        </button>
 
-        <div className="grid grid-cols-2 gap-2 px-1">
-          {/* Export button */}
-          <button
-            onClick={handleExportData}
-            className="flex items-center justify-center gap-1.5 py-2 rounded-lg bg-[#0F1115] hover:bg-slate-800 hover:text-white border border-slate-800 text-[10px] font-bold cursor-pointer transition-all text-slate-300"
-            title="Salvar cópia do banco local no computador"
-          >
-            <Download size={11} className="text-emerald-500" />
-            Exportar
-          </button>
-
-          {/* Import trigger */}
-          <button
-            onClick={() => fileInputRef.current?.click()}
-            className="flex items-center justify-center gap-1.5 py-2 rounded-lg bg-[#0F1115] hover:bg-slate-800 hover:text-white border border-slate-800 text-[10px] font-bold cursor-pointer transition-all text-slate-300"
-            title="Fazer upload de um arquivo de backup salvo"
-          >
-            <Upload size={11} className="text-slate-400" />
-            Importar
-          </button>
-        </div>
-
-        {/* Auto-Backup Panel widget */}
-        <div className="bg-[#0F1115] border border-slate-850 rounded-xl p-2.5 mt-2 space-y-2 select-none">
-          <div className="flex items-center justify-between text-[9px] font-bold">
-            <span className="text-slate-400">🕒 AUTO-BACKUP (16:35)</span>
-            <span className={`px-1.5 py-0.5 rounded-[4px] text-[7.5px] font-black uppercase ${
-              autoBackupFileName 
-                ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' 
-                : 'bg-slate-800 text-slate-500'
-            }`}>
-              {autoBackupFileName ? 'Ativo' : 'Inativo'}
-            </span>
-          </div>
-
-          {autoBackupFileName ? (
-            <div className="space-y-1.5">
-              <p className="text-[10px] font-mono text-emerald-400 truncate" title={autoBackupFileName}>
-                📁 {autoBackupFileName}
-              </p>
-              <div className="flex gap-1.5">
-                <button
-                  onClick={onConfigureAutoBackup}
-                  className="flex-1 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-750 hover:text-white text-[9px] font-bold cursor-pointer transition-all text-slate-300"
-                  title="Alterar o arquivo de auto-backup"
-                >
-                  Alterar
-                </button>
-                <button
-                  onClick={onDisableAutoBackup}
-                  className="px-2 py-1.5 rounded-lg bg-rose-950/20 hover:bg-rose-950/40 text-rose-400 hover:text-rose-300 text-[9px] font-bold cursor-pointer transition-all"
-                  title="Desativar o auto-backup"
-                >
-                  Desligar
-                </button>
-              </div>
-            </div>
-          ) : (
-            <div className="space-y-1.5">
-              <p className="text-[8.5px] text-slate-500 leading-normal">
-                Grave e substitua o arquivo de backup automaticamente todos os dias às 16:35.
-              </p>
+        {isBackupExpanded && (
+          <div className="space-y-4 animate-fadeIn">
+            <div className="grid grid-cols-2 gap-2 px-1">
+              {/* Export button */}
               <button
-                onClick={onConfigureAutoBackup}
-                className="w-full py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-[9px] font-extrabold uppercase tracking-wide cursor-pointer transition-all active:scale-[0.98]"
+                onClick={handleExportData}
+                className="flex items-center justify-center gap-1.5 py-2 rounded-lg bg-[#0F1115] hover:bg-slate-800 hover:text-white border border-slate-800 text-[10px] font-bold cursor-pointer transition-all text-slate-300"
+                title="Salvar cópia do banco local no computador"
               >
-                Ativar Auto-Backup
+                <Download size={11} className="text-emerald-500" />
+                Exportar
+              </button>
+
+              {/* Import trigger */}
+              <button
+                onClick={() => fileInputRef.current?.click()}
+                className="flex items-center justify-center gap-1.5 py-2 rounded-lg bg-[#0F1115] hover:bg-slate-800 hover:text-white border border-slate-800 text-[10px] font-bold cursor-pointer transition-all text-slate-300"
+                title="Fazer upload de um arquivo de backup salvo"
+              >
+                <Upload size={11} className="text-slate-400" />
+                Importar
               </button>
             </div>
-          )}
-        </div>
+
+            {/* Auto-Backup Panel widget */}
+            <div className="bg-[#0F1115] border border-slate-850 rounded-xl p-2.5 mt-2 space-y-2 select-none">
+              <div className="flex items-center justify-between text-[9px] font-bold">
+                <span className="text-slate-400">🕒 AUTO-BACKUP (16:35)</span>
+                <span className={`px-1.5 py-0.5 rounded-[4px] text-[7.5px] font-black uppercase ${
+                  autoBackupFileName 
+                    ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' 
+                    : 'bg-slate-800 text-slate-500'
+                }`}>
+                  {autoBackupFileName ? 'Ativo' : 'Inativo'}
+                </span>
+              </div>
+
+              {autoBackupFileName ? (
+                <div className="space-y-1.5">
+                  <p className="text-[10px] font-mono text-emerald-400 truncate" title={autoBackupFileName}>
+                    📁 {autoBackupFileName}
+                  </p>
+                  <div className="flex gap-1.5">
+                    <button
+                      onClick={onConfigureAutoBackup}
+                      className="flex-1 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-750 hover:text-white text-[9px] font-bold cursor-pointer transition-all text-slate-300"
+                      title="Alterar o arquivo de auto-backup"
+                    >
+                      Alterar
+                    </button>
+                    <button
+                      onClick={onDisableAutoBackup}
+                      className="px-2 py-1.5 rounded-lg bg-rose-950/20 hover:bg-rose-950/40 text-rose-400 hover:text-rose-300 text-[9px] font-bold cursor-pointer transition-all"
+                      title="Desativar o auto-backup"
+                    >
+                      Desligar
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <div className="space-y-1.5">
+                  <p className="text-[8.5px] text-slate-500 leading-normal">
+                    Grave e substitua o arquivo de backup automaticamente todos os dias às 16:35.
+                  </p>
+                  <button
+                    onClick={onConfigureAutoBackup}
+                    className="w-full py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-[9px] font-extrabold uppercase tracking-wide cursor-pointer transition-all active:scale-[0.98]"
+                  >
+                    Ativar Auto-Backup
+                  </button>
+                </div>
+              )}
+            </div>
+
+            {/* Footer info lockup */}
+            <div 
+              onClick={onOpenAuthModal}
+              className="bg-slate-800/20 hover:bg-slate-800/40 p-2.5 rounded-xl border border-slate-850 hover:border-slate-700 mt-2 space-y-1 cursor-pointer transition-all active:scale-[0.98]"
+              title="Clique para gerenciar a Sincronização na Nuvem"
+            >
+              <div className="flex items-center justify-between text-[10px] font-medium">
+                {isCloudConnected ? (
+                  <div className="flex items-center gap-1.5 text-emerald-400">
+                    <ShieldCheck size={11} className="shrink-0 animate-pulse" />
+                    <span className="truncate max-w-[110px]">Nuvem Conectada</span>
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-1.5 text-amber-500">
+                    <ShieldCheck size={11} className="shrink-0" />
+                    <span>Nuvem Desconectada</span>
+                  </div>
+                )}
+                
+                {isCloudLoading ? (
+                  <Loader2 size={10} className="animate-spin text-emerald-500" />
+                ) : (
+                  <div className={`w-1.5 h-1.5 rounded-full ${isCloudConnected ? 'bg-emerald-500 shadow-lg shadow-emerald-500/50' : 'bg-amber-500'}`} />
+                )}
+              </div>
+              
+              <div className="text-[9px] text-slate-500 leading-normal flex items-center justify-between">
+                <span>{isCloudConnected ? 'Nuvem do Administrador activa' : 'Clique para conectar'}</span>
+                <span className="font-mono text-[8px] bg-[#0F1115] px-1 rounded border border-slate-800 text-slate-400">Firebase</span>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Invisible file upload tag */}
         <input 
@@ -552,38 +641,6 @@ export default function Sidebar({
           onChange={handleImportData}
           className="hidden" 
         />
-
-        {/* Footer info lockup */}
-        <div 
-          onClick={onOpenAuthModal}
-          className="bg-slate-800/20 hover:bg-slate-800/40 p-2.5 rounded-xl border border-slate-850 hover:border-slate-700 mt-2 space-y-1 cursor-pointer transition-all active:scale-[0.98]"
-          title="Clique para gerenciar a Sincronização na Nuvem"
-        >
-          <div className="flex items-center justify-between text-[10px] font-medium">
-            {isCloudConnected ? (
-              <div className="flex items-center gap-1.5 text-emerald-400">
-                <ShieldCheck size={11} className="shrink-0 animate-pulse" />
-                <span className="truncate max-w-[110px]">Nuvem Conectada</span>
-              </div>
-            ) : (
-              <div className="flex items-center gap-1.5 text-amber-500">
-                <ShieldCheck size={11} className="shrink-0" />
-                <span>Nuvem Desconectada</span>
-              </div>
-            )}
-            
-            {isCloudLoading ? (
-              <Loader2 size={10} className="animate-spin text-emerald-500" />
-            ) : (
-              <div className={`w-1.5 h-1.5 rounded-full ${isCloudConnected ? 'bg-emerald-500 shadow-lg shadow-emerald-500/50' : 'bg-amber-500'}`} />
-            )}
-          </div>
-          
-          <div className="text-[9px] text-slate-500 leading-normal flex items-center justify-between">
-            <span>{isCloudConnected ? 'Nuvem do Administrador ativa' : 'Clique para conectar'}</span>
-            <span className="font-mono text-[8px] bg-[#0F1115] px-1 rounded border border-slate-800 text-slate-400">Firebase</span>
-          </div>
-        </div>
       </div>
     </div>
   );

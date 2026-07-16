@@ -792,46 +792,9 @@ export default function LandingPage({ onGoToLogin, onGoToTestDrive }: LandingPag
                     <p className="text-xs text-slate-300 leading-relaxed">
                       Sua solicitação de teste gratuito de 14 dias foi registrada com sucesso no banco de dados em nuvem do ConsulDesp!
                     </p>
-                    <p className="text-xs text-slate-400 leading-relaxed">
-                      Nossa equipe especializada analisará seus dados e entrará em contato via WhatsApp ou E-mail para configurar sua demonstração. Se preferir atendimento imediato, você também pode falar conosco diretamente:
+                    <p className="text-xs text-slate-400 leading-relaxed font-mono">
+                      A solicitação foi enviada diretamente para análise de cadastro dentro do painel do sistema. Aguarde a liberação do seu acesso!
                     </p>
-                  </div>
-
-                  {/* Direct Contact Buttons */}
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2">
-                    {/* WhatsApp Button */}
-                    <a
-                      href={`https://api.whatsapp.com/send?phone=5527998862214&text=${encodeURIComponent(
-                        `Olá! Acabo de preencher o formulário no site ConsulDesp Financeiro para solicitar uma demonstração gratuita:\n\n` +
-                        `• *Nome*: ${leadName}\n` +
-                        `• *E-mail*: ${leadEmail}\n` +
-                        `• *WhatsApp*: ${leadPhone}\n` +
-                        (leadAgency ? `• *Escritório*: ${leadAgency}\n` : '') +
-                        `\nPor favor, libere meu acesso de teste gratuito de 14 dias!`
-                      )}`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="flex items-center justify-center gap-2 py-3 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold uppercase tracking-wider transition-all shadow-md shadow-emerald-600/10 active:scale-[0.98]"
-                    >
-                      <MessageSquare size={16} />
-                      <span>Falar no WhatsApp</span>
-                    </a>
-
-                    {/* Email Button */}
-                    <a
-                      href={`mailto:jgdespachantesmj@outlook.com?subject=${encodeURIComponent('Solicitação de Demonstração - ConsulDesp')}&body=${encodeURIComponent(
-                        `Olá João Gabriel,\n\nAcabo de preencher o formulário no site ConsulDesp Financeiro para solicitar um teste gratuito de 14 dias com os seguintes dados:\n\n` +
-                        `• Nome: ${leadName}\n` +
-                        `• E-mail: ${leadEmail}\n` +
-                        `• WhatsApp: ${leadPhone}\n` +
-                        (leadAgency ? `• Escritório: ${leadAgency}\n` : '') +
-                        `\nPor favor, libere meu acesso de demonstração!\n\nAtenciosamente,\n${leadName}`
-                      )}`}
-                      className="flex items-center justify-center gap-2 py-3 px-4 rounded-xl bg-slate-800 hover:bg-slate-750 border border-slate-700 text-slate-200 hover:text-white text-xs font-bold uppercase tracking-wider transition-all active:scale-[0.98]"
-                    >
-                      <Mail size={16} className="text-sky-400" />
-                      <span>Enviar E-mail</span>
-                    </a>
                   </div>
 
                   <div className="pt-2 border-t border-slate-800/50">
@@ -845,7 +808,7 @@ export default function LandingPage({ onGoToLogin, onGoToTestDrive }: LandingPag
                       }}
                       className="text-slate-400 hover:text-white text-[10px] font-bold uppercase tracking-widest transition-all cursor-pointer underline decoration-dotted"
                     >
-                      Enviar Outro Contato
+                      Enviar Outra Solicitação
                     </button>
                   </div>
                 </motion.div>
