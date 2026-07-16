@@ -22,7 +22,8 @@ import {
   Calendar,
   Check,
   Mail,
-  Phone
+  Phone,
+  ArrowUp
 } from 'lucide-react';
 import SystemLogo from './SystemLogo';
 import { saveLead } from '../lib/db';
@@ -893,6 +894,15 @@ export default function LandingPage({ onGoToLogin, onGoToTestDrive }: LandingPag
           <p className="text-[10px] font-mono">
             &copy; {new Date().getFullYear()} ConsulDesp Financeiro. Todos os direitos reservados.
           </p>
+          <button
+            onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
+            className="flex items-center gap-1.5 py-2 px-3.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white text-[11px] font-bold uppercase tracking-widest transition-all cursor-pointer border border-slate-700/60 shadow-sm active:scale-95"
+            id="back-to-top-btn"
+            title="Voltar ao início da página"
+          >
+            <ArrowUp size={12} className="text-slate-400" />
+            <span>Voltar ao início</span>
+          </button>
           <div className="flex items-center gap-2 text-[10px] font-mono">
             <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
             <span>Servidor Cloud Run Ativo</span>

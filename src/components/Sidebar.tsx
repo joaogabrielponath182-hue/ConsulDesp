@@ -127,10 +127,10 @@ export default function Sidebar({
   };
 
   useEffect(() => {
-    if (currentSession?.isAdmin) {
+    if (currentSession?.isAdmin && isCloudMetricsExpanded) {
       setMetrics(getFirestoreUsageMetrics());
     }
-  }, [currentSession, services, expenses, subCategories, clients, internalUsers, personalExpenses]);
+  }, [currentSession, isCloudMetricsExpanded]);
 
   const menuItems = [
     { id: 'dashboard', name: 'Painel Geral', icon: LayoutDashboard },
