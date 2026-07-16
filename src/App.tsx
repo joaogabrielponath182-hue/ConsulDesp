@@ -1557,6 +1557,7 @@ export default function App() {
           autoBackupFileName={autoBackupFileName}
           onConfigureAutoBackup={handleConfigureAutoBackup}
           onDisableAutoBackup={handleDisableAutoBackup}
+          onForceRefreshCloud={handleForceRefreshCloud}
         />
       </div>
 
@@ -1592,6 +1593,7 @@ export default function App() {
               autoBackupFileName={autoBackupFileName}
               onConfigureAutoBackup={handleConfigureAutoBackup}
               onDisableAutoBackup={handleDisableAutoBackup}
+              onForceRefreshCloud={handleForceRefreshCloud}
             />
           </div>
         </div>

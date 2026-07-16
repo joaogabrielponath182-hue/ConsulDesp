@@ -59,6 +59,7 @@ interface SidebarProps {
   autoBackupFileName: string | null;
   onConfigureAutoBackup: () => void;
   onDisableAutoBackup: () => void;
+  onForceRefreshCloud?: () => Promise<void>;
 }
 
 export default function Sidebar({
@@ -79,7 +80,8 @@ export default function Sidebar({
   isCloudConnected,
   autoBackupFileName,
   onConfigureAutoBackup,
-  onDisableAutoBackup
+  onDisableAutoBackup,
+  onForceRefreshCloud
 }: SidebarProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -119,29 +121,17 @@ export default function Sidebar({
     });
   };
 
-  const [metrics, setMetrics] = useState<UsageMetrics | null>(null);
-  const [isRefreshing, setIsRefreshing] = useState(false);
-  const loggedInUsers = internalUsers.filter(u => u.currentSessionId);
-  const [isCloudMetricsExpanded, setIsCloudMetricsExpanded] = useState(() => {
+  const [metrics, setMetrics] = useState<UsageMetrics | null>(() => {
     try {
-      const stored = localStorage.getItem('dep_cloud_metrics_expanded');
-      return stored !== 'false'; // defaults to true
+      return getFirestoreUsageMetrics();
     } catch {
-      return true;
+      return null;
     }
   });
-
-  const toggleCloudMetrics = () => {
-    setIsCloudMetricsExpanded(prev => {
-      const newVal = !prev;
-      try {
-        localStorage.setItem('dep_cloud_metrics_expanded', String(newVal));
-      } catch (err) {
-        console.error(err);
-      }
-      return newVal;
-    });
-  };
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const loggedInUsers = internalUsers.filter(u => u.currentSessionId);
+  const [isRefreshingOperators, setIsRefreshingOperators] = useState(false);
+  const [isOperatorsListExpanded, setIsOperatorsListExpanded] = useState(false);
 
   const handleRefreshMetrics = () => {
     setIsRefreshing(true);
@@ -150,12 +140,6 @@ export default function Sidebar({
       setIsRefreshing(false);
     }, 400);
   };
-
-  useEffect(() => {
-    if (currentSession?.isAdmin) {
-      setMetrics(getFirestoreUsageMetrics());
-    }
-  }, [currentSession?.isAdmin]);
 
   const menuItems = [
     { id: 'dashboard', name: 'Painel Geral', icon: LayoutDashboard },
@@ -181,7 +165,8 @@ export default function Sidebar({
         icon: ShieldCheck,
         children: [
           { id: 'usermanagement', name: 'Cadastro de Usuários' },
-          { id: 'leads', name: 'Leads do Site' }
+          { id: 'leads', name: 'Leads do Site' },
+          { id: 'operators', name: 'Operadores Conectados' }
         ]
       }
     ] : [])
@@ -307,183 +292,93 @@ export default function Sidebar({
                   )}
                 </button>
 
-                {/* Consumo de Nuvem Widget (Only for Administrator right below Controle de Usuários) */}
-                {item.id === 'usermanagement-parent' && metrics && (
-                  <div className="mx-1 my-3 p-3 bg-slate-900/60 rounded-xl border border-slate-800/80 space-y-2.5">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-1.5">
-                        <Database size={12} className="text-emerald-400" />
-                        <span className="text-[10px] font-black tracking-wider text-slate-400 uppercase">CONSUMO DE NUVEM</span>
-                      </div>
-                      <div className="flex items-center gap-1">
-                        <button
-                          type="button"
-                          onClick={handleRefreshMetrics}
-                          disabled={isRefreshing}
-                          className="p-1 rounded bg-slate-800/50 hover:bg-slate-800 text-slate-400 hover:text-white transition-colors disabled:opacity-50"
-                          title="Atualizar estatísticas de uso localmente"
-                        >
-                          <RefreshCw size={10} className={isRefreshing ? 'animate-spin text-emerald-400' : ''} />
-                        </button>
-                        <button
-                          type="button"
-                          onClick={toggleCloudMetrics}
-                          className="p-1 rounded bg-slate-800/50 hover:bg-slate-800 text-slate-400 hover:text-white transition-colors"
-                          title={isCloudMetricsExpanded ? "Recolher informações" : "Expandir informações"}
-                        >
-                          <ChevronDown 
-                            size={12} 
-                            className={`transform transition-transform duration-200 ${isCloudMetricsExpanded ? 'rotate-180 text-emerald-400' : ''}`} 
-                          />
-                        </button>
-                      </div>
-                    </div>
-
-                    {/* Permanent logged-in users counter */}
-                    <div className="flex items-center justify-between px-2 py-1.5 bg-slate-950/60 rounded-lg border border-slate-800/40 text-[10px]">
-                      <div className="flex items-center gap-1.5 text-slate-300">
-                        <Users size={11} className="text-emerald-400 shrink-0 animate-pulse" />
-                        <span className="font-bold uppercase tracking-wide text-slate-400 text-[9px]">Usuários Online</span>
-                      </div>
-                      <span className="font-mono text-[10px] font-extrabold text-emerald-400 bg-emerald-500/10 px-1.5 py-0.5 rounded border border-emerald-500/20 flex items-center gap-1">
-                        <span className="w-1 h-1 rounded-full bg-emerald-400 animate-ping" />
-                        {loggedInUsers.length}
-                      </span>
-                    </div>
-
-                    {isCloudMetricsExpanded && (
-                      <>
-                        <div className="space-y-2 text-[10px]">
-                          {/* Reads */}
-                          <div className="space-y-1">
-                            <div className="flex items-center justify-between text-slate-400">
-                              <span className="font-medium">Leituras (Reads)</span>
-                              <span className="font-mono text-[9px] text-slate-300">
-                                {metrics.reads.toLocaleString()} / 50k
-                              </span>
-                            </div>
-                            <div className="flex items-center gap-2">
-                              <div className="flex-1 h-1.5 bg-slate-850 rounded-full overflow-hidden">
-                                <div 
-                                  className="h-full bg-emerald-500 rounded-full transition-all duration-300" 
-                                  style={{ width: `${Math.min((metrics.reads / 50000) * 100, 100)}%` }}
-                                />
-                              </div>
-                              <span className="font-mono text-[9px] w-12 text-right text-emerald-400 font-bold">
-                                {((metrics.reads / 50000) * 100).toFixed(2)}%
-                              </span>
-                            </div>
-                          </div>
-
-                          {/* Writes */}
-                          <div className="space-y-1">
-                            <div className="flex items-center justify-between text-slate-400">
-                              <span className="font-medium">Gravações (Writes)</span>
-                              <span className="font-mono text-[9px] text-slate-300">
-                                {metrics.writes.toLocaleString()} / 20k
-                              </span>
-                            </div>
-                            <div className="flex items-center gap-2">
-                              <div className="flex-1 h-1.5 bg-slate-850 rounded-full overflow-hidden">
-                                <div 
-                                  className="h-full bg-blue-500 rounded-full transition-all duration-300" 
-                                  style={{ width: `${Math.min((metrics.writes / 20000) * 100, 100)}%` }}
-                                />
-                              </div>
-                              <span className="font-mono text-[9px] w-12 text-right text-blue-400 font-bold">
-                                {((metrics.writes / 20000) * 100).toFixed(2)}%
-                              </span>
-                            </div>
-                          </div>
-
-                          {/* Deletes */}
-                          <div className="space-y-1">
-                            <div className="flex items-center justify-between text-slate-400">
-                              <span className="font-medium">Exclusões (Deletes)</span>
-                              <span className="font-mono text-[9px] text-slate-300">
-                                {metrics.deletes.toLocaleString()} / 20k
-                              </span>
-                            </div>
-                            <div className="flex items-center gap-2">
-                              <div className="flex-1 h-1.5 bg-slate-850 rounded-full overflow-hidden">
-                                <div 
-                                  className="h-full bg-amber-500 rounded-full transition-all duration-300" 
-                                  style={{ width: `${Math.min((metrics.deletes / 20000) * 100, 100)}%` }}
-                                />
-                              </div>
-                              <span className="font-mono text-[9px] w-12 text-right text-amber-400 font-bold">
-                                {((metrics.deletes / 20000) * 100).toFixed(2)}%
-                              </span>
-                            </div>
-                          </div>
-
-                          {/* Storage */}
-                          <div className="space-y-1">
-                            <div className="flex items-center justify-between text-slate-400">
-                              <span className="font-medium">Armazenamento</span>
-                              <span className="font-mono text-[9px] text-slate-300">
-                                {metrics.storage.formatted} / 1 GB
-                              </span>
-                            </div>
-                            <div className="flex items-center gap-2">
-                              <div className="flex-1 h-1.5 bg-slate-850 rounded-full overflow-hidden">
-                                <div 
-                                  className="h-full bg-purple-500 rounded-full transition-all duration-300" 
-                                  style={{ width: `${metrics.storage.percentage}%` }}
-                                />
-                              </div>
-                              <span className="font-mono text-[9px] w-12 text-right text-purple-400 font-bold">
-                                {metrics.storage.percentage.toFixed(4)}%
-                              </span>
-                            </div>
-                          </div>
-                        </div>
-
-                        {/* Logged in users list */}
-                        <div className="pt-2.5 border-t border-slate-800/40 space-y-1.5">
-                          <div className="flex items-center justify-between text-slate-400">
-                            <span className="font-bold text-[9px] uppercase tracking-wider text-slate-400">Lista de Operadores</span>
-                          </div>
-                          {loggedInUsers.length === 0 ? (
-                            <div className="text-[9px] text-slate-500 italic py-1 text-center bg-slate-950/20 rounded">
-                              Nenhum usuário online
-                            </div>
-                          ) : (
-                            <div className="max-h-[90px] overflow-y-auto pr-1 space-y-1.5 custom-scrollbar">
-                              {loggedInUsers.map(u => {
-                                const isAdmin = u.username === 'joao.desp';
-                                return (
-                                  <div key={u.id} className="flex items-center justify-between p-1 px-1.5 bg-slate-950/40 rounded border border-slate-900/60 hover:bg-slate-950/70 transition-colors">
-                                    <div className="flex items-center gap-1.5 truncate max-w-[125px]">
-                                      <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse shrink-0" />
-                                      <span className="truncate text-slate-300 font-semibold text-[9.5px]">{u.fullName}</span>
-                                    </div>
-                                    <span className={`text-[7px] px-1 font-extrabold rounded uppercase shrink-0 ${
-                                      isAdmin 
-                                        ? 'bg-purple-500/10 text-purple-400 border border-purple-500/20' 
-                                        : 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
-                                    }`}>
-                                      {isAdmin ? 'Admin' : 'Operador'}
-                                    </span>
-                                  </div>
-                                );
-                              })}
-                            </div>
-                          )}
-                        </div>
-
-                        <div className="text-[8px] text-slate-500 leading-tight text-center pt-1.5 border-t border-slate-800/50">
-                          Limite Gratuito Diário (No Cost)
-                        </div>
-                      </>
-                    )}
-                  </div>
-                )}
-
                 {/* Submenu rendering */}
                 {hasChildren && isChildOpen && item.children && (
-                  <div className="pl-3.5 space-y-1 mt-1 border-l border-slate-800 ml-5 animate-fadeIn">
+                  <div className="pl-3.5 space-y-1.5 mt-1 border-l border-slate-800 ml-5 animate-fadeIn">
                     {item.children.map(child => {
+                      if (child.id === 'operators') {
+                        return (
+                          <div key={child.id} className="space-y-1">
+                            <button
+                              type="button"
+                              onClick={() => setIsOperatorsListExpanded(prev => !prev)}
+                              className={`w-full flex items-center justify-between px-3 py-2 rounded-lg text-[11px] font-medium tracking-wide transition-all duration-150 cursor-pointer ${
+                                isOperatorsListExpanded
+                                  ? 'bg-emerald-600/10 text-emerald-300 border border-emerald-600/10'
+                                  : 'text-slate-400 hover:text-white hover:bg-slate-800/30'
+                              }`}
+                            >
+                              <div className="flex items-center gap-1.5">
+                                <Users size={12} className={isOperatorsListExpanded ? 'text-emerald-400 animate-pulse' : 'text-slate-500'} />
+                                <span>{child.name}</span>
+                              </div>
+                              <ChevronDown 
+                                size={10} 
+                                className={`text-slate-500 transform transition-transform duration-200 ${isOperatorsListExpanded ? 'rotate-180 text-emerald-400' : ''}`} 
+                              />
+                            </button>
+
+                            {isOperatorsListExpanded && (
+                              <div className="pl-2 py-2 bg-slate-900/40 rounded-lg border border-slate-850 space-y-2 mt-1 mr-1 animate-fadeIn">
+                                <div className="flex items-center justify-between text-[9px] text-slate-400 font-bold uppercase tracking-wider pr-1">
+                                  <span>Operadores ({loggedInUsers.length})</span>
+                                  <button
+                                    type="button"
+                                    onClick={async (e) => {
+                                      e.stopPropagation();
+                                      setIsRefreshingOperators(true);
+                                      if (onForceRefreshCloud) {
+                                        await onForceRefreshCloud();
+                                      }
+                                      setTimeout(() => {
+                                        setIsRefreshingOperators(false);
+                                      }, 600);
+                                    }}
+                                    disabled={isRefreshingOperators}
+                                    className="flex items-center gap-1 px-1.5 py-0.5 rounded bg-slate-800 hover:bg-slate-750 text-slate-300 hover:text-white transition-all disabled:opacity-50 cursor-pointer text-[8px]"
+                                    title="Atualizar lista de operadores"
+                                  >
+                                    <RefreshCw size={8} className={isRefreshingOperators ? 'animate-spin text-emerald-400' : ''} />
+                                    <span>Atualizar</span>
+                                  </button>
+                                </div>
+
+                                {loggedInUsers.length === 0 ? (
+                                  <div className="text-[9px] text-slate-500 italic py-1 text-center bg-slate-950/20 rounded mr-1">
+                                    Nenhum usuário online
+                                  </div>
+                                ) : (
+                                  <div className="max-h-[110px] overflow-y-auto pr-1 space-y-1.5 custom-scrollbar">
+                                    {loggedInUsers.map(u => {
+                                      const isAdmin = u.username === 'joao.desp';
+                                      return (
+                                        <div key={u.id} className="p-1 px-1.5 bg-slate-950/40 rounded border border-slate-900/60 hover:bg-slate-950/70 transition-colors flex flex-col gap-0.5 mr-1">
+                                          <div className="flex items-center justify-between gap-1">
+                                            <span className="truncate text-slate-300 font-semibold text-[9.5px] max-w-[95px]" title={u.fullName}>
+                                              {u.fullName}
+                                            </span>
+                                            <span className={`text-[7px] px-1 font-extrabold rounded uppercase shrink-0 ${
+                                              isAdmin 
+                                                ? 'bg-purple-500/10 text-purple-400 border border-purple-500/20' 
+                                                : 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
+                                            }`}>
+                                              {isAdmin ? 'Admin' : 'Operador'}
+                                            </span>
+                                          </div>
+                                          <div className="text-[8px] text-slate-500 font-mono truncate">
+                                            Usuário: {u.username}
+                                          </div>
+                                        </div>
+                                      );
+                                    })}
+                                  </div>
+                                )}
+                              </div>
+                            )}
+                          </div>
+                        );
+                      }
+
                       const isChildActive = currentTab === child.id;
                       return (
                         <button
@@ -508,16 +403,16 @@ export default function Sidebar({
         </nav>
       </div>
 
-      {/* Safety Backups Section */}
+      {/* CONSUMO DA NUVEM E SEGURANÇA Section */}
       <div className="space-y-4 border-t border-slate-800 pt-5 mt-6">
         <button
           type="button"
           onClick={toggleBackupExpanded}
           className="w-full flex items-center justify-between px-2 cursor-pointer select-none text-left"
-          title={isBackupExpanded ? "Recolher painel de backup" : "Expandir painel de backup"}
+          title={isBackupExpanded ? "Recolher painel" : "Expandir painel"}
         >
           <span className="text-[9px] font-bold text-slate-500 uppercase tracking-widest block">
-            Backup de Segurança
+            {currentSession?.isAdmin ? "CONSUMO DA NUVEM E SEGURANÇA" : "BACKUP DE SEGURANÇA"}
           </span>
           <ChevronDown 
             size={12} 
@@ -527,6 +422,119 @@ export default function Sidebar({
 
         {isBackupExpanded && (
           <div className="space-y-4 animate-fadeIn">
+            {/* Cloud Consumption Widgets (Admin Only) */}
+            {currentSession?.isAdmin && metrics && (
+              <div className="bg-[#0F1115] border border-slate-850 rounded-xl p-2.5 space-y-2.5 select-none mx-1">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-1.5">
+                    <Database size={11} className="text-emerald-400" />
+                    <span className="text-[9px] font-black tracking-wider text-slate-400 uppercase">CONSUMO DA NUVEM</span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={handleRefreshMetrics}
+                    disabled={isRefreshing}
+                    className="flex items-center gap-1 px-1.5 py-0.5 rounded bg-slate-800 hover:bg-slate-750 text-slate-300 hover:text-white transition-all disabled:opacity-50 cursor-pointer text-[9px]"
+                    title="Atualizar consumo da nuvem"
+                  >
+                    <RefreshCw size={9} className={isRefreshing ? 'animate-spin text-emerald-400' : ''} />
+                    <span>Atualizar</span>
+                  </button>
+                </div>
+
+                <div className="space-y-2 text-[10px]">
+                  {/* Reads */}
+                  <div className="space-y-1">
+                    <div className="flex items-center justify-between text-slate-400 text-[9px]">
+                      <span>Leituras (Reads)</span>
+                      <span className="font-mono text-[9px] text-slate-300">
+                        {metrics.reads.toLocaleString()} / 50k
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <div className="flex-1 h-1.5 bg-slate-850 rounded-full overflow-hidden">
+                        <div 
+                          className="h-full bg-emerald-500 rounded-full transition-all duration-300" 
+                          style={{ width: `${Math.min((metrics.reads / 50000) * 100, 100)}%` }}
+                        />
+                      </div>
+                      <span className="font-mono text-[8px] w-10 text-right text-emerald-400 font-bold">
+                        {((metrics.reads / 50000) * 100).toFixed(1)}%
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Writes */}
+                  <div className="space-y-1">
+                    <div className="flex items-center justify-between text-slate-400 text-[9px]">
+                      <span>Gravações (Writes)</span>
+                      <span className="font-mono text-[9px] text-slate-300">
+                        {metrics.writes.toLocaleString()} / 20k
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <div className="flex-1 h-1.5 bg-slate-850 rounded-full overflow-hidden">
+                        <div 
+                          className="h-full bg-blue-500 rounded-full transition-all duration-300" 
+                          style={{ width: `${Math.min((metrics.writes / 20000) * 100, 100)}%` }}
+                        />
+                      </div>
+                      <span className="font-mono text-[8px] w-10 text-right text-blue-400 font-bold">
+                        {((metrics.writes / 20000) * 100).toFixed(1)}%
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Deletes */}
+                  <div className="space-y-1">
+                    <div className="flex items-center justify-between text-slate-400 text-[9px]">
+                      <span>Exclusões (Deletes)</span>
+                      <span className="font-mono text-[9px] text-slate-300">
+                        {metrics.deletes.toLocaleString()} / 20k
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <div className="flex-1 h-1.5 bg-slate-850 rounded-full overflow-hidden">
+                        <div 
+                          className="h-full bg-amber-500 rounded-full transition-all duration-300" 
+                          style={{ width: `${Math.min((metrics.deletes / 20000) * 100, 100)}%` }}
+                        />
+                      </div>
+                      <span className="font-mono text-[8px] w-10 text-right text-amber-400 font-bold">
+                        {((metrics.deletes / 20000) * 100).toFixed(1)}%
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Storage */}
+                  <div className="space-y-1">
+                    <div className="flex items-center justify-between text-slate-400 text-[9px]">
+                      <span>Armazenamento</span>
+                      <span className="font-mono text-[9px] text-slate-300">
+                        {metrics.storage.formatted} / 1 GB
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <div className="flex-1 h-1.5 bg-slate-850 rounded-full overflow-hidden">
+                        <div 
+                          className="h-full bg-purple-500 rounded-full transition-all duration-300" 
+                          style={{ width: `${metrics.storage.percentage}%` }}
+                        />
+                      </div>
+                      <span className="font-mono text-[8px] w-10 text-right text-purple-400 font-bold">
+                        {metrics.storage.percentage.toFixed(3)}%
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="text-[8px] text-slate-500 leading-tight text-center pt-1.5 border-t border-slate-800/40">
+                  Limite Gratuito Diário (No Cost)
+                </div>
+              </div>
+            )}
+
+            {/* Safety Backups Grid */}
             <div className="grid grid-cols-2 gap-2 px-1">
               {/* Export button */}
               <button
@@ -550,7 +558,7 @@ export default function Sidebar({
             </div>
 
             {/* Auto-Backup Panel widget */}
-            <div className="bg-[#0F1115] border border-slate-850 rounded-xl p-2.5 mt-2 space-y-2 select-none">
+            <div className="bg-[#0F1115] border border-slate-850 rounded-xl p-2.5 mt-2 space-y-2 select-none mx-1">
               <div className="flex items-center justify-between text-[9px] font-bold">
                 <span className="text-slate-400">🕒 AUTO-BACKUP (16:35)</span>
                 <span className={`px-1.5 py-0.5 rounded-[4px] text-[7.5px] font-black uppercase ${
@@ -602,7 +610,7 @@ export default function Sidebar({
             {/* Footer info lockup */}
             <div 
               onClick={onOpenAuthModal}
-              className="bg-slate-800/20 hover:bg-slate-800/40 p-2.5 rounded-xl border border-slate-850 hover:border-slate-700 mt-2 space-y-1 cursor-pointer transition-all active:scale-[0.98]"
+              className="bg-slate-800/20 hover:bg-slate-800/40 p-2.5 rounded-xl border border-slate-850 hover:border-slate-700 mt-2 space-y-1 cursor-pointer transition-all active:scale-[0.98] mx-1"
               title="Clique para gerenciar a Sincronização na Nuvem"
             >
               <div className="flex items-center justify-between text-[10px] font-medium">
