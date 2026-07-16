@@ -55,6 +55,8 @@ import AuthModal from './components/AuthModal';
 import LoginScreen from './components/LoginScreen';
 import UserManagement from './components/UserManagement';
 import LeadsManagement from './components/LeadsManagement';
+import ConnectedOperators from './components/ConnectedOperators';
+import CloudConsumption from './components/CloudConsumption';
 import LandingPage from './components/LandingPage';
 import TestDrivePage from './components/TestDrivePage';
 
@@ -1629,6 +1631,8 @@ export default function App() {
                  currentTab === 'reports-comparative' ? 'Relatório Comparativo' :
                  currentTab === 'usermanagement' ? 'Usuários' :
                  currentTab === 'leads' ? 'Leads do Site' :
+                 currentTab === 'operators' ? 'Operadores Conectados' :
+                 currentTab === 'cloudconsumption' ? 'Consumo da Nuvem' :
                  currentTab.toUpperCase()}
               </span>
             </div>
@@ -1855,6 +1859,19 @@ export default function App() {
 
           {currentTab === 'leads' && currentSession?.isAdmin && (
             <LeadsManagement />
+          )}
+
+          {currentTab === 'operators' && currentSession?.isAdmin && (
+            <ConnectedOperators
+              users={internalUsers}
+              onForceRefreshCloud={handleForceRefreshCloud}
+            />
+          )}
+
+          {currentTab === 'cloudconsumption' && currentSession?.isAdmin && (
+            <CloudConsumption
+              onForceRefreshCloud={handleForceRefreshCloud}
+            />
           )}
         </main>
       </div>
