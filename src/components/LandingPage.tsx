@@ -82,12 +82,32 @@ export default function LandingPage({ onGoToLogin, onGoToTestDrive }: LandingPag
       a: "É uma plataforma de inteligência e controle financeiro projetada exclusivamente para escritórios de despachantes documentalistas. Diferente de sistemas genéricos de fluxo de caixa, o ConsulDesp entende a dinâmica onde você recebe o valor do cliente (Entrada), paga as taxas ou custos de repasse (Saída de Custo) e retém seu honorário de serviço, demonstrando seu lucro líquido real por lançamento."
     },
     {
-      q: "Como funciona o controle de Entradas e Saídas casadas?",
-      a: "Ao lançar um serviço no ConsulDesp, você detalha o valor total recebido e os custos de repasse correspondentes. O sistema cria automaticamente uma previsão de Saída correspondente ao custo real do serviço. Isso garante que seu caixa reflita exatamente o lucro líquido do seu escritório e evite misturar o dinheiro do caixa operacional com valores de repasse."
+      q: "Como funciona o controle de Entradas e Saídas coincidentes?",
+      a: "Ao cadastrar uma categoria de receita, se ela possuir um custo correspondente que você recebe e depois realiza o repasse (por exemplo: TAXA DETRAN, PLACA, VISTORIA, etc.), basta criar uma subcategoria com o exato mesmo nome tanto na aba de entrada quanto na aba de saída. Com isso, o painel geral consolidará essas informações de forma inteligente e automática, exibindo com precisão matemática o lucro líquido real que você ganha em cada tipo de serviço ou taxa cobrada."
     },
     {
       q: "Como funciona o acesso ao sistema por escritório?",
-      a: "Cada escritório de despachante possui uma licença e um sistema totalmente independente e exclusivo. O sistema é voltado para pequenos escritórios, onde o responsável pelo financeiro centraliza e gerencia todo o controle, podendo cadastrar os usuários de sua equipe de forma controlada e segura."
+      a: "Cada escritório de despachante possui uma licença e um sistema totalmente independente e exclusivo. O sistema é voltado para pequenos escritórios."
+    },
+    {
+      q: "Como faço o controle financeiro do meu escritório utilizando a plataforma?",
+      a: "O controle financeiro é realizado de forma muito simples e organizada: todas as receitas que você recebe são lançadas especificando o nome do cliente, a descrição do serviço e a placa do veículo correspondente. Ao registrar a placa, você detalha separadamente os valores relativos ao HONORÁRIO e aos custos de repasse (como TAXAS, VISTORIAS, etc.). Você define se o recebimento foi via PIX ou DINHEIRO, e se o status é PAGO ou PENDENTE, podendo também registrar ou verificar facilmente novos veículos vinculados àquele mesmo cliente. Para os pagamentos de repasse e gastos em geral (registro de saídas), basta informar a descrição, a placa correspondente, a categoria e a forma de pagamento utilizada."
+    },
+    {
+      q: "Como o controle financeiro é garantido?",
+      a: "Para garantir o controle financeiro absoluto, você deve realizar a contagem física do dinheiro em caixa ao final de cada expediente e conferir se o valor bate exatamente com a informação de caixa físico (DINHEIRO) exibida em SALDO OPERACIONAL no PAINEL PRINCIPAL. Da mesma forma, verifique se o saldo acumulado das suas contas bancárias confere exatamente com o saldo de PIX demonstrado no sistema. Se houver divergências, revise os lançamentos do dia para identificar o que foi esquecido de anotar. Pequenas diferenças residuais em dinheiro físico podem ser desconsideradas."
+    },
+    {
+      q: "Deu uma grande diferença e não lembro do que é ou fiquei alguns dias sem anotar, o que fazer?",
+      a: "Neste caso, você deve realizar um lançamento de ajuste (entrada ou saída) de correção para conciliar os saldos. Você pode cadastrar uma subcategoria específica chamada 'ERRO CAIXA' (tanto para entradas quanto para saídas) e realizar o lançamento do valor correspondente a fim de acertar o seu caixa operacional com o saldo físico real."
+    },
+    {
+      q: "Eu uso mais de uma conta bancária, como fazer os lançamentos?",
+      a: "O ConsulDesp Financeiro foi projetado para simplificar a gestão focando nas modalidades operacionais de recebimento e pagamento (DINHEIRO e PIX). Caso o seu escritório opere com mais de uma conta bancária, você deve somar o saldo ativo de todas as contas e conferir se a soma confere com a informação consolidada constante na modalidade PIX em SALDO OPERACIONAL no PAINEL PRINCIPAL."
+    },
+    {
+      q: "E quanto às tarifas e taxas bancárias?",
+      a: "Essas despesas devem ser devidamente registradas no fluxo do sistema. Recomendamos criar uma categoria de saída específica chamada 'Tarifas Bancárias' e lançar todas as tarifas cobradas pela instituição financeira. Isso garante que o saldo de suas contas bancárias permaneça sempre em perfeita concordância com a informação de PIX demonstrada em SALDO OPERACIONAL."
     },
     {
       q: "Como é feita a segurança dos dados e o backup?",
