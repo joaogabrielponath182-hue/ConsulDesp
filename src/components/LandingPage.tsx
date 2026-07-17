@@ -95,7 +95,7 @@ export default function LandingPage({ onGoToLogin, onGoToTestDrive }: LandingPag
     },
     {
       q: "Como o controle financeiro é garantido?",
-      a: "Para garantir o controle financeiro absoluto, você deve realizar a contagem física do dinheiro em caixa ao final de cada expediente e conferir se o valor bate exatamente com a informação de caixa físico (DINHEIRO) exibida em SALDO OPERACIONAL no PAINEL PRINCIPAL. Da mesma forma, verifique se o saldo acumulado das suas contas bancárias confere exatamente com o saldo de PIX demonstrado no sistema. Se houver divergências, revise os lançamentos do dia para identificar o que foi esquecido de anotar. Pequenas diferenças residuais em dinheiro físico podem ser desconsideradas."
+      a: "Para garantir o controle financeiro absoluto, você deve realizar a contagem física do dinheiro em caixa ao final de cada expediente e conferir se o valor bate exatamente com a informação de caixa físico (DINHEIRO) exibida em SALDO LÍQUIDO GERAL no PAINEL PRINCIPAL. Da mesma forma, verifique se o saldo acumulado das suas contas bancárias confere exatamente com o saldo de PIX demonstrado no sistema. Se houver divergências, revise os lançamentos do dia para identificar o que foi esquecido de anotar. Pequenas diferenças residuais em dinheiro físico podem ser desconsideradas."
     },
     {
       q: "Deu uma grande diferença e não lembro do que é ou fiquei alguns dias sem anotar, o que fazer?",
@@ -103,11 +103,11 @@ export default function LandingPage({ onGoToLogin, onGoToTestDrive }: LandingPag
     },
     {
       q: "Eu uso mais de uma conta bancária, como fazer os lançamentos?",
-      a: "O ConsulDesp Financeiro foi projetado para simplificar a gestão focando nas modalidades operacionais de recebimento e pagamento (DINHEIRO e PIX). Caso o seu escritório opere com mais de uma conta bancária, você deve somar o saldo ativo de todas as contas e conferir se a soma confere com a informação consolidada constante na modalidade PIX em SALDO OPERACIONAL no PAINEL PRINCIPAL."
+      a: "O ConsulDesp Financeiro foi projetado para simplificar a gestão focando nas modalidades operacionais de recebimento e pagamento (DINHEIRO e PIX). Caso o seu escritório opere com mais de uma conta bancária, você deve somar o saldo ativo de todas as contas e conferir se a soma confere com a informação consolidada constante na modalidade PIX em SALDO LÍQUIDO GERAL no PAINEL PRINCIPAL."
     },
     {
       q: "E quanto às tarifas e taxas bancárias?",
-      a: "Essas despesas devem ser devidamente registradas no fluxo do sistema. Recomendamos criar uma categoria de saída específica chamada 'Tarifas Bancárias' e lançar todas as tarifas cobradas pela instituição financeira. Isso garante que o saldo de suas contas bancárias permaneça sempre em perfeita concordância com a informação de PIX demonstrada em SALDO OPERACIONAL."
+      a: "Essas despesas devem ser devidamente registradas no fluxo do sistema. Recomendamos criar uma categoria de saída específica chamada 'Tarifas Bancárias' e lançar todas as tarifas cobradas pela instituição financeira. Isso garante que o saldo de suas contas bancárias permaneça sempre em perfeita concordância com a informação de PIX demonstrada em SALDO LÍQUIDO GERAL."
     },
     {
       q: "Como é feita a segurança dos dados e o backup?",
