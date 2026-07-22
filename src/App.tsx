@@ -259,6 +259,7 @@ export default function App() {
             name: defSub.name,
             defaultValue: defSub.defaultValue,
             type: defSub.type,
+            categoryGroup: defSub.categoryGroup || 'SERVIÇOS',
             operator: dbUserId
           };
           userSubs.push(newSub);

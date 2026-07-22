@@ -163,6 +163,7 @@ export async function fetchUserData(userId: string, isAdmin: boolean = false) {
         name: data.name || '',
         defaultValue: data.defaultValue || 0,
         type: data.type || 'RECEITA',
+        categoryGroup: data.categoryGroup || 'SERVIÇOS',
         operator: data.operator || data.userId || userId
       });
     });
@@ -804,7 +805,8 @@ export function cleanAndDeduplicateSubcategories(list: SubCategory[]): SubCatego
 
     return {
       ...sub,
-      name
+      name,
+      categoryGroup: sub.categoryGroup || 'SERVIÇOS'
     };
   }).filter((s): s is SubCategory => s !== null);
 
