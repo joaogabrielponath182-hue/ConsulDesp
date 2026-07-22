@@ -807,7 +807,7 @@ export function cleanAndDeduplicateSubcategories(list: SubCategory[]): SubCatego
       ...sub,
       name,
       categoryGroup: sub.categoryGroup || 'SERVIÇOS'
-    };
+    } as SubCategory;
   }).filter((s): s is SubCategory => s !== null);
 
   // Sort so that fixed subcategories (sub-fixed-*) come first

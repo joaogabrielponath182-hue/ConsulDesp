@@ -35,6 +35,317 @@ interface ExpensesProps {
   onRedirectToForm?: () => void;
 }
 
+interface MultiSelectOption {
+  id: string;
+  name: string;
+  categoryGroup?: 'SERVIÇOS' | 'PESSOAIS' | 'OUTROS';
+}
+
+interface MultiSelectProps {
+  label: string;
+  options: MultiSelectOption[];
+  selected: string[];
+  onChange: (values: string[]) => void;
+  allLabel: string;
+}
+
+function MultiSelect({ label, options, selected, onChange, allLabel }: MultiSelectProps) {
+  const [isOpen, setIsOpen] = useState(false);
+  const dropdownRef = React.useRef<HTMLDivElement>(null);
+
+  React.useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setIsOpen(false);
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  const handleToggle = (value: string) => {
+    if (value === 'all') {
+      onChange(['all']);
+    } else if (value === 'none') {
+      onChange(['none']);
+    } else if (value === 'SERVIÇOS' || value === 'PESSOAIS' || value === 'OUTROS') {
+      const groupIds = options
+        .filter(o => (o.categoryGroup || 'SERVIÇOS') === value)
+        .map(o => o.id);
+      onChange(groupIds.length > 0 ? groupIds : ['none']);
+    } else {
+      let currentSelected: string[] = [];
+      if (selected.includes('all')) {
+        currentSelected = options.map(o => o.id);
+      } else if (selected.includes('none')) {
+        currentSelected = [];
+      } else {
+        currentSelected = [...selected];
+      }
+
+      if (currentSelected.includes(value)) {
+        currentSelected = currentSelected.filter(v => v !== value);
+      } else {
+        currentSelected.push(value);
+      }
+
+      if (currentSelected.length === 0) {
+        onChange(['none']);
+      } else if (currentSelected.length === options.length) {
+        onChange(['all']);
+      } else {
+        onChange(currentSelected);
+      }
+    }
+  };
+
+  const isGroupSelected = (group: 'SERVIÇOS' | 'PESSOAIS' | 'OUTROS') => {
+    if (selected.includes('all') || selected.includes('none')) return false;
+    const groupOptions = options.filter(o => (o.categoryGroup || 'SERVIÇOS') === group);
+    if (groupOptions.length === 0) return false;
+    const groupIds = groupOptions.map(o => o.id);
+    const selectedNonGroup = selected.filter(id => !groupIds.includes(id));
+    const allGroupSelected = groupIds.every(id => selected.includes(id));
+    return allGroupSelected && selectedNonGroup.length === 0;
+  };
+
+  const getDisplayText = () => {
+    if (selected.includes('all')) return allLabel;
+    if (selected.includes('none')) return 'NENHUM';
+    if (isGroupSelected('SERVIÇOS')) return 'SERVIÇOS';
+    if (isGroupSelected('PESSOAIS')) return 'PESSOAIS';
+    if (isGroupSelected('OUTROS')) return 'OUTROS';
+
+    const selectedLabels = selected.map(val => {
+      const opt = options.find(o => o.id === val);
+      return opt ? opt.name : val;
+    });
+
+    if (selectedLabels.length === 0) return 'NENHUM';
+    if (selectedLabels.length <= 2) return selectedLabels.join(', ');
+    return `${selectedLabels.length} SELECIONADOS`;
+  };
+
+  return (
+    <div ref={dropdownRef} className="relative w-full">
+      <label className="block text-[10px] uppercase font-bold text-slate-400 tracking-wider mb-1.5">{label}</label>
+      <button
+        type="button"
+        onClick={() => setIsOpen(!isOpen)}
+        className="w-full flex items-center justify-between px-3 py-2.5 bg-[#0F1115] border border-slate-850 rounded-xl text-xs text-left focus:outline-none focus:border-rose-500 text-slate-200 font-bold uppercase cursor-pointer select-none truncate h-[38px]"
+      >
+        <span className="truncate mr-2">{getDisplayText()}</span>
+        <svg 
+          xmlns="http://www.w3.org/2000/svg" 
+          width="12" 
+          height="12" 
+          viewBox="0 0 24 24" 
+          fill="none" 
+          stroke="currentColor" 
+          strokeWidth="2" 
+          strokeLinecap="round" 
+          strokeLinejoin="round" 
+          className={`text-slate-400 size-3 shrink-0 transition-transform duration-200 ${isOpen ? 'rotate-180' : ''}`}
+        >
+          <path d="m6 9 6 6 6-6"/>
+        </svg>
+      </button>
+
+      {isOpen && (
+        <div className="absolute left-0 mt-1.5 w-full min-w-[220px] bg-[#11141B] border border-slate-800 rounded-xl shadow-2xl z-50 max-h-72 overflow-y-auto p-2 space-y-1 scrollbar-thin">
+          <div className="text-[9px] font-black text-slate-500 uppercase tracking-wider px-2 pt-1 pb-0.5">
+            Filtros Rápidos
+          </div>
+
+          <div className="grid grid-cols-2 gap-1">
+            {/* TODAS */}
+            <div
+              onClick={() => handleToggle('all')}
+              className={`flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-[10px] font-bold uppercase cursor-pointer select-none transition-colors ${
+                selected.includes('all') 
+                  ? 'bg-rose-500/10 text-rose-400 border border-rose-500/30' 
+                  : 'text-slate-300 hover:bg-slate-800 border border-transparent'
+              }`}
+            >
+              <div className={`size-3 rounded border flex items-center justify-center transition-all ${
+                selected.includes('all')
+                  ? 'border-rose-500 bg-rose-600'
+                  : 'border-slate-700 bg-[#0F1115]'
+              }`}>
+                {selected.includes('all') && (
+                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" className="size-2 text-white">
+                    <path d="M20 6 9 17l-5-5" />
+                  </svg>
+                )}
+              </div>
+              <span>{allLabel}</span>
+            </div>
+
+            {/* NENHUM */}
+            <div
+              onClick={() => handleToggle('none')}
+              className={`flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-[10px] font-bold uppercase cursor-pointer select-none transition-colors ${
+                selected.includes('none') 
+                  ? 'bg-rose-500/10 text-rose-400 border border-rose-500/30' 
+                  : 'text-slate-300 hover:bg-slate-800 border border-transparent'
+              }`}
+            >
+              <div className={`size-3 rounded border flex items-center justify-center transition-all ${
+                selected.includes('none')
+                  ? 'border-rose-500 bg-rose-600'
+                  : 'border-slate-700 bg-[#0F1115]'
+              }`}>
+                {selected.includes('none') && (
+                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" className="size-2 text-white">
+                    <path d="M20 6 9 17l-5-5" />
+                  </svg>
+                )}
+              </div>
+              <span>NENHUM</span>
+            </div>
+          </div>
+
+          <div className="text-[9px] font-black text-slate-500 uppercase tracking-wider px-2 pt-1.5 pb-0.5">
+            Por Categoria
+          </div>
+
+          <div className="space-y-0.5">
+            {/* SERVIÇOS */}
+            <div
+              onClick={() => handleToggle('SERVIÇOS')}
+              className={`flex items-center justify-between px-2.5 py-1.5 rounded-lg text-[10px] font-bold uppercase cursor-pointer select-none transition-colors ${
+                isGroupSelected('SERVIÇOS')
+                  ? 'bg-blue-500/15 text-blue-400 border border-blue-500/30'
+                  : 'text-slate-300 hover:bg-slate-800 border border-transparent'
+              }`}
+            >
+              <div className="flex items-center gap-2">
+                <div className={`size-3 rounded border flex items-center justify-center transition-all ${
+                  isGroupSelected('SERVIÇOS')
+                    ? 'border-blue-500 bg-blue-600'
+                    : 'border-slate-700 bg-[#0F1115]'
+                }`}>
+                  {isGroupSelected('SERVIÇOS') && (
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" className="size-2 text-white">
+                      <path d="M20 6 9 17l-5-5" />
+                    </svg>
+                  )}
+                </div>
+                <span>SERVIÇOS</span>
+              </div>
+              <span className="text-[9px] text-blue-400 bg-blue-950/40 px-1.5 py-0.5 rounded font-mono">
+                {options.filter(o => (o.categoryGroup || 'SERVIÇOS') === 'SERVIÇOS').length}
+              </span>
+            </div>
+
+            {/* PESSOAIS */}
+            <div
+              onClick={() => handleToggle('PESSOAIS')}
+              className={`flex items-center justify-between px-2.5 py-1.5 rounded-lg text-[10px] font-bold uppercase cursor-pointer select-none transition-colors ${
+                isGroupSelected('PESSOAIS')
+                  ? 'bg-purple-500/15 text-purple-400 border border-purple-500/30'
+                  : 'text-slate-300 hover:bg-slate-800 border border-transparent'
+              }`}
+            >
+              <div className="flex items-center gap-2">
+                <div className={`size-3 rounded border flex items-center justify-center transition-all ${
+                  isGroupSelected('PESSOAIS')
+                    ? 'border-purple-500 bg-purple-600'
+                    : 'border-slate-700 bg-[#0F1115]'
+                }`}>
+                  {isGroupSelected('PESSOAIS') && (
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" className="size-2 text-white">
+                      <path d="M20 6 9 17l-5-5" />
+                    </svg>
+                  )}
+                </div>
+                <span>PESSOAIS</span>
+              </div>
+              <span className="text-[9px] text-purple-400 bg-purple-950/40 px-1.5 py-0.5 rounded font-mono">
+                {options.filter(o => (o.categoryGroup || 'SERVIÇOS') === 'PESSOAIS').length}
+              </span>
+            </div>
+
+            {/* OUTROS */}
+            <div
+              onClick={() => handleToggle('OUTROS')}
+              className={`flex items-center justify-between px-2.5 py-1.5 rounded-lg text-[10px] font-bold uppercase cursor-pointer select-none transition-colors ${
+                isGroupSelected('OUTROS')
+                  ? 'bg-amber-500/15 text-amber-400 border border-amber-500/30'
+                  : 'text-slate-300 hover:bg-slate-800 border border-transparent'
+              }`}
+            >
+              <div className="flex items-center gap-2">
+                <div className={`size-3 rounded border flex items-center justify-center transition-all ${
+                  isGroupSelected('OUTROS')
+                    ? 'border-amber-500 bg-amber-600'
+                    : 'border-slate-700 bg-[#0F1115]'
+                }`}>
+                  {isGroupSelected('OUTROS') && (
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" className="size-2 text-white">
+                      <path d="M20 6 9 17l-5-5" />
+                    </svg>
+                  )}
+                </div>
+                <span>OUTROS</span>
+              </div>
+              <span className="text-[9px] text-amber-400 bg-amber-950/40 px-1.5 py-0.5 rounded font-mono">
+                {options.filter(o => (o.categoryGroup || 'SERVIÇOS') === 'OUTROS').length}
+              </span>
+            </div>
+          </div>
+
+          <div className="h-px bg-slate-800 my-1.5" />
+
+          <div className="text-[9px] font-black text-slate-500 uppercase tracking-wider px-2 pb-1">
+            Todas ({options.length})
+          </div>
+
+          {options.map(opt => {
+            const isChecked = selected.includes('all') || selected.includes(opt.id);
+            const group = opt.categoryGroup || 'SERVIÇOS';
+            return (
+              <div
+                key={opt.id}
+                onClick={() => handleToggle(opt.id)}
+                className={`flex items-center justify-between px-2.5 py-1.5 rounded-lg text-[10px] font-bold uppercase cursor-pointer select-none transition-colors ${
+                  isChecked 
+                    ? 'bg-rose-500/10 text-rose-400' 
+                    : 'text-slate-300 hover:bg-slate-800'
+                }`}
+              >
+                <div className="flex items-center gap-2 truncate pr-2">
+                  <div className={`size-3 rounded border flex items-center justify-center transition-all shrink-0 ${
+                    isChecked
+                      ? 'border-rose-500 bg-rose-600'
+                      : 'border-slate-700 bg-[#0F1115]'
+                  }`}>
+                    {isChecked && (
+                      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" className="size-2 text-white">
+                        <path d="M20 6 9 17l-5-5" />
+                      </svg>
+                    )}
+                  </div>
+                  <span className="truncate">{opt.name}</span>
+                </div>
+                <span className={`text-[8px] font-bold px-1.5 py-0.5 rounded uppercase shrink-0 font-mono ${
+                  group === 'PESSOAIS'
+                    ? 'text-purple-400 bg-purple-950/40 border border-purple-900/30'
+                    : group === 'OUTROS'
+                    ? 'text-amber-400 bg-amber-950/40 border border-amber-900/30'
+                    : 'text-blue-400 bg-blue-950/40 border border-blue-900/30'
+                }`}>
+                  {group}
+                </span>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function Expenses({
   expenses,
   subCategories,
@@ -79,11 +390,24 @@ export default function Expenses({
 
   // Filters state
   const [search, setSearch] = useState('');
-  const [selectedCategory, setSelectedCategory] = useState<string>('all');
+  const [selectedCategories, setSelectedCategories] = useState<string[]>(['all']);
   const [startDate, setStartDate] = useState<string>('');
   const [endDate, setEndDate] = useState<string>('');
   const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<string>('all');
   const [sortOrder, setSortOrder] = useState<'oldest' | 'newest'>('newest');
+
+  const expenseCategoryOptions = React.useMemo(() => {
+    return expenseCategories.map(cat => {
+      const matchedSub = subCategories.find(
+        s => s.name.toUpperCase() === cat.toUpperCase() && (s.type || 'RECEITA') === 'GASTO'
+      );
+      return {
+        id: cat,
+        name: cat,
+        categoryGroup: matchedSub?.categoryGroup || 'SERVIÇOS'
+      };
+    });
+  }, [expenseCategories, subCategories]);
 
   // Editing State
   const [editingExpense, setEditingExpense] = useState<Expense | null>(null);
@@ -332,7 +656,11 @@ export default function Expenses({
         plateMatchesSearch(exp.plate, search) ||
         (exp.items && exp.items.some(item => plateMatchesSearch(item.plate, search)));
         
-      const matchesCategory = selectedCategory === 'all' || exp.category === selectedCategory;
+      const matchesCategory = 
+        selectedCategories.includes('all') ||
+        (!selectedCategories.includes('none') &&
+          selectedCategories.some(sel => sel.toUpperCase() === exp.category.toUpperCase()));
+
       const matchesStartDate = !startDate || exp.date >= startDate;
       const matchesEndDate = !endDate || exp.date <= endDate;
       const matchesPaymentMethod = selectedPaymentMethod === 'all' || exp.paymentMethod === selectedPaymentMethod;
@@ -347,7 +675,7 @@ export default function Expenses({
         return b.date.localeCompare(a.date);
       }
     });
-  }, [expenses, search, selectedCategory, startDate, endDate, selectedPaymentMethod, sortOrder]);
+  }, [expenses, search, selectedCategories, startDate, endDate, selectedPaymentMethod, sortOrder]);
 
   const totalFilteredValue = React.useMemo(() => {
     return filteredExpenses.reduce((acc, curr) => acc + curr.value, 0);
@@ -777,22 +1105,13 @@ export default function Expenses({
                 </div>
 
                 {/* Category selector */}
-                <div className="flex flex-col gap-1.5">
-                  <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Categoria do Gasto</span>
-                  <div className="relative">
-                    <Filter size={13} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-405" />
-                    <select
-                      value={selectedCategory}
-                      onChange={e => setSelectedCategory(e.target.value)}
-                      className="w-full pl-9 pr-3.5 py-2.5 bg-[#0F1115] border border-slate-850 rounded-xl text-xs focus:outline-none focus:border-rose-500 text-slate-300 font-medium cursor-pointer"
-                    >
-                      <option value="all">Todas as Categorias</option>
-                      {expenseCategories.map(cat => (
-                        <option key={cat} value={cat}>{cat}</option>
-                      ))}
-                    </select>
-                  </div>
-                </div>
+                <MultiSelect
+                  label="Categoria do Gasto"
+                  options={expenseCategoryOptions}
+                  selected={selectedCategories}
+                  onChange={setSelectedCategories}
+                  allLabel="TODAS"
+                />
 
                 {/* Payment Method selector */}
                 <div className="flex flex-col gap-1.5">
@@ -843,13 +1162,13 @@ export default function Expenses({
               </div>
 
               {/* Reset Filters button if any filter is dirty */}
-              {(search || selectedCategory !== 'all' || startDate || endDate || selectedPaymentMethod !== 'all') && (
+              {(search || (!selectedCategories.includes('all')) || startDate || endDate || selectedPaymentMethod !== 'all') && (
                 <div className="flex justify-end pt-1">
                   <button
                     type="button"
                     onClick={() => {
                       setSearch('');
-                      setSelectedCategory('all');
+                      setSelectedCategories(['all']);
                       setStartDate('');
                       setEndDate('');
                       setSelectedPaymentMethod('all');

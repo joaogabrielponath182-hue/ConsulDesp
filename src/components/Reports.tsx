@@ -42,10 +42,15 @@ interface LedgerItem {
   paidValue?: number;
   items?: Array<{ name: string; value: number }>;
 }
+interface MultiSelectOption {
+  id: string;
+  name: string;
+  categoryGroup?: 'SERVIÇOS' | 'PESSOAIS' | 'OUTROS';
+}
 
 interface MultiSelectProps {
   label: string;
-  options: Array<{ id: string; name: string }>;
+  options: MultiSelectOption[];
   selected: string[];
   onChange: (values: string[]) => void;
   allLabel: string;
@@ -70,25 +75,54 @@ function MultiSelect({ label, options, selected, onChange, allLabel }: MultiSele
       onChange(['all']);
     } else if (value === 'none') {
       onChange(['none']);
+    } else if (value === 'SERVIÇOS' || value === 'PESSOAIS' || value === 'OUTROS') {
+      const groupIds = options
+        .filter(o => (o.categoryGroup || 'SERVIÇOS') === value)
+        .map(o => o.id);
+      onChange(groupIds.length > 0 ? groupIds : ['none']);
     } else {
-      let next = selected.filter(v => v !== 'all' && v !== 'none');
-      if (next.includes(value)) {
-        next = next.filter(v => v !== value);
+      let currentSelected: string[] = [];
+      if (selected.includes('all')) {
+        currentSelected = options.map(o => o.id);
+      } else if (selected.includes('none')) {
+        currentSelected = [];
       } else {
-        next = [...next, value];
+        currentSelected = [...selected];
       }
-      if (next.length === 0) {
+
+      if (currentSelected.includes(value)) {
+        currentSelected = currentSelected.filter(v => v !== value);
+      } else {
+        currentSelected.push(value);
+      }
+
+      if (currentSelected.length === 0) {
+        onChange(['none']);
+      } else if (currentSelected.length === options.length) {
         onChange(['all']);
       } else {
-        onChange(next);
+        onChange(currentSelected);
       }
     }
+  };
+
+  const isGroupSelected = (group: 'SERVIÇOS' | 'PESSOAIS' | 'OUTROS') => {
+    if (selected.includes('all') || selected.includes('none')) return false;
+    const groupOptions = options.filter(o => (o.categoryGroup || 'SERVIÇOS') === group);
+    if (groupOptions.length === 0) return false;
+    const groupIds = groupOptions.map(o => o.id);
+    const selectedNonGroup = selected.filter(id => !groupIds.includes(id));
+    const allGroupSelected = groupIds.every(id => selected.includes(id));
+    return allGroupSelected && selectedNonGroup.length === 0;
   };
 
   const getDisplayText = () => {
     if (selected.includes('all')) return allLabel;
     if (selected.includes('none')) return 'NENHUM';
-    
+    if (isGroupSelected('SERVIÇOS')) return 'SERVIÇOS';
+    if (isGroupSelected('PESSOAIS')) return 'PESSOAIS';
+    if (isGroupSelected('OUTROS')) return 'OUTROS';
+
     const selectedLabels = selected.map(val => {
       const opt = options.find(o => o.id === val);
       return opt ? opt.name : val;
@@ -125,77 +159,191 @@ function MultiSelect({ label, options, selected, onChange, allLabel }: MultiSele
       </button>
 
       {isOpen && (
-        <div className="absolute left-0 mt-1.5 w-full bg-[#11141B] border border-slate-800 rounded-xl shadow-xl z-50 max-h-64 overflow-y-auto p-1.5 space-y-0.5 scrollbar-thin">
-          <div
-            onClick={() => handleToggle('all')}
-            className={`flex items-center gap-2.5 px-3 py-2 rounded-lg text-[10px] font-bold uppercase cursor-pointer select-none transition-colors ${
-              selected.includes('all') 
-                ? 'bg-emerald-500/10 text-emerald-400' 
-                : 'text-slate-300 hover:bg-slate-800'
-            }`}
-          >
-            <div className={`size-3.5 rounded border flex items-center justify-center transition-all ${
-              selected.includes('all')
-                ? 'border-emerald-500 bg-emerald-600'
-                : 'border-slate-700 bg-[#0F1115]'
-            }`}>
-              {selected.includes('all') && (
-                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" className="size-2.5 text-white">
-                  <path d="M20 6 9 17l-5-5" />
-                </svg>
-              )}
-            </div>
-            <span>{allLabel}</span>
+        <div className="absolute left-0 mt-1.5 w-full min-w-[220px] bg-[#11141B] border border-slate-800 rounded-xl shadow-2xl z-50 max-h-72 overflow-y-auto p-2 space-y-1 scrollbar-thin">
+          <div className="text-[9px] font-black text-slate-500 uppercase tracking-wider px-2 pt-1 pb-0.5">
+            Filtros Rápidos
           </div>
 
-          <div
-            onClick={() => handleToggle('none')}
-            className={`flex items-center gap-2.5 px-3 py-2 rounded-lg text-[10px] font-bold uppercase cursor-pointer select-none transition-colors ${
-              selected.includes('none') 
-                ? 'bg-emerald-500/10 text-emerald-400' 
-                : 'text-slate-300 hover:bg-slate-800'
-            }`}
-          >
-            <div className={`size-3.5 rounded border flex items-center justify-center transition-all ${
-              selected.includes('none')
-                ? 'border-emerald-500 bg-emerald-600'
-                : 'border-slate-700 bg-[#0F1115]'
-            }`}>
-              {selected.includes('none') && (
-                <svg xmlns="http://www.w3.org/2500/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" className="size-2.5 text-white">
-                  <path d="M20 6 9 17l-5-5" />
-                </svg>
-              )}
+          <div className="grid grid-cols-2 gap-1">
+            {/* TODAS */}
+            <div
+              onClick={() => handleToggle('all')}
+              className={`flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-[10px] font-bold uppercase cursor-pointer select-none transition-colors ${
+                selected.includes('all') 
+                  ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/30' 
+                  : 'text-slate-300 hover:bg-slate-800 border border-transparent'
+              }`}
+            >
+              <div className={`size-3 rounded border flex items-center justify-center transition-all ${
+                selected.includes('all')
+                  ? 'border-emerald-500 bg-emerald-600'
+                  : 'border-slate-700 bg-[#0F1115]'
+              }`}>
+                {selected.includes('all') && (
+                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" className="size-2 text-white">
+                    <path d="M20 6 9 17l-5-5" />
+                  </svg>
+                )}
+              </div>
+              <span>{allLabel}</span>
             </div>
-            <span>NENHUM</span>
+
+            {/* NENHUM */}
+            <div
+              onClick={() => handleToggle('none')}
+              className={`flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-[10px] font-bold uppercase cursor-pointer select-none transition-colors ${
+                selected.includes('none') 
+                  ? 'bg-rose-500/10 text-rose-400 border border-rose-500/30' 
+                  : 'text-slate-300 hover:bg-slate-800 border border-transparent'
+              }`}
+            >
+              <div className={`size-3 rounded border flex items-center justify-center transition-all ${
+                selected.includes('none')
+                  ? 'border-rose-500 bg-rose-600'
+                  : 'border-slate-700 bg-[#0F1115]'
+              }`}>
+                {selected.includes('none') && (
+                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" className="size-2 text-white">
+                    <path d="M20 6 9 17l-5-5" />
+                  </svg>
+                )}
+              </div>
+              <span>NENHUM</span>
+            </div>
+          </div>
+
+          <div className="text-[9px] font-black text-slate-500 uppercase tracking-wider px-2 pt-1.5 pb-0.5">
+            Por Categoria
+          </div>
+
+          <div className="space-y-0.5">
+            {/* SERVIÇOS */}
+            <div
+              onClick={() => handleToggle('SERVIÇOS')}
+              className={`flex items-center justify-between px-2.5 py-1.5 rounded-lg text-[10px] font-bold uppercase cursor-pointer select-none transition-colors ${
+                isGroupSelected('SERVIÇOS')
+                  ? 'bg-blue-500/15 text-blue-400 border border-blue-500/30'
+                  : 'text-slate-300 hover:bg-slate-800 border border-transparent'
+              }`}
+            >
+              <div className="flex items-center gap-2">
+                <div className={`size-3 rounded border flex items-center justify-center transition-all ${
+                  isGroupSelected('SERVIÇOS')
+                    ? 'border-blue-500 bg-blue-600'
+                    : 'border-slate-700 bg-[#0F1115]'
+                }`}>
+                  {isGroupSelected('SERVIÇOS') && (
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" className="size-2 text-white">
+                      <path d="M20 6 9 17l-5-5" />
+                    </svg>
+                  )}
+                </div>
+                <span>SERVIÇOS</span>
+              </div>
+              <span className="text-[9px] text-blue-400 bg-blue-950/40 px-1.5 py-0.5 rounded font-mono">
+                {options.filter(o => (o.categoryGroup || 'SERVIÇOS') === 'SERVIÇOS').length}
+              </span>
+            </div>
+
+            {/* PESSOAIS */}
+            <div
+              onClick={() => handleToggle('PESSOAIS')}
+              className={`flex items-center justify-between px-2.5 py-1.5 rounded-lg text-[10px] font-bold uppercase cursor-pointer select-none transition-colors ${
+                isGroupSelected('PESSOAIS')
+                  ? 'bg-purple-500/15 text-purple-400 border border-purple-500/30'
+                  : 'text-slate-300 hover:bg-slate-800 border border-transparent'
+              }`}
+            >
+              <div className="flex items-center gap-2">
+                <div className={`size-3 rounded border flex items-center justify-center transition-all ${
+                  isGroupSelected('PESSOAIS')
+                    ? 'border-purple-500 bg-purple-600'
+                    : 'border-slate-700 bg-[#0F1115]'
+                }`}>
+                  {isGroupSelected('PESSOAIS') && (
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" className="size-2 text-white">
+                      <path d="M20 6 9 17l-5-5" />
+                    </svg>
+                  )}
+                </div>
+                <span>PESSOAIS</span>
+              </div>
+              <span className="text-[9px] text-purple-400 bg-purple-950/40 px-1.5 py-0.5 rounded font-mono">
+                {options.filter(o => (o.categoryGroup || 'SERVIÇOS') === 'PESSOAIS').length}
+              </span>
+            </div>
+
+            {/* OUTROS */}
+            <div
+              onClick={() => handleToggle('OUTROS')}
+              className={`flex items-center justify-between px-2.5 py-1.5 rounded-lg text-[10px] font-bold uppercase cursor-pointer select-none transition-colors ${
+                isGroupSelected('OUTROS')
+                  ? 'bg-amber-500/15 text-amber-400 border border-amber-500/30'
+                  : 'text-slate-300 hover:bg-slate-800 border border-transparent'
+              }`}
+            >
+              <div className="flex items-center gap-2">
+                <div className={`size-3 rounded border flex items-center justify-center transition-all ${
+                  isGroupSelected('OUTROS')
+                    ? 'border-amber-500 bg-amber-600'
+                    : 'border-slate-700 bg-[#0F1115]'
+                }`}>
+                  {isGroupSelected('OUTROS') && (
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" className="size-2 text-white">
+                      <path d="M20 6 9 17l-5-5" />
+                    </svg>
+                  )}
+                </div>
+                <span>OUTROS</span>
+              </div>
+              <span className="text-[9px] text-amber-400 bg-amber-950/40 px-1.5 py-0.5 rounded font-mono">
+                {options.filter(o => (o.categoryGroup || 'SERVIÇOS') === 'OUTROS').length}
+              </span>
+            </div>
           </div>
 
           <div className="h-px bg-slate-800 my-1.5" />
 
+          <div className="text-[9px] font-black text-slate-500 uppercase tracking-wider px-2 pb-1">
+            Todas ({options.length})
+          </div>
+
           {options.map(opt => {
-            const isChecked = selected.includes(opt.id);
+            const isChecked = selected.includes('all') || selected.includes(opt.id);
+            const group = opt.categoryGroup || 'SERVIÇOS';
             return (
               <div
                 key={opt.id}
                 onClick={() => handleToggle(opt.id)}
-                className={`flex items-center gap-2.5 px-3 py-2 rounded-lg text-[10px] font-bold uppercase cursor-pointer select-none transition-colors ${
+                className={`flex items-center justify-between px-2.5 py-1.5 rounded-lg text-[10px] font-bold uppercase cursor-pointer select-none transition-colors ${
                   isChecked 
                     ? 'bg-emerald-500/10 text-emerald-400' 
                     : 'text-slate-300 hover:bg-slate-800'
                 }`}
               >
-                <div className={`size-3.5 rounded border flex items-center justify-center transition-all ${
-                  isChecked
-                    ? 'border-emerald-500 bg-emerald-600'
-                    : 'border-slate-700 bg-[#0F1115]'
-                }`}>
-                  {isChecked && (
-                    <svg xmlns="http://www.w3.org/2500/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" className="size-2.5 text-white">
-                      <path d="M20 6 9 17l-5-5" />
-                    </svg>
-                  )}
+                <div className="flex items-center gap-2 truncate pr-2">
+                  <div className={`size-3 rounded border flex items-center justify-center transition-all shrink-0 ${
+                    isChecked
+                      ? 'border-emerald-500 bg-emerald-600'
+                      : 'border-slate-700 bg-[#0F1115]'
+                  }`}>
+                    {isChecked && (
+                      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" className="size-2 text-white">
+                        <path d="M20 6 9 17l-5-5" />
+                      </svg>
+                    )}
+                  </div>
+                  <span className="truncate">{opt.name}</span>
                 </div>
-                <span className="truncate">{opt.name}</span>
+                <span className={`text-[8px] font-bold px-1.5 py-0.5 rounded uppercase shrink-0 font-mono ${
+                  group === 'PESSOAIS'
+                    ? 'text-purple-400 bg-purple-950/40 border border-purple-900/30'
+                    : group === 'OUTROS'
+                    ? 'text-amber-400 bg-amber-950/40 border border-amber-900/30'
+                    : 'text-blue-400 bg-blue-950/40 border border-blue-900/30'
+                }`}>
+                  {group}
+                </span>
               </div>
             );
           })}
@@ -227,15 +375,29 @@ export default function Reports({ services, expenses, subCategories }: ReportsPr
   // Derive filter lists
   // 1. Subcategories list (of type RECEITA + used)
   const serviceSubCategories = useMemo(() => {
-    const list = subCategories
+    const list: MultiSelectOption[] = [];
+
+    subCategories
       .filter(sub => (sub.type || 'RECEITA') === 'RECEITA')
-      .map(sub => ({ id: sub.id, name: sub.name.toUpperCase() }));
+      .forEach(sub => {
+        list.push({
+          id: sub.id,
+          name: sub.name.toUpperCase(),
+          categoryGroup: sub.categoryGroup || 'SERVIÇOS'
+        });
+      });
 
     // Extract ones actually used in services to prevent duplicates
     services.forEach(srv => {
       srv.items.forEach(item => {
-        if (!list.some(l => l.name === item.name.toUpperCase())) {
-          list.push({ id: item.subCategoryId || item.name, name: item.name.toUpperCase() });
+        const itemUpper = item.name.toUpperCase();
+        if (!list.some(l => l.name === itemUpper)) {
+          const matchedSub = subCategories.find(s => s.name.toUpperCase() === itemUpper);
+          list.push({
+            id: item.subCategoryId || item.name,
+            name: itemUpper,
+            categoryGroup: matchedSub?.categoryGroup || 'SERVIÇOS'
+          });
         }
       });
     });
@@ -244,19 +406,32 @@ export default function Reports({ services, expenses, subCategories }: ReportsPr
 
   // 2. Expense (GASTO) Categories
   const gastoExpenseCategories = useMemo(() => {
-    const list = subCategories
+    const list: MultiSelectOption[] = [];
+
+    subCategories
       .filter(sub => (sub.type || 'RECEITA') === 'GASTO')
-      .map(sub => sub.name.toUpperCase());
+      .forEach(sub => {
+        list.push({
+          id: sub.name.toUpperCase(),
+          name: sub.name.toUpperCase(),
+          categoryGroup: sub.categoryGroup || 'SERVIÇOS'
+        });
+      });
 
     // also append any dynamic categories from actual expenses
     expenses.forEach(exp => {
       const upper = exp.category.toUpperCase();
-      if (!list.includes(upper)) {
-        list.push(upper);
+      if (!list.some(l => l.name === upper)) {
+        const matchedSub = subCategories.find(s => s.name.toUpperCase() === upper);
+        list.push({
+          id: upper,
+          name: upper,
+          categoryGroup: matchedSub?.categoryGroup || 'SERVIÇOS'
+        });
       }
     });
 
-    return Array.from(new Set(list));
+    return list;
   }, [subCategories, expenses]);
 
   // Reset all filters to default
@@ -626,7 +801,7 @@ export default function Reports({ services, expenses, subCategories }: ReportsPr
             {/* 5. GASTO Categories selector */}
             <MultiSelect
               label="Registro de Gastos"
-              options={gastoExpenseCategories.map(cat => ({ id: cat, name: cat }))}
+              options={gastoExpenseCategories}
               selected={selectedExpenseCategories}
               onChange={setSelectedExpenseCategories}
               allLabel="TODAS"
