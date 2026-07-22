@@ -116,8 +116,6 @@ export default function Sidebar({
     { id: 'dashboard', name: 'Painel Geral', icon: LayoutDashboard },
     { id: 'services', name: 'Serviços (Receitas)', icon: FileCheck },
     { id: 'expenses', name: 'Registro de Gastos', icon: DollarSign },
-    { id: 'subcategories', name: 'Subcategorias', icon: Layers },
-    { id: 'clients', name: 'Cadastro de Clientes', icon: Users },
     { 
       id: 'reports', 
       name: 'Relatórios', 
@@ -129,6 +127,8 @@ export default function Sidebar({
         { id: 'reports-comparative', name: 'Relatório Comparativo' }
       ]
     },
+    { id: 'subcategories', name: 'Subcategorias', icon: Layers },
+    { id: 'clients', name: 'Cadastro de Clientes', icon: Users },
     ...(currentSession?.isAdmin ? [
       { 
         id: 'usermanagement-parent', 

@@ -798,7 +798,12 @@ export default function App() {
   };
 
   // Save states helper wrappers
-  const handleAddSubCategory = async (name: string, defaultValue: number, type: 'RECEITA' | 'GASTO' = 'RECEITA') => {
+  const handleAddSubCategory = async (
+    name: string, 
+    defaultValue: number, 
+    type: 'RECEITA' | 'GASTO' = 'RECEITA',
+    categoryGroup: 'SERVIÇOS' | 'PESSOAIS' | 'OUTROS' = 'SERVIÇOS'
+  ) => {
     let normalizedName = name.trim().toUpperCase();
     if (['HONORÁRIO', 'HONORARIOS', 'HONORÁRIOS', 'HONORARIO'].includes(normalizedName)) {
       normalizedName = 'HONORARIO';
@@ -813,6 +818,7 @@ export default function App() {
       name: normalizedName,
       defaultValue,
       type,
+      categoryGroup,
       operator: currentSession?.username || 'admin'
     };
     const updated = cleanAndDeduplicateSubcategories([...subCategories, newSub]);
@@ -859,7 +865,12 @@ export default function App() {
     }
   };
 
-  const handleUpdateSubCategory = async (id: string, name: string, defaultValue: number) => {
+  const handleUpdateSubCategory = async (
+    id: string, 
+    name: string, 
+    defaultValue: number,
+    categoryGroup?: 'SERVIÇOS' | 'PESSOAIS' | 'OUTROS'
+  ) => {
     let normalizedName = name.trim().toUpperCase();
     if (['HONORÁRIO', 'HONORARIOS', 'HONORÁRIOS', 'HONORARIO'].includes(normalizedName)) {
       normalizedName = 'HONORARIO';
@@ -875,7 +886,8 @@ export default function App() {
         return {
           ...sub,
           name: isFixed ? sub.name : normalizedName,
-          defaultValue
+          defaultValue,
+          categoryGroup: categoryGroup || sub.categoryGroup || 'SERVIÇOS'
         };
       }
       return sub;

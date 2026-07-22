@@ -4,12 +4,14 @@
  */
 
 export type SubCategoryType = 'RECEITA' | 'GASTO';
+export type CategoryGroup = 'SERVIÇOS' | 'PESSOAIS' | 'OUTROS';
 
 export interface SubCategory {
   id: string;
   name: string;
   defaultValue: number;
   type: SubCategoryType;
+  categoryGroup?: CategoryGroup;
   operator?: string;
 }
 

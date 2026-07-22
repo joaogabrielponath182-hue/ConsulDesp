@@ -83,7 +83,7 @@ export default function Expenses({
   const [startDate, setStartDate] = useState<string>('');
   const [endDate, setEndDate] = useState<string>('');
   const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<string>('all');
-  const [sortOrder, setSortOrder] = useState<'oldest' | 'newest'>('oldest');
+  const [sortOrder, setSortOrder] = useState<'oldest' | 'newest'>('newest');
 
   // Editing State
   const [editingExpense, setEditingExpense] = useState<Expense | null>(null);

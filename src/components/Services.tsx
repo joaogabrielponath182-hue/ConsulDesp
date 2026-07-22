@@ -67,7 +67,7 @@ export default function Services({
   const [startDate, setStartDate] = useState<string>('');
   const [endDate, setEndDate] = useState<string>('');
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
-  const [sortOrder, setSortOrder] = useState<'oldest' | 'newest'>('oldest');
+  const [sortOrder, setSortOrder] = useState<'oldest' | 'newest'>('newest');
   const [selectedClient, setSelectedClient] = useState<string>('all');
 
   // Sync selectedStatus with initialStatusFilter prop when it changes

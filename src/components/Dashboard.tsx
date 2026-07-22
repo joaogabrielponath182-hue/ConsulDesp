@@ -213,90 +213,127 @@ export default function Dashboard({
     return expenses.filter(e => e.date.startsWith(currentYearMonth));
   }, [expenses, currentYearMonth]);
 
+  // Build lookup map for subcategory categoryGroup ('SERVIÇOS' | 'PESSOAIS' | 'OUTROS')
+  const subCategoryGroupMap = React.useMemo(() => {
+    const map: Record<string, 'SERVIÇOS' | 'PESSOAIS' | 'OUTROS'> = {};
+    subCategories.forEach(sub => {
+      const name = sub.name.trim().toUpperCase();
+      map[name] = sub.categoryGroup || 'SERVIÇOS';
+    });
+    return map;
+  }, [subCategories]);
+
+  const servicosSubCategories = React.useMemo(() => {
+    return subCategories.filter(s => (s.categoryGroup || 'SERVIÇOS') === 'SERVIÇOS');
+  }, [subCategories]);
+
+  const pessoaisSubCategories = React.useMemo(() => {
+    return subCategories.filter(s => (s.categoryGroup || 'SERVIÇOS') === 'PESSOAIS');
+  }, [subCategories]);
+
+  const outrosSubCategories = React.useMemo(() => {
+    return subCategories.filter(s => (s.categoryGroup || 'SERVIÇOS') === 'OUTROS');
+  }, [subCategories]);
+
   // Collect all unique revenue categories
   const allRevenueCategories = React.useMemo(() => {
     const set = new Set<string>();
-    
-    // Add only from subCategories of the logged-in user
     subCategories
       .filter(s => (s.type || 'RECEITA') === 'RECEITA')
       .forEach(s => set.add(s.name.toUpperCase().trim()));
-
     return Array.from(set).sort();
   }, [subCategories]);
 
   // Collect all unique expense categories
   const allExpenseCategories = React.useMemo(() => {
     const set = new Set<string>();
-
-    // Add only from subCategories of the logged-in user
     subCategories
       .filter(s => (s.type || 'RECEITA') === 'GASTO')
       .forEach(s => set.add(s.name.toUpperCase().trim()));
-
     return Array.from(set).sort();
   }, [subCategories]);
 
-  // Filter and sum selected revenues for this month
+  // Filter and sum SERVIÇOS revenues for this month (Lucro Livre - Entradas)
   const selectedRevenuesSumThisMonth = React.useMemo(() => {
     let sum = 0;
     servicesThisMonth.forEach(srv => {
       if (srv.items) {
         srv.items.forEach(item => {
           const catName = (item.name || '').trim().toUpperCase();
-          const normCatName = catName.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
-          const isSelected = selectedRevenueCats.some(sel => {
-            const selNorm = sel.trim().toUpperCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
-            return selNorm === normCatName || sel.trim().toUpperCase() === catName;
-          });
-          if (isSelected) {
+          const group = subCategoryGroupMap[catName] || 'SERVIÇOS';
+          if (group === 'SERVIÇOS') {
             sum += item.value;
           }
         });
       }
     });
     return sum;
-  }, [servicesThisMonth, selectedRevenueCats]);
+  }, [servicesThisMonth, subCategoryGroupMap]);
 
-  // Filter and sum selected expenses for this month
+  // Filter and sum SERVIÇOS expenses for this month (Lucro Livre - Saídas)
   const selectedExpensesSumThisMonth = React.useMemo(() => {
     let sum = 0;
     expensesThisMonth.forEach(exp => {
       if (exp.category) {
         const catName = exp.category.trim().toUpperCase();
-        const normCatName = catName.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
-        const isSelected = selectedExpenseCats.some(sel => {
-          const selNorm = sel.trim().toUpperCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
-          return selNorm === normCatName || sel.trim().toUpperCase() === catName;
-        });
-        if (isSelected) {
+        const group = subCategoryGroupMap[catName] || 'SERVIÇOS';
+        if (group === 'SERVIÇOS') {
           sum += exp.value;
         }
       }
     });
     return sum;
-  }, [expensesThisMonth, selectedExpenseCats]);
+  }, [expensesThisMonth, subCategoryGroupMap]);
 
-  // Filter and sum selected personal expenses for this month
+  const lucroLivreTotalThisMonth = selectedRevenuesSumThisMonth - selectedExpensesSumThisMonth;
+
+  // Filter and sum PESSOAIS expenses for this month (Gastos Pessoais)
   const personalExpensesSumThisMonth = React.useMemo(() => {
     let sum = 0;
     expensesThisMonth.forEach(exp => {
       if (exp.category) {
         const catName = exp.category.trim().toUpperCase();
-        const normCatName = catName.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
-        const isSelected = selectedPersonalExpenseCats.some(sel => {
-          const selNorm = sel.trim().toUpperCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
-          return selNorm === normCatName || sel.trim().toUpperCase() === catName;
-        });
-        if (isSelected) {
+        const group = subCategoryGroupMap[catName] || 'SERVIÇOS';
+        if (group === 'PESSOAIS') {
           sum += exp.value;
         }
       }
     });
     return sum;
-  }, [expensesThisMonth, selectedPersonalExpenseCats]);
+  }, [expensesThisMonth, subCategoryGroupMap]);
 
-  const lucroLivreTotalThisMonth = selectedRevenuesSumThisMonth - selectedExpensesSumThisMonth;
+  // Filter and sum OUTROS revenues and expenses for this month
+  const outrosRevenuesSumThisMonth = React.useMemo(() => {
+    let sum = 0;
+    servicesThisMonth.forEach(srv => {
+      if (srv.items) {
+        srv.items.forEach(item => {
+          const catName = (item.name || '').trim().toUpperCase();
+          const group = subCategoryGroupMap[catName] || 'SERVIÇOS';
+          if (group === 'OUTROS') {
+            sum += item.value;
+          }
+        });
+      }
+    });
+    return sum;
+  }, [servicesThisMonth, subCategoryGroupMap]);
+
+  const outrosExpensesSumThisMonth = React.useMemo(() => {
+    let sum = 0;
+    expensesThisMonth.forEach(exp => {
+      if (exp.category) {
+        const catName = exp.category.trim().toUpperCase();
+        const group = subCategoryGroupMap[catName] || 'SERVIÇOS';
+        if (group === 'OUTROS') {
+          sum += exp.value;
+        }
+      }
+    });
+    return sum;
+  }, [expensesThisMonth, subCategoryGroupMap]);
+
+  const outrosBalanceThisMonth = outrosRevenuesSumThisMonth - outrosExpensesSumThisMonth;
 
   // Metrics calculations
   const totalRevenuesThisMonth = React.useMemo(() => {
@@ -869,8 +906,8 @@ export default function Dashboard({
         </div>
       </div>
 
-      {/* Main KPI Widget Grid - Row 2: Entradas por Canal, Saídas por Canal, Resumo do Mês, Lucro Livre */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 items-start">
+      {/* Main KPI Widget Grid - Row 2: Entradas por Canal, Saídas por Canal, Total do Mês */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 items-start">
         {/* Metric Card: Métodos de Pagamento */}
         <div className="bg-[#161B22] border border-slate-800 rounded-2xl p-6 shadow-sm relative overflow-hidden group">
           <div className="absolute top-0 left-0 w-1.5 h-full bg-teal-500"></div>
@@ -966,128 +1003,170 @@ export default function Dashboard({
             Estatísticas consolidadas do mês selecionado
           </div>
         </div>
+      </div>
 
-        {/* Column 4: Lucro Livre and Gastos Pessoais stacked */}
-        <div className="space-y-6">
-          {/* Metric Card: Lucro Livre */}
-          <div className="bg-[#161B22] border border-slate-800 rounded-2xl p-6 shadow-sm relative overflow-hidden group">
-            <div className="absolute top-0 left-0 w-1.5 h-full bg-indigo-500"></div>
+      {/* Main KPI Widget Grid - Row 3: Quadros de Tipos (Serviços / Pessoais / Outros) */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 items-stretch">
+        {/* Quadro 1: Lucro Livre (Categoria SERVIÇOS) */}
+        <div className="bg-[#161B22] border border-slate-800 rounded-2xl p-6 shadow-sm relative overflow-hidden flex flex-col justify-between group">
+          <div className="absolute top-0 left-0 w-1.5 h-full bg-indigo-500"></div>
+          <div>
             <div className="flex justify-between items-start">
-              <div className="w-full">
-                <p className="text-slate-400 text-xs font-semibold uppercase tracking-wider flex items-center justify-between">
-                  <span>Lucro Livre</span>
+              <div>
+                <p className="text-slate-400 text-xs font-semibold uppercase tracking-wider">
+                  Lucro Livre (Serviços)
                 </p>
-                
-                <div className="flex flex-col gap-3 mt-2.5 pb-2">
-                  {/* Entradas */}
-                  <div className="bg-[#0F1115] p-2.5 rounded-xl border border-slate-850">
-                    <div className="flex items-center justify-between mb-1.5">
-                      <div className="flex items-center gap-1.5">
-                        <span className="text-[10px] font-bold text-emerald-400 uppercase tracking-wider">Entradas</span>
-                        <span className="text-[9px] text-slate-500 font-medium" title={selectedRevenueCats.join(', ')}>
-                          ({selectedRevenueCats.length} {selectedRevenueCats.length === 1 ? 'cat.' : 'cat.'})
-                        </span>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setTempSelectedCats([...selectedRevenueCats]);
-                          setEditingType('RECEITA');
-                        }}
-                        className="text-slate-400 hover:text-white p-1 hover:bg-slate-800 rounded transition-all cursor-pointer"
-                        title="Editar categorias de entrada"
-                      >
-                        <Pencil size={11} />
-                      </button>
-                    </div>
-                    <span className="text-xs font-semibold text-slate-200 block font-mono">
-                      {formatCurrency(selectedRevenuesSumThisMonth)}
-                    </span>
-                  </div>
+                <span className="text-[10px] text-indigo-400 font-bold uppercase tracking-wider block mt-0.5">
+                  Categoria: SERVIÇOS
+                </span>
+              </div>
+              <div className="p-2.5 rounded-xl bg-indigo-500/10 text-indigo-400 shrink-0">
+                <TrendingUp size={18} />
+              </div>
+            </div>
 
-                  {/* Saídas */}
-                  <div className="bg-[#0F1115] p-2.5 rounded-xl border border-slate-850">
-                    <div className="flex items-center justify-between mb-1.5">
-                      <div className="flex items-center gap-1.5">
-                        <span className="text-[10px] font-bold text-rose-400 uppercase tracking-wider">Saídas</span>
-                        <span className="text-[9px] text-slate-500 font-medium" title={selectedExpenseCats.join(', ')}>
-                          ({selectedExpenseCats.length} {selectedExpenseCats.length === 1 ? 'cat.' : 'cat.'})
-                        </span>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setTempSelectedCats([...selectedExpenseCats]);
-                          setEditingType('GASTO');
-                        }}
-                        className="text-slate-400 hover:text-white p-1 hover:bg-slate-800 rounded transition-all cursor-pointer"
-                        title="Editar categorias de saída"
-                      >
-                        <Pencil size={11} />
-                      </button>
-                    </div>
-                    <span className="text-xs font-semibold text-slate-200 block font-mono">
-                      {formatCurrency(selectedExpensesSumThisMonth)}
-                    </span>
-                  </div>
-                </div>
-
-                {/* Total Row */}
-                <div className="flex justify-between text-sm text-slate-350 border-t border-slate-800/80 pt-2.5 mt-1">
-                  <span className="font-semibold text-slate-300 text-xs">TOTAL LIVRE:</span>
-                  <span className={`font-bold text-xs ${lucroLivreTotalThisMonth >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
-                    {formatCurrency(lucroLivreTotalThisMonth)}
+            <div className="flex flex-col gap-2.5 mt-4">
+              {/* Entradas */}
+              <div className="bg-[#0F1115] p-2.5 rounded-xl border border-slate-850">
+                <div className="flex items-center justify-between mb-1">
+                  <span className="text-[10px] font-bold text-emerald-400 uppercase tracking-wider">Entradas (Serviços)</span>
+                  <span className="text-[9px] text-slate-500 font-mono">
+                    {servicosSubCategories.filter(s => (s.type || 'RECEITA') === 'RECEITA').length} subcat.
                   </span>
                 </div>
+                <span className="text-xs font-semibold text-slate-200 block font-mono">
+                  {formatCurrency(selectedRevenuesSumThisMonth)}
+                </span>
               </div>
-              <div className="p-3 rounded-xl bg-indigo-500/10 text-indigo-400 shrink-0 ml-2">
-                <TrendingUp size={20} />
+
+              {/* Saídas */}
+              <div className="bg-[#0F1115] p-2.5 rounded-xl border border-slate-850">
+                <div className="flex items-center justify-between mb-1">
+                  <span className="text-[10px] font-bold text-rose-400 uppercase tracking-wider">Saídas (Serviços)</span>
+                  <span className="text-[9px] text-slate-500 font-mono">
+                    {servicosSubCategories.filter(s => (s.type || 'RECEITA') === 'GASTO').length} subcat.
+                  </span>
+                </div>
+                <span className="text-xs font-semibold text-slate-200 block font-mono">
+                  {formatCurrency(selectedExpensesSumThisMonth)}
+                </span>
               </div>
             </div>
-            <div className="mt-4 text-[10px] text-slate-500 border-t border-slate-800/80 pt-3">
-              Estatísticas personalizadas do mês selecionado
+
+            {/* Total Row */}
+            <div className="flex justify-between text-sm text-slate-350 border-t border-slate-800/80 pt-2.5 mt-3">
+              <span className="font-bold text-slate-300 text-xs uppercase tracking-wider">LUCRO LIVRE TOTAL:</span>
+              <span className={`font-bold text-xs font-mono ${lucroLivreTotalThisMonth >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+                {formatCurrency(lucroLivreTotalThisMonth)}
+              </span>
             </div>
           </div>
+          <div className="mt-4 text-[10px] text-slate-500 border-t border-slate-800/80 pt-2.5">
+            Automaticamente calculado para a categoria SERVIÇOS
+          </div>
+        </div>
 
-          {/* Metric Card: Gastos Pessoais */}
-          <div className="bg-[#161B22] border border-slate-800 rounded-2xl p-6 shadow-sm relative overflow-hidden group">
-            <div className="absolute top-0 left-0 w-1.5 h-full bg-violet-500"></div>
+        {/* Quadro 2: Gastos Pessoais (Categoria PESSOAIS) */}
+        <div className="bg-[#161B22] border border-slate-800 rounded-2xl p-6 shadow-sm relative overflow-hidden flex flex-col justify-between group">
+          <div className="absolute top-0 left-0 w-1.5 h-full bg-violet-500"></div>
+          <div>
             <div className="flex justify-between items-start">
-              <div className="w-full">
-                <p className="text-slate-400 text-xs font-semibold uppercase tracking-wider flex items-center justify-between">
-                  <span>Gastos Pessoais</span>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setTempSelectedCats([...selectedPersonalExpenseCats]);
-                      setEditingType('PERSONAL_GASTO');
-                    }}
-                    className="text-slate-400 hover:text-white p-1 hover:bg-slate-800 rounded transition-all cursor-pointer"
-                    title="Editar categorias de gastos pessoais"
-                  >
-                    <Pencil size={11} />
-                  </button>
+              <div>
+                <p className="text-slate-400 text-xs font-semibold uppercase tracking-wider">
+                  Gastos Pessoais
                 </p>
-                
-                <div className="mt-3 space-y-2">
-                  <div className="text-[11px] text-slate-400 leading-normal">
-                    Categorias: <span className="text-slate-300 font-semibold">{selectedPersonalExpenseCats.length === 0 ? 'Nenhuma selecionada' : selectedPersonalExpenseCats.join(', ')}</span>
-                  </div>
-                  <div className="bg-[#0F1115] p-3 rounded-xl border border-slate-850">
-                    <span className="text-[10px] font-bold text-violet-400 uppercase tracking-wider block mb-1">Total do Mês</span>
-                    <span className="text-xl font-black text-white block font-mono">
-                      {formatCurrency(personalExpensesSumThisMonth)}
-                    </span>
-                  </div>
+                <span className="text-[10px] text-violet-400 font-bold uppercase tracking-wider block mt-0.5">
+                  Categoria: PESSOAIS
+                </span>
+              </div>
+              <div className="p-2.5 rounded-xl bg-violet-500/10 text-violet-400 shrink-0">
+                <User size={18} />
+              </div>
+            </div>
+
+            <div className="mt-4 space-y-2.5">
+              <div className="bg-[#0F1115] p-2.5 rounded-xl border border-slate-850">
+                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">
+                  Subcategorias de Pessoais
+                </span>
+                <p className="text-[11px] text-slate-300 font-medium truncate">
+                  {pessoaisSubCategories.length === 0 
+                    ? 'Nenhuma subcategoria cadastrada' 
+                    : pessoaisSubCategories.map(s => s.name).join(', ')}
+                </p>
+              </div>
+
+              <div className="bg-[#0F1115] p-3 rounded-xl border border-slate-850">
+                <span className="text-[10px] font-bold text-violet-400 uppercase tracking-wider block mb-1">
+                  Total de Gastos (Mês)
+                </span>
+                <span className="text-xl font-black text-white block font-mono">
+                  {formatCurrency(personalExpensesSumThisMonth)}
+                </span>
+              </div>
+            </div>
+          </div>
+          <div className="mt-4 text-[10px] text-slate-500 border-t border-slate-800/80 pt-2.5">
+            Automaticamente calculado para a categoria PESSOAIS
+          </div>
+        </div>
+
+        {/* Quadro 3: Outros (Categoria OUTROS) */}
+        <div className="bg-[#161B22] border border-slate-800 rounded-2xl p-6 shadow-sm relative overflow-hidden flex flex-col justify-between group">
+          <div className="absolute top-0 left-0 w-1.5 h-full bg-amber-500"></div>
+          <div>
+            <div className="flex justify-between items-start">
+              <div>
+                <p className="text-slate-400 text-xs font-semibold uppercase tracking-wider">
+                  Movimentações Outros
+                </p>
+                <span className="text-[10px] text-amber-400 font-bold uppercase tracking-wider block mt-0.5">
+                  Categoria: OUTROS
+                </span>
+              </div>
+              <div className="p-2.5 rounded-xl bg-amber-500/10 text-amber-400 shrink-0">
+                <Layers size={18} />
+              </div>
+            </div>
+
+            <div className="flex flex-col gap-2.5 mt-4">
+              {/* Entradas Outros */}
+              <div className="bg-[#0F1115] p-2.5 rounded-xl border border-slate-850">
+                <div className="flex items-center justify-between mb-1">
+                  <span className="text-[10px] font-bold text-emerald-400 uppercase tracking-wider">Entradas (Outros)</span>
+                  <span className="text-[9px] text-slate-500 font-mono">
+                    {outrosSubCategories.filter(s => (s.type || 'RECEITA') === 'RECEITA').length} subcat.
+                  </span>
                 </div>
+                <span className="text-xs font-semibold text-slate-200 block font-mono">
+                  {formatCurrency(outrosRevenuesSumThisMonth)}
+                </span>
               </div>
-              <div className="p-3 rounded-xl bg-violet-500/10 text-violet-400 shrink-0 ml-2">
-                <User size={20} />
+
+              {/* Saídas Outros */}
+              <div className="bg-[#0F1115] p-2.5 rounded-xl border border-slate-850">
+                <div className="flex items-center justify-between mb-1">
+                  <span className="text-[10px] font-bold text-rose-400 uppercase tracking-wider">Saídas (Outros)</span>
+                  <span className="text-[9px] text-slate-500 font-mono">
+                    {outrosSubCategories.filter(s => (s.type || 'RECEITA') === 'GASTO').length} subcat.
+                  </span>
+                </div>
+                <span className="text-xs font-semibold text-slate-200 block font-mono">
+                  {formatCurrency(outrosExpensesSumThisMonth)}
+                </span>
               </div>
             </div>
-            <div className="mt-4 text-[10px] text-slate-500 border-t border-slate-800/80 pt-3">
-              Gastos de caráter pessoal do mês selecionado
+
+            {/* Total Row */}
+            <div className="flex justify-between text-sm text-slate-350 border-t border-slate-800/80 pt-2.5 mt-3">
+              <span className="font-bold text-slate-300 text-xs uppercase tracking-wider">SALDO OUTROS:</span>
+              <span className={`font-bold text-xs font-mono ${outrosBalanceThisMonth >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+                {formatCurrency(outrosBalanceThisMonth)}
+              </span>
             </div>
+          </div>
+          <div className="mt-4 text-[10px] text-slate-500 border-t border-slate-800/80 pt-2.5">
+            Automaticamente calculado para a categoria OUTROS
           </div>
         </div>
       </div>

@@ -214,7 +214,7 @@ export default function Reports({ services, expenses, subCategories }: ReportsPr
   const [paymentMethod, setPaymentMethod] = useState<string>('all');
 
   // Sort order state for general report detailed statement ('oldest' first or 'newest' first)
-  const [sortOrder, setSortOrder] = useState<'oldest' | 'newest'>('oldest');
+  const [sortOrder, setSortOrder] = useState<'oldest' | 'newest'>('newest');
 
   // Format currency helper
   const formatCurrency = (val: number) => {

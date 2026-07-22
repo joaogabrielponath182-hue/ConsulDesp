@@ -4,15 +4,15 @@
  */
 
 import React, { useState } from 'react';
-import { SubCategory } from '../types';
+import { SubCategory, CategoryGroup } from '../types';
 import { Trash2, Plus, Info, RefreshCw, ClipboardList, Pencil, Check, X, AlertTriangle } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
 interface SubCategoriesProps {
   subCategories: SubCategory[];
-  onAddSubCategory: (name: string, defaultValue: number, type: 'RECEITA' | 'GASTO') => void;
+  onAddSubCategory: (name: string, defaultValue: number, type: 'RECEITA' | 'GASTO', categoryGroup?: CategoryGroup) => void;
   onRemoveSubCategory: (id: string) => void;
-  onEditSubCategory: (id: string, name: string, defaultValue: number) => void;
+  onEditSubCategory: (id: string, name: string, defaultValue: number, categoryGroup?: CategoryGroup) => void;
 }
 
 export default function SubCategories({
@@ -24,7 +24,9 @@ export default function SubCategories({
   const [newSubName, setNewSubName] = useState('');
   const [newSubValue, setNewSubValue] = useState<number | ''>('');
   const [newSubType, setNewSubType] = useState<'RECEITA' | 'GASTO'>('RECEITA');
+  const [newCategoryGroup, setNewCategoryGroup] = useState<CategoryGroup>('SERVIÇOS');
   const [filterType, setFilterType] = useState<'ALL' | 'RECEITA' | 'GASTO'>('ALL');
+  const [filterGroup, setFilterGroup] = useState<'ALL' | CategoryGroup>('ALL');
   const [errorMsg, setErrorMsg] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
 
@@ -32,10 +34,13 @@ export default function SubCategories({
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editingName, setEditingName] = useState('');
   const [editingValue, setEditingValue] = useState<number | ''>('');
+  const [editingCategoryGroup, setEditingCategoryGroup] = useState<CategoryGroup>('SERVIÇOS');
 
   const filteredList = subCategories.filter(sub => {
     const matchesTab = filterType === 'ALL' || (sub.type || 'RECEITA') === filterType;
     if (!matchesTab) return false;
+    const matchesGroup = filterGroup === 'ALL' || (sub.categoryGroup || 'SERVIÇOS') === filterGroup;
+    if (!matchesGroup) return false;
     if (!searchTerm.trim()) return true;
     return sub.name.toUpperCase().includes(searchTerm.toUpperCase().trim());
   });
@@ -81,7 +86,7 @@ export default function SubCategories({
       return;
     }
 
-    onAddSubCategory(cleanName, Number(newSubValue), newSubType);
+    onAddSubCategory(cleanName, Number(newSubValue), newSubType, newCategoryGroup);
     setNewSubName('');
     setNewSubValue('');
   };
@@ -90,6 +95,7 @@ export default function SubCategories({
     setEditingId(sub.id);
     setEditingName(sub.name);
     setEditingValue(sub.defaultValue);
+    setEditingCategoryGroup(sub.categoryGroup || 'SERVIÇOS');
     setErrorMsg('');
   };
 
@@ -118,7 +124,7 @@ export default function SubCategories({
       return;
     }
 
-    onEditSubCategory(id, cleanName, Number(editingValue));
+    onEditSubCategory(id, cleanName, Number(editingValue), editingCategoryGroup);
     setEditingId(null);
     setEditingName('');
     setEditingValue('');
@@ -171,7 +177,7 @@ export default function SubCategories({
 
             <div>
               <label htmlFor="sub-type" className="block text-xs font-bold text-slate-400 mb-1.5 uppercase tracking-wide">
-                Tipo (Vincular a)
+                Natureza (Receita / Gasto)
               </label>
               <select
                 id="sub-type"
@@ -181,6 +187,22 @@ export default function SubCategories({
               >
                 <option value="RECEITA">RECEITA (Serviços)</option>
                 <option value="GASTO">GASTO (Despesas / Registro de Gastos)</option>
+              </select>
+            </div>
+
+            <div>
+              <label htmlFor="sub-group" className="block text-xs font-bold text-slate-400 mb-1.5 uppercase tracking-wide">
+                Tipo da Categoria
+              </label>
+              <select
+                id="sub-group"
+                value={newCategoryGroup}
+                onChange={e => setNewCategoryGroup(e.target.value as CategoryGroup)}
+                className="w-full px-3.5 py-2.5 bg-[#0F1115] border border-slate-850 rounded-xl text-sm focus:outline-none focus:border-emerald-500 text-slate-200 font-bold cursor-pointer"
+              >
+                <option value="SERVIÇOS">SERVIÇOS (Operacional / Escritório)</option>
+                <option value="PESSOAIS">PESSOAIS (Gastos Pessoais)</option>
+                <option value="OUTROS">OUTROS (Diversos)</option>
               </select>
             </div>
 
@@ -263,40 +285,89 @@ export default function SubCategories({
                 </div>
 
                 {/* Filter Buttons */}
-                <div className="flex bg-[#0F1115] p-1 rounded-xl border border-slate-850 self-start sm:self-auto">
-                  <button
-                    type="button"
-                    onClick={() => setFilterType('ALL')}
-                    className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-                      filterType === 'ALL'
-                        ? 'bg-emerald-600 text-white shadow-xs'
-                        : 'text-slate-400 hover:text-white'
-                    }`}
-                  >
-                    Todas
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setFilterType('RECEITA')}
-                    className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-                      filterType === 'RECEITA'
-                        ? 'bg-emerald-600 text-white shadow-xs'
-                        : 'text-slate-400 hover:text-white'
-                    }`}
-                  >
-                    Receitas
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setFilterType('GASTO')}
-                    className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-                      filterType === 'GASTO'
-                        ? 'bg-emerald-600 text-white shadow-xs'
-                        : 'text-slate-400 hover:text-white'
-                    }`}
-                  >
-                    Gastos
-                  </button>
+                <div className="flex flex-wrap gap-2">
+                  <div className="flex bg-[#0F1115] p-1 rounded-xl border border-slate-850">
+                    <button
+                      type="button"
+                      onClick={() => setFilterType('ALL')}
+                      className={`px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                        filterType === 'ALL'
+                          ? 'bg-emerald-600 text-white shadow-xs'
+                          : 'text-slate-400 hover:text-white'
+                      }`}
+                    >
+                      Todas
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setFilterType('RECEITA')}
+                      className={`px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                        filterType === 'RECEITA'
+                          ? 'bg-emerald-600 text-white shadow-xs'
+                          : 'text-slate-400 hover:text-white'
+                      }`}
+                    >
+                      Receitas
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setFilterType('GASTO')}
+                      className={`px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                        filterType === 'GASTO'
+                          ? 'bg-emerald-600 text-white shadow-xs'
+                          : 'text-slate-400 hover:text-white'
+                      }`}
+                    >
+                      Gastos
+                    </button>
+                  </div>
+
+                  <div className="flex bg-[#0F1115] p-1 rounded-xl border border-slate-850">
+                    <button
+                      type="button"
+                      onClick={() => setFilterGroup('ALL')}
+                      className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition-all cursor-pointer ${
+                        filterGroup === 'ALL'
+                          ? 'bg-blue-600 text-white shadow-xs'
+                          : 'text-slate-400 hover:text-white'
+                      }`}
+                    >
+                      Todos Tipos
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setFilterGroup('SERVIÇOS')}
+                      className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition-all cursor-pointer ${
+                        filterGroup === 'SERVIÇOS'
+                          ? 'bg-blue-600 text-white shadow-xs'
+                          : 'text-slate-400 hover:text-white'
+                      }`}
+                    >
+                      Serviços
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setFilterGroup('PESSOAIS')}
+                      className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition-all cursor-pointer ${
+                        filterGroup === 'PESSOAIS'
+                          ? 'bg-blue-600 text-white shadow-xs'
+                          : 'text-slate-400 hover:text-white'
+                      }`}
+                    >
+                      Pessoais
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setFilterGroup('OUTROS')}
+                      className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition-all cursor-pointer ${
+                        filterGroup === 'OUTROS'
+                          ? 'bg-blue-600 text-white shadow-xs'
+                          : 'text-slate-400 hover:text-white'
+                      }`}
+                    >
+                      Outros
+                    </button>
+                  </div>
                 </div>
               </div>
             </div>
@@ -361,6 +432,21 @@ export default function SubCategories({
                               </div>
 
                               <div>
+                                <label className="block text-[9px] font-bold text-slate-400 uppercase mb-0.5 tracking-wide">
+                                  Tipo da Categoria
+                                </label>
+                                <select
+                                  value={editingCategoryGroup}
+                                  onChange={e => setEditingCategoryGroup(e.target.value as CategoryGroup)}
+                                  className="w-full px-2.5 py-1.5 bg-[#0F1115] border border-slate-755 rounded-lg text-xs text-white font-bold cursor-pointer"
+                                >
+                                  <option value="SERVIÇOS">SERVIÇOS (Operacional / Escritório)</option>
+                                  <option value="PESSOAIS">PESSOAIS (Gastos Pessoais)</option>
+                                  <option value="OUTROS">OUTROS (Diversos)</option>
+                                </select>
+                              </div>
+
+                              <div>
                                 <label className="block text-[9px] font-bold text-slate-400 uppercase mb-0.5 tracking-wide">Novo Valor Padrão (R$)</label>
                                 <div className="relative rounded-lg shadow-sm">
                                   <span className="absolute inset-y-0 left-0 pl-2.5 flex items-center text-slate-500 text-[10px] font-bold font-mono">
@@ -420,15 +506,20 @@ export default function SubCategories({
 
                           <div className="flex justify-between items-start pt-1.5">
                             <div className="space-y-1">
-                              {isGasto ? (
-                                <span className="text-[10px] font-bold text-rose-450 bg-rose-950/30 border border-rose-900/30 px-2.5 py-0.5 rounded-full uppercase tracking-wide">
-                                  Gasto (Despesa)
+                              <div className="flex flex-wrap items-center gap-1.5">
+                                {isGasto ? (
+                                  <span className="text-[10px] font-bold text-rose-450 bg-rose-950/30 border border-rose-900/30 px-2.5 py-0.5 rounded-full uppercase tracking-wide">
+                                    Gasto
+                                  </span>
+                                ) : (
+                                  <span className="text-[10px] font-bold text-emerald-400 bg-emerald-600/10 border border-emerald-900/30 px-2.5 py-0.5 rounded-full uppercase tracking-wide">
+                                    Receita
+                                  </span>
+                                )}
+                                <span className="text-[10px] font-bold text-blue-400 bg-blue-950/40 border border-blue-900/30 px-2 py-0.5 rounded-full uppercase tracking-wide">
+                                  {sub.categoryGroup || 'SERVIÇOS'}
                                 </span>
-                              ) : (
-                                <span className="text-[10px] font-bold text-emerald-400 bg-emerald-600/10 border border-emerald-900/30 px-2.5 py-0.5 rounded-full uppercase tracking-wide">
-                                  Receita (Serviço)
-                                </span>
-                              )}
+                              </div>
                               <h4 className="text-sm font-bold text-white font-mono tracking-wide mt-1">{sub.name}</h4>
                             </div>
                             <div className="flex gap-1.5 shrink-0">
