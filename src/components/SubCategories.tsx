@@ -508,15 +508,21 @@ export default function SubCategories({
                             <div className="space-y-1">
                               <div className="flex flex-wrap items-center gap-1.5">
                                 {isGasto ? (
-                                  <span className="text-[10px] font-bold text-rose-450 bg-rose-950/30 border border-rose-900/30 px-2.5 py-0.5 rounded-full uppercase tracking-wide">
+                                  <span className="text-[10px] font-bold text-rose-700 dark:text-rose-400 bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-900/30 px-2.5 py-0.5 rounded-full uppercase tracking-wide">
                                     Gasto
                                   </span>
                                 ) : (
-                                  <span className="text-[10px] font-bold text-emerald-400 bg-emerald-600/10 border border-emerald-900/30 px-2.5 py-0.5 rounded-full uppercase tracking-wide">
+                                  <span className="text-[10px] font-bold text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-900/30 px-2.5 py-0.5 rounded-full uppercase tracking-wide">
                                     Receita
                                   </span>
                                 )}
-                                <span className="text-[10px] font-bold text-blue-400 bg-blue-950/40 border border-blue-900/30 px-2 py-0.5 rounded-full uppercase tracking-wide">
+                                <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wide ${
+                                  (sub.categoryGroup || 'SERVIÇOS') === 'PESSOAIS'
+                                    ? 'text-purple-600 dark:text-purple-300 bg-purple-50 dark:bg-purple-950/50 border border-purple-200 dark:border-purple-800/40'
+                                    : (sub.categoryGroup || 'SERVIÇOS') === 'OUTROS'
+                                    ? 'text-amber-600 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/50 border border-amber-200 dark:border-amber-800/40'
+                                    : 'text-blue-600 dark:text-blue-300 bg-blue-50 dark:bg-blue-950/50 border border-blue-200 dark:border-blue-800/40'
+                                }`}>
                                   {sub.categoryGroup || 'SERVIÇOS'}
                                 </span>
                               </div>

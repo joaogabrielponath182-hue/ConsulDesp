@@ -1084,26 +1084,26 @@ export default function Dashboard({
               </div>
             </div>
 
-            <div className="mt-4 space-y-2.5">
-              <div className="bg-[#0F1115] p-2.5 rounded-xl border border-slate-850">
-                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">
-                  Subcategorias de Pessoais
-                </span>
-                <p className="text-[11px] text-slate-300 font-medium truncate">
-                  {pessoaisSubCategories.length === 0 
-                    ? 'Nenhuma subcategoria cadastrada' 
-                    : pessoaisSubCategories.map(s => s.name).join(', ')}
-                </p>
-              </div>
-
+            <div className="flex flex-col gap-2.5 mt-4">
               <div className="bg-[#0F1115] p-3 rounded-xl border border-slate-850">
-                <span className="text-[10px] font-bold text-violet-400 uppercase tracking-wider block mb-1">
-                  Total de Gastos (Mês)
-                </span>
+                <div className="flex items-center justify-between mb-1.5">
+                  <span className="text-[10px] font-bold text-violet-400 uppercase tracking-wider">Total de Gastos Pessoais</span>
+                  <span className="text-[9px] text-slate-500 font-mono">
+                    {pessoaisSubCategories.length} subcat.
+                  </span>
+                </div>
                 <span className="text-xl font-black text-white block font-mono">
                   {formatCurrency(personalExpensesSumThisMonth)}
                 </span>
               </div>
+            </div>
+
+            {/* Total Row */}
+            <div className="flex justify-between text-sm text-slate-350 border-t border-slate-800/80 pt-2.5 mt-3">
+              <span className="font-bold text-slate-300 text-xs uppercase tracking-wider">TOTAL PESSOAIS:</span>
+              <span className="font-bold text-xs font-mono text-violet-400">
+                {formatCurrency(personalExpensesSumThisMonth)}
+              </span>
             </div>
           </div>
           <div className="mt-4 text-[10px] text-slate-500 border-t border-slate-800/80 pt-2.5">
