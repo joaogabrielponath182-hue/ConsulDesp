@@ -102,108 +102,94 @@ export default function ReportsComparative({ services, expenses, subCategories, 
     return dateStr;
   };
 
-  const username = currentSession?.username || 'admin';
+  // Map subcategory names to their categoryGroup ('SERVIÇOS' | 'PESSOAIS' | 'OUTROS')
+  const subCategoryGroupMap = useMemo(() => {
+    const map: Record<string, 'SERVIÇOS' | 'PESSOAIS' | 'OUTROS'> = {};
+    subCategories.forEach(sub => {
+      const name = sub.name.trim().toUpperCase();
+      map[name] = sub.categoryGroup || 'SERVIÇOS';
+    });
+    return map;
+  }, [subCategories]);
 
-  const selectedPersonalExpenseCats = useMemo(() => {
-    const saved = localStorage.getItem(`personal_expense_cats_${username}`);
-    if (saved) {
-      try {
-        return JSON.parse(saved) as string[];
-      } catch (e) {
-        // Fallback
-      }
-    }
-    return [] as string[];
-  }, [username]);
+  // Derive active lists of subcategories by categoryGroup
+  const servicosRevenueCats = useMemo(() => {
+    const set = new Set<string>();
+    subCategories
+      .filter(s => (s.categoryGroup || 'SERVIÇOS') === 'SERVIÇOS' && (s.type || 'RECEITA') === 'RECEITA')
+      .forEach(s => set.add(s.name.toUpperCase().trim()));
+    services.forEach(srv => {
+      srv.items?.forEach(it => {
+        const name = it.name.toUpperCase().trim();
+        if ((subCategoryGroupMap[name] || 'SERVIÇOS') === 'SERVIÇOS') {
+          set.add(name);
+        }
+      });
+    });
+    return Array.from(set).sort();
+  }, [subCategories, services, subCategoryGroupMap]);
 
-  const selectedRevenueCats = useMemo(() => {
-    const saved = localStorage.getItem(`lucro_livre_revenue_cats_${username}`);
-    if (saved) {
-      try {
-        return JSON.parse(saved) as string[];
-      } catch (e) {
-        // Fallback
+  const servicosExpenseCats = useMemo(() => {
+    const set = new Set<string>();
+    subCategories
+      .filter(s => (s.categoryGroup || 'SERVIÇOS') === 'SERVIÇOS' && (s.type || 'RECEITA') === 'GASTO')
+      .forEach(s => set.add(s.name.toUpperCase().trim()));
+    expenses.forEach(exp => {
+      const name = exp.category.toUpperCase().trim();
+      if ((subCategoryGroupMap[name] || 'SERVIÇOS') === 'SERVIÇOS') {
+        set.add(name);
       }
-    }
-    // Default matching logic from Dashboard
-    const userSubs = subCategories.filter(s => (s.type || 'RECEITA') === 'RECEITA');
-    const defaultNames = ["HONORARIO", "HONORÁRIO", "RET. CRLV-E", "ATPV-E"];
-    const matched = userSubs.filter(s => defaultNames.includes(s.name.toUpperCase().trim())).map(s => s.name.toUpperCase().trim());
-    if (matched.length > 0) {
-      return matched;
-    } else {
-      return userSubs.map(s => s.name.toUpperCase().trim());
-    }
-  }, [username, subCategories]);
+    });
+    return Array.from(set).sort();
+  }, [subCategories, expenses, subCategoryGroupMap]);
 
-  const selectedExpenseCats = useMemo(() => {
-    const saved = localStorage.getItem(`lucro_livre_expense_cats_${username}`);
-    if (saved) {
-      try {
-        return JSON.parse(saved) as string[];
-      } catch (e) {
-        // Fallback
+  const pessoaisExpenseCats = useMemo(() => {
+    const set = new Set<string>();
+    subCategories
+      .filter(s => (s.categoryGroup || 'SERVIÇOS') === 'PESSOAIS')
+      .forEach(s => set.add(s.name.toUpperCase().trim()));
+    expenses.forEach(exp => {
+      const name = exp.category.toUpperCase().trim();
+      if ((subCategoryGroupMap[name] || 'SERVIÇOS') === 'PESSOAIS') {
+        set.add(name);
       }
-    }
-    // Default matching logic from Dashboard
-    const userSubs = subCategories.filter(s => (s.type || 'RECEITA') === 'GASTO');
-    const defaultNames = ["ALUGUEL", "EDP", "PLANO DE SAÚDE", "TAMANINI", "VIVO", "GRUPO LIMA", "TERMOS", "DAS MEI"];
-    const matched = userSubs.filter(s => defaultNames.includes(s.name.toUpperCase().trim())).map(s => s.name.toUpperCase().trim());
-    if (matched.length > 0) {
-      return matched;
-    } else {
-      return userSubs.map(s => s.name.toUpperCase().trim());
-    }
-  }, [username, subCategories]);
+    });
+    return Array.from(set).sort();
+  }, [subCategories, expenses, subCategoryGroupMap]);
 
   // Helper to compute metrics for a single period (strictly PAID services as per user request)
   const computePeriodMetrics = (start: string, end: string) => {
     const filteredServices = services.filter(s => s.date >= start && s.date <= end && s.status === 'PAGO');
     const filteredExpenses = expenses.filter(e => e.date >= start && e.date <= end);
 
-    // 1. Core revenues
+    // 1. Core revenues & expenses
     const totalRevenues = filteredServices.reduce((sum, s) => sum + s.totalValue, 0);
-    const paidRevenues = filteredServices.filter(s => s.status === 'PAGO').reduce((sum, s) => sum + s.totalValue, 0);
-    const pendingRevenues = filteredServices.filter(s => s.status === 'PENDENTE').reduce((sum, s) => sum + s.totalValue, 0);
-
-    // 2. Core expenses
+    const paidRevenues = totalRevenues; // All filteredServices are PAGO
+    const pendingRevenues = 0;
     const totalExpenses = filteredExpenses.reduce((sum, e) => sum + e.value, 0);
 
-    // 3. Lucro Livre selections and breakdowns
-    let selectedPaidRevenues = 0;
-    let selectedTotalRevenues = 0;
-    let selectedExpenses = 0;
+    // 2. Group-based breakdowns using subCategoryGroupMap ('SERVIÇOS', 'PESSOAIS', 'OUTROS')
+    let selectedPaidRevenues = 0; // SERVIÇOS Revenues
+    let selectedExpenses = 0;     // SERVIÇOS Expenses
+    let personalExpensesTotal = 0; // PESSOAIS Expenses
+    let outrosRevenuesTotal = 0;  // OUTROS Revenues
+    let outrosExpensesTotal = 0;  // OUTROS Expenses
 
-    const selectedRevenueCatsBreakdown: Record<string, number> = {};
     const selectedRevenueCatsPaidBreakdown: Record<string, number> = {};
     const selectedExpenseCatsBreakdown: Record<string, number> = {};
-
-    // Pre-populate with 0s to avoid missing fields
-    selectedRevenueCats.forEach(cat => {
-      selectedRevenueCatsBreakdown[cat] = 0;
-      selectedRevenueCatsPaidBreakdown[cat] = 0;
-    });
-    selectedExpenseCats.forEach(cat => {
-      selectedExpenseCatsBreakdown[cat] = 0;
-    });
+    const personalExpensesByCategory: Record<string, number> = {};
 
     filteredServices.forEach(srv => {
       if (srv.items) {
         srv.items.forEach(item => {
           const catName = (item.name || '').trim().toUpperCase();
-          const normCatName = catName.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
-          const matchedCat = selectedRevenueCats.find(sel => {
-            const selNorm = sel.trim().toUpperCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
-            return selNorm === normCatName || sel.trim().toUpperCase() === catName;
-          });
+          const group = subCategoryGroupMap[catName] || 'SERVIÇOS';
 
-          if (matchedCat) {
-            selectedTotalRevenues += item.value;
-            selectedRevenueCatsBreakdown[matchedCat] = (selectedRevenueCatsBreakdown[matchedCat] || 0) + item.value;
-            if (srv.status === 'PAGO') {
-              selectedPaidRevenues += item.value;
-              selectedRevenueCatsPaidBreakdown[matchedCat] = (selectedRevenueCatsPaidBreakdown[matchedCat] || 0) + item.value;
-            }
+          if (group === 'SERVIÇOS') {
+            selectedPaidRevenues += item.value;
+            selectedRevenueCatsPaidBreakdown[catName] = (selectedRevenueCatsPaidBreakdown[catName] || 0) + item.value;
+          } else if (group === 'OUTROS') {
+            outrosRevenuesTotal += item.value;
           }
         });
       }
@@ -212,40 +198,41 @@ export default function ReportsComparative({ services, expenses, subCategories, 
     filteredExpenses.forEach(exp => {
       if (exp.category) {
         const catName = exp.category.trim().toUpperCase();
-        const normCatName = catName.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
-        const matchedCat = selectedExpenseCats.find(sel => {
-          const selNorm = sel.trim().toUpperCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
-          return selNorm === normCatName || sel.trim().toUpperCase() === catName;
-        });
+        const group = subCategoryGroupMap[catName] || 'SERVIÇOS';
 
-        if (matchedCat) {
+        if (group === 'SERVIÇOS') {
           selectedExpenses += exp.value;
-          selectedExpenseCatsBreakdown[matchedCat] = (selectedExpenseCatsBreakdown[matchedCat] || 0) + exp.value;
+          selectedExpenseCatsBreakdown[catName] = (selectedExpenseCatsBreakdown[catName] || 0) + exp.value;
+        } else if (group === 'PESSOAIS') {
+          personalExpensesTotal += exp.value;
+          personalExpensesByCategory[catName] = (personalExpensesByCategory[catName] || 0) + exp.value;
+        } else if (group === 'OUTROS') {
+          outrosExpensesTotal += exp.value;
         }
       }
     });
 
-    // Net profits based on Lucro Livre selected categories as requested
+    // Net profit for Lucro Livre (SERVIÇOS)
     const netProfitRealized = selectedPaidRevenues - selectedExpenses;
-    const netProfitTotal = selectedTotalRevenues - selectedExpenses;
+    const netProfitTotal = netProfitRealized;
 
-    // 4. Segmented payments (Pix vs Cash) for PAGO revenues
+    // 3. Segmented payments (Pix vs Cash) for PAGO revenues
     const pixRevenues = filteredServices
-      .filter(s => s.status === 'PAGO' && s.paymentMethod === 'PIX')
+      .filter(s => s.paymentMethod === 'PIX')
       .reduce((sum, s) => sum + s.totalValue, 0);
     const cashRevenues = filteredServices
-      .filter(s => s.status === 'PAGO' && s.paymentMethod === 'DINHEIRO')
+      .filter(s => s.paymentMethod === 'DINHEIRO')
       .reduce((sum, s) => sum + s.totalValue, 0);
 
     // Segmented payments for Expenses
     const pixExpenses = filteredExpenses
-      .filter(e => e.paymentMethod === 'PIX')
+      .filter(e => (e.paymentMethod || 'PIX') === 'PIX')
       .reduce((sum, e) => sum + e.value, 0);
     const cashExpenses = filteredExpenses
-      .filter(e => e.paymentMethod === 'DINHEIRO')
+      .filter(e => (e.paymentMethod || 'PIX') === 'DINHEIRO')
       .reduce((sum, e) => sum + e.value, 0);
 
-    // 5. Quantitative counts (same as dashboard)
+    // 4. Quantitative counts
     let honorarios = 0;
     let honorariosRevenda = 0;
     let placas = 0;
@@ -273,12 +260,12 @@ export default function ReportsComparative({ services, expenses, subCategories, 
       }
     });
 
-    // 6. Revenue and Expense Categories sums
+    // 5. Revenue and Expense Categories sums
     const revenuesByCategory: Record<string, number> = {};
     filteredServices.forEach(s => {
       if (s.items && s.items.length > 0) {
         s.items.forEach(item => {
-          const catName = item.name || 'Outros';
+          const catName = item.name.trim().toUpperCase() || 'OUTROS';
           revenuesByCategory[catName] = (revenuesByCategory[catName] || 0) + item.value;
         });
       }
@@ -286,28 +273,8 @@ export default function ReportsComparative({ services, expenses, subCategories, 
 
     const expensesByCategory: Record<string, number> = {};
     filteredExpenses.forEach(e => {
-      const catName = e.category || 'Outros';
+      const catName = e.category.trim().toUpperCase() || 'OUTROS';
       expensesByCategory[catName] = (expensesByCategory[catName] || 0) + e.value;
-    });
-
-    // 7. Personal expenses total and breakdown
-    let personalExpensesTotal = 0;
-    const personalExpensesByCategory: Record<string, number> = {};
-
-    filteredExpenses.forEach(e => {
-      if (e.category) {
-        const catName = e.category.trim().toUpperCase();
-        const normCatName = catName.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
-        const matchedCat = selectedPersonalExpenseCats.find(sel => {
-          const selNorm = sel.trim().toUpperCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
-          return selNorm === normCatName || sel.trim().toUpperCase() === catName;
-        });
-
-        if (matchedCat) {
-          personalExpensesTotal += e.value;
-          personalExpensesByCategory[matchedCat] = (personalExpensesByCategory[matchedCat] || 0) + e.value;
-        }
-      }
     });
 
     return {
@@ -328,18 +295,20 @@ export default function ReportsComparative({ services, expenses, subCategories, 
       rawExpensesCount: filteredExpenses.length,
       personalExpensesTotal,
       personalExpensesByCategory,
-      selectedRevenueCatsBreakdown,
       selectedRevenueCatsPaidBreakdown,
       selectedExpenseCatsBreakdown,
       selectedPaidRevenues,
-      selectedTotalRevenues,
-      selectedExpenses
+      selectedTotalRevenues: selectedPaidRevenues,
+      selectedExpenses,
+      outrosRevenuesTotal,
+      outrosExpensesTotal,
+      outrosBalance: outrosRevenuesTotal - outrosExpensesTotal
     };
   };
 
   // Compute metrics for both periods
-  const metricsA = useMemo(() => computePeriodMetrics(startDateA, endDateA), [startDateA, endDateA, services, expenses, selectedPersonalExpenseCats, selectedRevenueCats, selectedExpenseCats]);
-  const metricsB = useMemo(() => computePeriodMetrics(startDateB, endDateB), [startDateB, endDateB, services, expenses, selectedPersonalExpenseCats, selectedRevenueCats, selectedExpenseCats]);
+  const metricsA = useMemo(() => computePeriodMetrics(startDateA, endDateA), [startDateA, endDateA, services, expenses, subCategoryGroupMap]);
+  const metricsB = useMemo(() => computePeriodMetrics(startDateB, endDateB), [startDateB, endDateB, services, expenses, subCategoryGroupMap]);
 
   // Helper to calculate percentage variance
   const getVariance = (valA: number, valB: number) => {
@@ -373,31 +342,34 @@ export default function ReportsComparative({ services, expenses, subCategories, 
   }, [metricsA, metricsB]);
 
   const personalExpenseCategoriesComparison = useMemo(() => {
-    return selectedPersonalExpenseCats.map(cat => {
+    const allCats = new Set([...pessoaisExpenseCats, ...Object.keys(metricsA.personalExpensesByCategory), ...Object.keys(metricsB.personalExpensesByCategory)]);
+    return Array.from(allCats).map(cat => {
       const valA = metricsA.personalExpensesByCategory[cat] || 0;
       const valB = metricsB.personalExpensesByCategory[cat] || 0;
       const { diff, pct } = getVariance(valA, valB);
       return { category: cat, valA, valB, diff, pct };
     }).sort((a, b) => b.valA - a.valA);
-  }, [metricsA, metricsB, selectedPersonalExpenseCats]);
+  }, [metricsA, metricsB, pessoaisExpenseCats]);
 
   const lucroLivreRevenuesComparison = useMemo(() => {
-    return selectedRevenueCats.map(cat => {
+    const allCats = new Set([...servicosRevenueCats, ...Object.keys(metricsA.selectedRevenueCatsPaidBreakdown), ...Object.keys(metricsB.selectedRevenueCatsPaidBreakdown)]);
+    return Array.from(allCats).map(cat => {
       const valA = metricsA.selectedRevenueCatsPaidBreakdown[cat] || 0;
       const valB = metricsB.selectedRevenueCatsPaidBreakdown[cat] || 0;
       const { diff, pct } = getVariance(valA, valB);
       return { category: cat, valA, valB, diff, pct };
     }).sort((a, b) => b.valA - a.valA);
-  }, [metricsA, metricsB, selectedRevenueCats]);
+  }, [metricsA, metricsB, servicosRevenueCats]);
 
   const lucroLivreExpensesComparison = useMemo(() => {
-    return selectedExpenseCats.map(cat => {
+    const allCats = new Set([...servicosExpenseCats, ...Object.keys(metricsA.selectedExpenseCatsBreakdown), ...Object.keys(metricsB.selectedExpenseCatsBreakdown)]);
+    return Array.from(allCats).map(cat => {
       const valA = metricsA.selectedExpenseCatsBreakdown[cat] || 0;
       const valB = metricsB.selectedExpenseCatsBreakdown[cat] || 0;
       const { diff, pct } = getVariance(valA, valB);
       return { category: cat, valA, valB, diff, pct };
     }).sort((a, b) => b.valA - a.valA);
-  }, [metricsA, metricsB, selectedExpenseCats]);  // Generate Portuguese descriptive textual analysis
+  }, [metricsA, metricsB, servicosExpenseCats]);  // Generate Portuguese descriptive textual analysis
   const textualAnalysis = useMemo(() => {
     const lucroLivreA = metricsA.selectedPaidRevenues - metricsA.selectedExpenses;
     const lucroLivreB = metricsB.selectedPaidRevenues - metricsB.selectedExpenses;
@@ -456,7 +428,7 @@ export default function ReportsComparative({ services, expenses, subCategories, 
     summaryText += `Adicionalmente, os recebimentos via PIX foram de ${formatCurrency(metricsA.pixRevenues)} (Período A) contra ${formatCurrency(metricsB.pixRevenues)} (Período B), indicando uma variação de ${pixVar.diff >= 0 ? '+' : ''}${pixVar.pct.toFixed(1)}% nesta modalidade de pagamento.`;
 
     // Personal expenses insight
-    if (selectedPersonalExpenseCats.length > 0) {
+    if (pessoaisExpenseCats.length > 0 || metricsA.personalExpensesTotal > 0 || metricsB.personalExpensesTotal > 0) {
       const personalVar = getVariance(metricsA.personalExpensesTotal, metricsB.personalExpensesTotal);
       summaryText += `\n\n**Análise de Gastos Pessoais**: `;
       summaryText += `Os gastos de caráter pessoal nas categorias selecionadas totalizaram ${formatCurrency(metricsA.personalExpensesTotal)} no Período A, comparado com ${formatCurrency(metricsB.personalExpensesTotal)} no Período B. `;
@@ -470,7 +442,7 @@ export default function ReportsComparative({ services, expenses, subCategories, 
     }
 
     return summaryText;
-  }, [metricsA, metricsB, revenueCategoriesComparison, expenseCategoriesComparison, startDateA, endDateA, startDateB, endDateB, selectedPersonalExpenseCats, selectedRevenueCats, selectedExpenseCats]);
+  }, [metricsA, metricsB, revenueCategoriesComparison, expenseCategoriesComparison, startDateA, endDateA, startDateB, endDateB, pessoaisExpenseCats, servicosRevenueCats, servicosExpenseCats]);
 
   // Handle printing
   const handlePrint = () => {

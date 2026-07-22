@@ -366,10 +366,10 @@ export default function Dashboard({
     return pendingServicesAllTime.reduce((acc, curr) => acc + curr.totalValue, 0);
   }, [pendingServicesAllTime]);
 
-  // All Time calculations (Excluding PENDENTE status services)
+  // All Time calculations (Strictly PAID status services)
   const totalRevenuesAllTime = React.useMemo(() => {
     return services
-      .filter(s => s.status !== 'PENDENTE')
+      .filter(s => s.status === 'PAGO')
       .reduce((acc, curr) => acc + curr.totalValue, 0);
   }, [services]);
 
@@ -408,10 +408,10 @@ export default function Dashboard({
 
   const pixBalance = pixRevenues - pixExpenses;
 
-  // Segmented calculations by payment method - ALL TIME (Geral) (Excluding PENDENTE status services)
+  // Segmented calculations by payment method - ALL TIME (Geral) (Strictly PAID status services)
   const cashRevenuesAllTime = React.useMemo(() => {
     return services
-      .filter(s => s.paymentMethod === 'DINHEIRO' && s.status !== 'PENDENTE')
+      .filter(s => s.paymentMethod === 'DINHEIRO' && s.status === 'PAGO')
       .reduce((acc, s) => acc + s.totalValue, 0);
   }, [services]);
 
@@ -425,7 +425,7 @@ export default function Dashboard({
 
   const pixRevenuesAllTime = React.useMemo(() => {
     return services
-      .filter(s => s.paymentMethod === 'PIX' && s.status !== 'PENDENTE')
+      .filter(s => s.paymentMethod === 'PIX' && s.status === 'PAGO')
       .reduce((acc, s) => acc + s.totalValue, 0);
   }, [services]);
 
