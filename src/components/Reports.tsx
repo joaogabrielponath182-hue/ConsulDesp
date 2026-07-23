@@ -456,9 +456,12 @@ export default function Reports({ services, expenses, subCategories }: ReportsPr
       .map(s => {
         if (!hasAll) {
           const matchingItems = s.items.filter(item => {
+            const itemUpper = item.name.toUpperCase().trim();
             const idMatch = item.subCategoryId && selectedSubCategories.includes(item.subCategoryId);
-            const nameMatch = selectedSubCategories.includes(item.name.toUpperCase());
-            return idMatch || nameMatch;
+            const nameMatch = selectedSubCategories.includes(itemUpper);
+            const matchedSub = subCategories.find(sub => sub.id === item.subCategoryId || sub.name.toUpperCase().trim() === itemUpper);
+            const subMatch = matchedSub ? (selectedSubCategories.includes(matchedSub.id) || selectedSubCategories.includes(matchedSub.name.toUpperCase().trim())) : false;
+            return idMatch || nameMatch || subMatch;
           });
           if (matchingItems.length === 0) return null;
           
@@ -548,8 +551,10 @@ export default function Reports({ services, expenses, subCategories }: ReportsPr
 
         // 3. Expense Category
         if (!hasAll) {
-          const upper = e.category.toUpperCase();
-          if (!selectedExpenseCategories.includes(upper)) return false;
+          const upper = e.category.toUpperCase().trim();
+          const matchedSub = subCategories.find(s => s.name.toUpperCase().trim() === upper || s.id === e.category);
+          const isSelected = selectedExpenseCategories.includes(upper) || (matchedSub && (selectedExpenseCategories.includes(matchedSub.id) || selectedExpenseCategories.includes(matchedSub.name.toUpperCase().trim())));
+          if (!isSelected) return false;
         }
 
         // 4. Payment Method
@@ -612,7 +617,7 @@ export default function Reports({ services, expenses, subCategories }: ReportsPr
       const methods = Array.from(new Set(group.services.map(s => s.paymentMethod)));
       const paymentMethodStr = methods.join(' + ');
 
-      const paidValue = group.services.filter(s => s.status !== 'PENDENTE').reduce((sum, s) => sum + s.totalValue, 0);
+      const paidValue = group.services.filter(s => s.status === 'PAGO').reduce((sum, s) => sum + s.totalValue, 0);
       const isGroupPending = group.services.every(s => s.status === 'PENDENTE') ? 'PENDENTE' : group.services.some(s => s.status === 'PENDENTE') ? 'PARCIAL' : 'PAGO';
 
       if (isMulti) {
@@ -648,7 +653,7 @@ export default function Reports({ services, expenses, subCategories }: ReportsPr
           paymentMethod: s.paymentMethod,
           value: s.totalValue,
           status: s.status,
-          paidValue: s.status !== 'PENDENTE' ? s.totalValue : 0,
+          paidValue: s.status === 'PAGO' ? s.totalValue : 0,
           items: s.items.map(it => ({ name: it.name, value: it.value }))
         });
       }
@@ -678,7 +683,7 @@ export default function Reports({ services, expenses, subCategories }: ReportsPr
     let currentBalance = 0;
     return ledgerItems.map(item => {
       if (item.type === 'ENTRADA') {
-        const valueToAdd = item.paidValue !== undefined ? item.paidValue : (item.status !== 'PENDENTE' ? item.value : 0);
+        const valueToAdd = item.paidValue !== undefined ? item.paidValue : (item.status === 'PAGO' ? item.value : 0);
         currentBalance += valueToAdd;
       } else {
         currentBalance -= item.value;
@@ -700,8 +705,8 @@ export default function Reports({ services, expenses, subCategories }: ReportsPr
   }, [ledgerWithBalances, sortOrder]);
 
   // Compute totals for summary box of filtered dataset
-  // Exclude PENDENTE status services as requested:
-  const totalRevenuesSum = filteredServices.filter(s => s.status !== 'PENDENTE').reduce((acc, curr) => acc + curr.totalValue, 0);
+  // Strictly consider PAGO status services as requested:
+  const totalRevenuesSum = filteredServices.filter(s => s.status === 'PAGO').reduce((acc, curr) => acc + curr.totalValue, 0);
   const totalExpensesSum = filteredExpenses.reduce((acc, curr) => acc + curr.value, 0);
   const totalPaidRevenues = filteredServices.filter(s => s.status === 'PAGO').reduce((acc, curr) => acc + curr.totalValue, 0);
   const totalPendingRevenues = filteredServices.filter(s => s.status === 'PENDENTE').reduce((acc, curr) => acc + curr.totalValue, 0);
@@ -709,11 +714,11 @@ export default function Reports({ services, expenses, subCategories }: ReportsPr
 
   // Receipts distribution format: PIX vs Cash (only PAGO services)
   const pixRevenues = filteredServices
-    .filter(s => s.status !== 'PENDENTE' && s.paymentMethod === 'PIX')
+    .filter(s => s.status === 'PAGO' && s.paymentMethod === 'PIX')
     .reduce((acc, curr) => acc + curr.totalValue, 0);
 
   const dineroRevenues = filteredServices
-    .filter(s => s.status !== 'PENDENTE' && s.paymentMethod === 'DINHEIRO')
+    .filter(s => s.status === 'PAGO' && s.paymentMethod === 'DINHEIRO')
     .reduce((acc, curr) => acc + curr.totalValue, 0);
 
   const totalPaymentSum = pixRevenues + dineroRevenues;
