@@ -135,6 +135,47 @@ export default function Dashboard({
     }
   });
 
+  // Cash drawer daily check calculator state (independent from system totals)
+  const [drawerCashInput, setDrawerCashInput] = useState<string>(() => {
+    try {
+      return localStorage.getItem(`drawer_cash_input_${username}`) || '';
+    } catch {
+      return '';
+    }
+  });
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(`drawer_cash_input_${username}`, drawerCashInput);
+    } catch {
+      // ignore
+    }
+  }, [drawerCashInput, username]);
+
+  const evaluatedDrawerCash = React.useMemo(() => {
+    if (!drawerCashInput || !drawerCashInput.trim()) return 0;
+    const cleaned = drawerCashInput.replace(/,/g, '.');
+    const tokens = cleaned.match(/(\d+(?:\.\d+)?|[\+\-\*\/])/g);
+    if (!tokens) return 0;
+
+    let result = 0;
+    let currentOp = '+';
+    for (const token of tokens) {
+      if (['+', '-', '*', '/'].includes(token)) {
+        currentOp = token;
+      } else {
+        const val = parseFloat(token);
+        if (!isNaN(val)) {
+          if (currentOp === '+') result += val;
+          else if (currentOp === '-') result -= val;
+          else if (currentOp === '*') result *= val;
+          else if (currentOp === '/') result = val !== 0 ? result / val : result;
+        }
+      }
+    }
+    return isNaN(result) ? 0 : result;
+  }, [drawerCashInput]);
+
   const toggleRevenuesExpanded = () => {
     const nextVal = !isRevenuesExpanded;
     setIsRevenuesExpanded(nextVal);
@@ -846,6 +887,76 @@ export default function Dashboard({
                       {formatCurrency(cashBalanceAllTime)}
                     </span>
                   </div>
+                </div>
+
+                {/* Conferência Diária de Caixa (Dinheiro Vivo em Notas) */}
+                <div className="mt-2.5 bg-amber-950/20 border border-amber-500/25 rounded-xl p-2.5 text-[11px] space-y-2">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-[10px] font-bold text-amber-400 uppercase tracking-wider">Dinheiro em Caixa</span>
+                      <span className="text-[9px] text-slate-500">(Conferência em Notas)</span>
+                    </div>
+                    {drawerCashInput && (
+                      <button
+                        type="button"
+                        onClick={() => setDrawerCashInput('')}
+                        className="text-[9px] text-slate-400 hover:text-amber-300 transition-colors"
+                        title="Limpar cálculo"
+                      >
+                        Limpar
+                      </button>
+                    )}
+                  </div>
+
+                  <div>
+                    <input
+                      type="text"
+                      value={drawerCashInput}
+                      onChange={(e) => setDrawerCashInput(e.target.value)}
+                      placeholder="Somar notas ex: 100 + 20 + 80 + 450"
+                      className="w-full bg-slate-950/90 border border-slate-700/80 rounded-lg px-2.5 py-1 text-xs font-mono text-amber-300 placeholder-slate-600 focus:outline-none focus:border-amber-500/60 transition-colors"
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-2 pt-1.5 border-t border-slate-800/80 text-[11px]">
+                    <div>
+                      <span className="text-slate-400 block text-[9px] uppercase font-semibold">Total em Notas</span>
+                      <span className="font-mono text-amber-300 font-bold text-xs">
+                        {formatCurrency(evaluatedDrawerCash)}
+                      </span>
+                    </div>
+                    <div className="text-right">
+                      <span className="text-slate-400 block text-[9px] uppercase font-semibold">Diferença vs Saldo</span>
+                      <span
+                        className={`font-mono font-bold text-xs ${
+                          evaluatedDrawerCash === 0 && !drawerCashInput.trim()
+                            ? 'text-slate-400'
+                            : (evaluatedDrawerCash - cashBalanceAllTime) === 0
+                            ? 'text-emerald-400'
+                            : (evaluatedDrawerCash - cashBalanceAllTime) > 0
+                            ? 'text-emerald-400'
+                            : 'text-rose-400'
+                        }`}
+                      >
+                        {evaluatedDrawerCash === 0 && !drawerCashInput.trim()
+                          ? formatCurrency(0)
+                          : ((evaluatedDrawerCash - cashBalanceAllTime) > 0 ? '+' : '') + formatCurrency(evaluatedDrawerCash - cashBalanceAllTime)}
+                      </span>
+                    </div>
+                  </div>
+
+                  {drawerCashInput.trim() !== '' && (
+                    <div className="text-[9.5px] pt-1 border-t border-slate-800/50 flex items-center justify-between font-mono">
+                      <span className="text-slate-400 font-sans">Status da Gaveta:</span>
+                      {(evaluatedDrawerCash - cashBalanceAllTime) === 0 ? (
+                        <span className="text-emerald-400 font-semibold font-sans">✓ Caixa Bateu Exatamente!</span>
+                      ) : (evaluatedDrawerCash - cashBalanceAllTime) > 0 ? (
+                        <span className="text-emerald-400 font-semibold font-sans">▲ Sobra: {formatCurrency(evaluatedDrawerCash - cashBalanceAllTime)}</span>
+                      ) : (
+                        <span className="text-rose-400 font-semibold font-sans">▼ Falta: {formatCurrency(Math.abs(evaluatedDrawerCash - cashBalanceAllTime))}</span>
+                      )}
+                    </div>
+                  )}
                 </div>
               </div>
 
