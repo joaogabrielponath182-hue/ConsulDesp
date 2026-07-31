@@ -57,121 +57,8 @@ import UserManagement from './components/UserManagement';
 import LeadsManagement from './components/LeadsManagement';
 import ConnectedOperators from './components/ConnectedOperators';
 import CloudConsumption from './components/CloudConsumption';
-import LandingPage from './components/LandingPage';
-import TestDrivePage from './components/TestDrivePage';
 
 export default function App() {
-  const [authView, setAuthView] = useState<'landing' | 'login' | 'test-drive'>(() => {
-    if (typeof window !== 'undefined') {
-      const path = window.location.pathname;
-      const hash = window.location.hash;
-      if (path === '/login' || hash === '#login') {
-        return 'login';
-      }
-      if (path === '/experimentar' || path === '/test-drive' || hash === '#test-drive') {
-        return 'test-drive';
-      }
-    }
-    return 'landing';
-  });
-
-  useEffect(() => {
-    const handlePopState = () => {
-      const path = window.location.pathname;
-      const hash = window.location.hash;
-      if (path === '/login' || hash === '#login') {
-        setAuthView('login');
-      } else if (path === '/experimentar' || path === '/test-drive' || hash === '#test-drive') {
-        setAuthView('test-drive');
-      } else {
-        setAuthView('landing');
-      }
-    };
-    window.addEventListener('popstate', handlePopState);
-    return () => window.removeEventListener('popstate', handlePopState);
-  }, []);
-
-  const [prefilledUser, setPrefilledUser] = useState('');
-  const [prefilledPass, setPrefilledPass] = useState('');
-
-  const handleGoToLogin = () => {
-    window.history.pushState({}, '', '/login');
-    setAuthView('login');
-    setPrefilledUser('');
-    setPrefilledPass('');
-  };
-
-  const handleGoToLanding = () => {
-    window.history.pushState({}, '', '/');
-    setAuthView('landing');
-  };
-
-  const handleGoToTestDrive = () => {
-    window.history.pushState({}, '', '/experimentar');
-    setAuthView('test-drive');
-  };
-
-  const handleGoToLoginPrefilled = (user: string, pass: string) => {
-    setPrefilledUser(user);
-    setPrefilledPass(pass);
-    window.history.pushState({}, '', '/login');
-    setAuthView('login');
-  };
-
-  const handleAutoLogin = async (user: string, pass: string) => {
-    const cleanUsername = user.trim().toLowerCase();
-    setIsCloudLoading(true);
-    await new Promise((resolve) => setTimeout(resolve, 500));
-
-    // Ensure the user 'user' with pass 'teste' is in our list
-    let matchedUser = internalUsers.find(
-      (u) => u.username.toLowerCase() === cleanUsername
-    );
-
-    if (!matchedUser) {
-      // Create and inject it
-      const demoUser: InternalUser = {
-        id: 'user-demo-default',
-        fullName: 'Usuário de Teste (Demonstração)',
-        cpf: '000.000.000-00',
-        phone: '(11) 99999-9999',
-        username: 'user',
-        password: 'teste',
-        duration: 'indeterminado',
-        createdAt: new Date().toISOString(),
-        expiresAt: null,
-        currentSessionId: null
-      };
-      setInternalUsers(prev => {
-        const updated = [...prev, demoUser];
-        localStorage.setItem('dep_internal_users', JSON.stringify(updated));
-        return updated;
-      });
-      matchedUser = demoUser;
-    }
-
-    if (matchedUser) {
-      const sessionId = `sess-${matchedUser.username}-${Date.now()}-${Math.floor(Math.random() * 100000)}`;
-      await handleUpdateUserSession(matchedUser.id, sessionId);
-
-      const session = {
-        username: matchedUser.username,
-        fullName: matchedUser.fullName,
-        isAdmin: false,
-        sessionId
-      };
-
-      setCurrentSession(session);
-      localStorage.setItem('dep_current_session', JSON.stringify(session));
-      setIsConcurrentAlertOpen(false);
-      setWelcomeUser(session.fullName);
-      handleFetchAndSyncOnLogin(session);
-      setTimeout(() => {
-        setWelcomeUser(null);
-      }, 6000);
-    }
-    setIsCloudLoading(false);
-  };
 
   const [currentTab, setCurrentTab] = useState('dashboard');
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
@@ -1435,20 +1322,6 @@ export default function App() {
   };
 
   if (!currentSession) {
-    if (authView === 'landing') {
-      return <LandingPage onGoToLogin={handleGoToLogin} onGoToTestDrive={handleGoToTestDrive} />;
-    }
-
-    if (authView === 'test-drive') {
-      return (
-        <TestDrivePage
-          onBackToLanding={handleGoToLanding}
-          onGoToLoginPrefilled={handleGoToLoginPrefilled}
-          onAutoLogin={handleAutoLogin}
-        />
-      );
-    }
-
     return (
       <>
         <LoginScreen
@@ -1463,7 +1336,6 @@ export default function App() {
               setWelcomeUser(null);
             }, 6000);
           }}
-          onBackToLanding={handleGoToLanding}
           internalUsers={internalUsers}
           onUpdateUserSession={handleUpdateUserSession}
           onImportBackup={handleImportBackup}
@@ -1472,8 +1344,6 @@ export default function App() {
           onPullCloudData={handleForceRefreshCloud}
           onPushCloudData={handleSyncLocalData}
           isCloudLoading={isCloudLoading}
-          initialUsername={prefilledUser}
-          initialPassword={prefilledPass}
         />
         
         {/* Cloud Authentication & Coordination Panel overlay */}

@@ -92,7 +92,6 @@ export default function Sidebar({
     currentTab === 'operators' || 
     currentTab === 'cloudconsumption'
   );
-  const [isConfirmingLogout, setIsConfirmingLogout] = useState(false);
 
   useEffect(() => {
     if (currentTab.startsWith('reports')) {
