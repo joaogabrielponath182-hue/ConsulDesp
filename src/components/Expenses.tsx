@@ -346,6 +346,11 @@ function MultiSelect({ label, options, selected, onChange, allLabel }: MultiSele
   );
 }
 
+const currencyFormatter = new Intl.NumberFormat('pt-BR', {
+  style: 'currency',
+  currency: 'BRL'
+});
+
 export default function Expenses({
   expenses,
   subCategories,
@@ -469,12 +474,7 @@ export default function Expenses({
     }
   };
 
-  const formatCurrency = (v: number) => {
-    return new Intl.NumberFormat('pt-BR', {
-      style: 'currency',
-      currency: 'BRL'
-    }).format(v);
-  };
+  const formatCurrency = (v: number) => currencyFormatter.format(v);
 
   // Add plate item helper ("NOVA PLACA")
   const handleAddPlateItem = (e: React.MouseEvent) => {

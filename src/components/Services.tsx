@@ -45,6 +45,11 @@ interface ServicesProps {
   onRedirectToForm?: () => void;
 }
 
+const currencyFormatter = new Intl.NumberFormat('pt-BR', {
+  style: 'currency',
+  currency: 'BRL'
+});
+
 export default function Services({
   services,
   subCategories,
@@ -316,12 +321,7 @@ export default function Services({
     setAddedVehicles(nextAddedVehicles);
   };
 
-  const formatCurrency = (val: number) => {
-    return new Intl.NumberFormat('pt-BR', {
-      style: 'currency',
-      currency: 'BRL'
-    }).format(val);
-  };
+  const formatCurrency = (val: number) => currencyFormatter.format(val);
 
   // Memoized sorted subcategories for RECEITA ordered by most used (descending)
   const receiptSubCategories = React.useMemo(() => {

@@ -11,7 +11,6 @@ import { InternalUser, UserSession } from '../types';
 interface LoginScreenProps {
   onLoginSuccess: (session: UserSession) => void;
   internalUsers: InternalUser[];
-  onUpdateUserSession: (userId: string, sessionId: string) => Promise<void>;
   onImportBackup: (data: any) => Promise<void> | void;
   isCloudConnected: boolean;
   onToggleCloudConnected: (connected: boolean) => void;
@@ -25,7 +24,6 @@ interface LoginScreenProps {
 export default function LoginScreen({
   onLoginSuccess,
   internalUsers,
-  onUpdateUserSession,
   onImportBackup,
   isCloudConnected,
   onToggleCloudConnected,
@@ -73,15 +71,8 @@ export default function LoginScreen({
       // 1. Check Hardcoded Admin Account
       if (cleanUsername === 'joao.desp') {
         if (password === 'abkg1601') {
-          const sessionId = `sess-joao-${Date.now()}-${Math.floor(Math.random() * 100000)}`;
+          const sessionId = `sess-joao-${Date.now()}`;
           
-          // Try to sync session ID to Firestore/local
-          try {
-            await onUpdateUserSession('joao.desp', sessionId);
-          } catch (sessionErr) {
-            console.warn("Could not sync session to cloud, continuing locally:", sessionErr);
-          }
-
           onLoginSuccess({
             username: 'joao.desp',
             fullName: 'João Gabriel (Administrador)',
@@ -92,27 +83,6 @@ export default function LoginScreen({
           return;
         } else {
           setErrorMsg('Senha incorreta para o administrador.');
-          setIsLoading(false);
-          return;
-        }
-      }
-
-      // Check Hardcoded Demo Account
-      if (cleanUsername === 'user') {
-        if (password === 'teste') {
-          const sessionId = `sess-user-demo-${Date.now()}-${Math.floor(Math.random() * 100000)}`;
-          
-          // We intentionally bypass session updating on the cloud for 'user' to allow multiple concurrent users
-          onLoginSuccess({
-            username: 'user',
-            fullName: 'Usuário de Teste (Demonstração)',
-            isAdmin: false,
-            sessionId
-          });
-          setIsLoading(false);
-          return;
-        } else {
-          setErrorMsg('Senha incorreta para o usuário demonstrativo.');
           setIsLoading(false);
           return;
         }
@@ -149,14 +119,7 @@ export default function LoginScreen({
       }
 
       // 4. Successful login
-      const sessionId = `sess-${foundUser.username}-${Date.now()}-${Math.floor(Math.random() * 100000)}`;
-      
-      // Update the current session ID in the DB to terminate other existing logins
-      try {
-        await onUpdateUserSession(foundUser.id, sessionId);
-      } catch (sessionErr) {
-        console.warn("Could not sync session to cloud, continuing locally:", sessionErr);
-      }
+      const sessionId = `sess-${foundUser.username}-${Date.now()}`;
 
       onLoginSuccess({
         username: foundUser.username,

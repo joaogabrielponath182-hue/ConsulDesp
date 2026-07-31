@@ -36,6 +36,11 @@ interface DashboardProps {
   currentSession?: UserSession | null;
 }
 
+const currencyFormatter = new Intl.NumberFormat('pt-BR', {
+  style: 'currency',
+  currency: 'BRL'
+});
+
 export default function Dashboard({
   services,
   expenses,
@@ -238,12 +243,7 @@ export default function Dashboard({
   const currentYearMonth = `${selectedYear}-${selectedMonth}`; 
 
   // Format currency in BRL
-  const formatCurrency = (val: number) => {
-    return new Intl.NumberFormat('pt-BR', {
-      style: 'currency',
-      currency: 'BRL'
-    }).format(val);
-  };
+  const formatCurrency = (val: number) => currencyFormatter.format(val);
 
   // Filter items for selected Year-Month (strictly PAID services only, as per user requirement)
   const servicesThisMonth = React.useMemo(() => {

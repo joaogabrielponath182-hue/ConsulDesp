@@ -27,6 +27,8 @@ interface ReportsComparativeProps {
   currentSession?: { username: string } | null;
 }
 
+const currencyFormatter = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' });
+
 export default function ReportsComparative({ services, expenses, subCategories, currentSession }: ReportsComparativeProps) {
   // Helper to get formatted dates
   const getLocalDateString = (offsetDays = 0) => {
@@ -89,9 +91,7 @@ export default function ReportsComparative({ services, expenses, subCategories, 
   const [startDateB, setStartDateB] = useState<string>(getMonthStartString(1));
   const [endDateB, setEndDateB] = useState<string>(getSameDayPreviousMonthString());
 
-  const formatCurrency = (val: number) => {
-    return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(val);
-  };
+  const formatCurrency = (val: number) => currencyFormatter.format(val);
 
   const formatDateLabel = (dateStr: string) => {
     if (!dateStr) return '';

@@ -86,28 +86,12 @@ export default function Sidebar({
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [isReportsExpanded, setIsReportsExpanded] = useState(currentTab.startsWith('reports'));
-  const [isUserManagementExpanded, setIsUserManagementExpanded] = useState(
-    currentTab === 'usermanagement' || 
-    currentTab === 'leads' || 
-    currentTab === 'operators' || 
-    currentTab === 'cloudconsumption'
-  );
 
   useEffect(() => {
     if (currentTab.startsWith('reports')) {
       setIsReportsExpanded(true);
     } else {
       setIsReportsExpanded(false);
-    }
-    if (
-      currentTab === 'usermanagement' || 
-      currentTab === 'leads' || 
-      currentTab === 'operators' || 
-      currentTab === 'cloudconsumption'
-    ) {
-      setIsUserManagementExpanded(true);
-    } else {
-      setIsUserManagementExpanded(false);
     }
   }, [currentTab]);
 
@@ -127,20 +111,7 @@ export default function Sidebar({
       ]
     },
     { id: 'subcategories', name: 'Subcategorias', icon: Layers },
-    { id: 'clients', name: 'Cadastro de Clientes', icon: Users },
-    ...(currentSession?.isAdmin ? [
-      { 
-        id: 'usermanagement-parent', 
-        name: 'Controle de Usuários', 
-        icon: ShieldCheck,
-        children: [
-          { id: 'usermanagement', name: 'Cadastro de Usuários' },
-          { id: 'leads', name: 'Leads do Site' },
-          { id: 'operators', name: 'Operadores Conectados' },
-          { id: 'cloudconsumption', name: 'Consumo da Nuvem' }
-        ]
-      }
-    ] : [])
+    { id: 'clients', name: 'Cadastro de Clientes', icon: Users }
   ];
 
   // Export JSON Database
@@ -219,19 +190,8 @@ export default function Sidebar({
           {menuItems.map(item => {
             const Icon = item.icon;
             const hasChildren = !!item.children;
-            const isParentActive = currentTab === item.id || (hasChildren && (
-              item.id === 'reports' ? currentTab.startsWith('reports') :
-              item.id === 'usermanagement-parent' ? (
-                currentTab === 'usermanagement' || 
-                currentTab === 'leads' || 
-                currentTab === 'operators' || 
-                currentTab === 'cloudconsumption'
-              ) : false
-            ));
-            const isChildOpen = hasChildren && (
-              item.id === 'reports' ? isReportsExpanded :
-              item.id === 'usermanagement-parent' ? isUserManagementExpanded : false
-            );
+            const isParentActive = currentTab === item.id || (hasChildren && item.id === 'reports' && currentTab.startsWith('reports'));
+            const isChildOpen = hasChildren && item.id === 'reports' && isReportsExpanded;
 
             return (
               <div key={item.id} className="space-y-1">
@@ -241,8 +201,6 @@ export default function Sidebar({
                     if (hasChildren) {
                       if (item.id === 'reports') {
                         setIsReportsExpanded(prev => !prev);
-                      } else if (item.id === 'usermanagement-parent') {
-                        setIsUserManagementExpanded(prev => !prev);
                       }
                     } else {
                       onNavigate(item.id);

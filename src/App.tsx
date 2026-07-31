@@ -8,7 +8,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import Sidebar from './components/Sidebar';
 import Dashboard from './components/Dashboard';
 import Services from './components/Services';
@@ -26,7 +26,7 @@ import {
   DEFAULT_EXPENSES,
   getDefaultsForUser
 } from './mockData';
-import { Menu, X, Coins, Bell, AlertTriangle, Users, Sun, Moon, LogOut, Calendar } from 'lucide-react';
+import { Menu, X, Coins, Bell, Users, Sun, Moon, LogOut, Calendar } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
 // Firebase core & auth configuration
@@ -48,15 +48,10 @@ import {
   fetchInternalUsers,
   saveInternalUser,
   deleteInternalUser,
-  fetchSingleInternalUser,
   cleanAndDeduplicateSubcategories
 } from './lib/db';
 import AuthModal from './components/AuthModal';
 import LoginScreen from './components/LoginScreen';
-import UserManagement from './components/UserManagement';
-import LeadsManagement from './components/LeadsManagement';
-import ConnectedOperators from './components/ConnectedOperators';
-import CloudConsumption from './components/CloudConsumption';
 
 export default function App() {
 
@@ -191,7 +186,6 @@ export default function App() {
   // Internal custom user session states
   const [internalUsers, setInternalUsers] = useState<InternalUser[]>([]);
   const [currentSession, setCurrentSession] = useState<UserSession | null>(null);
-  const [isConcurrentAlertOpen, setIsConcurrentAlertOpen] = useState(false);
   const [welcomeUser, setWelcomeUser] = useState<string | null>(null);
 
   // Derived filtered state for data isolation per operator/session
@@ -435,6 +429,12 @@ export default function App() {
     loadBackupHandle();
   }, []);
 
+  // Manter referência atualizada para os dados do backup
+  const backupDataRef = useRef({ services, expenses, subCategories, clients, internalUsers, personalExpenses });
+  useEffect(() => {
+    backupDataRef.current = { services, expenses, subCategories, clients, internalUsers, personalExpenses };
+  }, [services, expenses, subCategories, clients, internalUsers, personalExpenses]);
+
   // Agendador de Auto-Backup às 16:35 todos os dias
   useEffect(() => {
     const checkAndTriggerBackup = async () => {
@@ -444,7 +444,7 @@ export default function App() {
 
       // Alvo: exatamente 16:35
       if (hours === 16 && minutes === 35) {
-        const todayStr = now.toISOString().split('T')[0]; // Ex: 2026-07-14
+        const todayStr = now.toISOString().split('T')[0];
         const lastBackupDate = localStorage.getItem('dep_last_auto_backup_date');
 
         if (lastBackupDate !== todayStr) {
@@ -459,7 +459,7 @@ export default function App() {
     checkAndTriggerBackup();
 
     return () => clearInterval(intervalId);
-  }, [services, expenses, subCategories, clients, internalUsers, personalExpenses]);
+  }, []);
 
   const runAutoBackupNow = async (todayStr: string) => {
     try {
@@ -467,12 +467,12 @@ export default function App() {
       const handle = await getFileHandle('autoBackupFile');
       
       const payload = {
-        services,
-        expenses,
-        subCategories,
-        clients,
-        internalUsers,
-        personalExpenses,
+        services: backupDataRef.current.services,
+        expenses: backupDataRef.current.expenses,
+        subCategories: backupDataRef.current.subCategories,
+        clients: backupDataRef.current.clients,
+        internalUsers: backupDataRef.current.internalUsers,
+        personalExpenses: backupDataRef.current.personalExpenses,
         version: '1.0.0',
         timestamp: new Date().toISOString()
       };
@@ -1124,187 +1124,7 @@ export default function App() {
     }
   };
 
-  // Concurrent session checking effect - Optimized to run only on critical actions and fetch single document
-  useEffect(() => {
-    if (!currentSession) return;
-
-    const checkSession = async () => {
-      // ONLY check sessions if there is an active cloud connection (isCloudConnected)
-      if (!isCloudConnected) {
-        return;
-      }
-
-      // Bypass simultaneous login checks for the standard public demo user 'user'
-      if (currentSession.username.toLowerCase() === 'user') {
-        return;
-      }
-
-      // Optimization 2: Find target user ID from local state to fetch only their single document (1 read instead of 500)
-      const localMatched = internalUsers.find(
-        (u) => u.username.toLowerCase() === currentSession.username.toLowerCase()
-      );
-      const targetUserId = localMatched ? localMatched.id : (currentSession.username === 'joao.desp' ? 'joao.desp' : null);
-
-      if (!targetUserId) {
-        return;
-      }
-
-      try {
-        const matchedUser = await fetchSingleInternalUser(targetUserId);
-        if (matchedUser && matchedUser.currentSessionId && matchedUser.currentSessionId !== currentSession.sessionId) {
-          // Disconnect!
-          setCurrentSession(null);
-          localStorage.removeItem('dep_current_session');
-          setIsConcurrentAlertOpen(true);
-          setCurrentTab('dashboard');
-        }
-      } catch (err) {
-        console.error("Erro ao verificar sessão do usuário:", err);
-      }
-    };
-
-    // Run on tab switch/window focus
-    const handleFocus = () => {
-      checkSession();
-    };
-
-    window.addEventListener('focus', handleFocus);
-
-    // Initial check (runs on mount, tab switches because currentTab is in dependencies, or focus)
-    checkSession();
-
-    return () => {
-      window.removeEventListener('focus', handleFocus);
-    };
-  }, [currentSession, isCloudConnected, currentTab, internalUsers]);
-
-  const handleRegisterUser = async (userData: Omit<InternalUser, 'id' | 'createdAt' | 'expiresAt'>) => {
-    const createdAt = new Date().toISOString();
-    let expiresAt: string | null = null;
-    
-    if (userData.duration !== 'indeterminado') {
-      const days = parseInt(userData.duration, 10);
-      const exp = new Date();
-      exp.setDate(exp.getDate() + days);
-      expiresAt = exp.toISOString();
-    }
-
-    const newUser: InternalUser = {
-      ...userData,
-      id: `user-${Date.now()}-${Math.floor(Math.random() * 100000)}`,
-      createdAt,
-      expiresAt,
-      currentSessionId: null
-    };
-
-    const updated = [...internalUsers, newUser];
-    setInternalUsers(updated);
-    localStorage.setItem('dep_internal_users', JSON.stringify(updated));
-
-    if (currentSession && isCloudConnected) {
-      try {
-        await saveInternalUser(currentSession.username, newUser);
-      } catch (err) {
-        console.error("Erro ao salvar usuário na nuvem:", err);
-      }
-    }
-  };
-
-  const handleRevokeUser = async (id: string) => {
-    const updated = internalUsers.filter(u => u.id !== id);
-    setInternalUsers(updated);
-    localStorage.setItem('dep_internal_users', JSON.stringify(updated));
-
-    if (currentSession && isCloudConnected) {
-      try {
-        await deleteInternalUser(id);
-      } catch (err) {
-        console.error("Erro ao deletar usuário na nuvem:", err);
-      }
-    }
-  };
-
-  const handleUpdateUser = async (updatedUser: InternalUser) => {
-    const updated = internalUsers.map(u => u.id === updatedUser.id ? updatedUser : u);
-    setInternalUsers(updated);
-    localStorage.setItem('dep_internal_users', JSON.stringify(updated));
-
-    if (currentSession && isCloudConnected) {
-      try {
-        await saveInternalUser(currentSession.username, updatedUser);
-      } catch (err) {
-        console.error("Erro ao atualizar usuário na nuvem:", err);
-      }
-    }
-  };
-
-  const handleUpdateUserSession = async (userId: string, sessionId: string) => {
-    // Bypass updating session identifier for 'user' (demo) to allow multiple simultaneous testers
-    const isDemoUser = userId === 'user-demo-default' || userId === 'user' || 
-      internalUsers.some(u => u.id === userId && u.username.toLowerCase() === 'user');
-    
-    if (isDemoUser) {
-      return;
-    }
-
-    let targetUser: InternalUser | null = null;
-    const prevUsers = [...internalUsers];
-    let found = false;
-
-    const updated = prevUsers.map((u) => {
-      if (u.id === userId || (userId === 'joao.desp' && u.username === 'joao.desp')) {
-        found = true;
-        const updatedUser = { ...u, currentSessionId: sessionId };
-        targetUser = updatedUser;
-        return updatedUser;
-      }
-      return u;
-    });
-
-    if (!found && userId === 'joao.desp') {
-      const virtualJoao: InternalUser = {
-        id: 'joao.desp',
-        fullName: 'João Gabriel',
-        cpf: '---',
-        phone: '---',
-        username: 'joao.desp',
-        password: '',
-        duration: 'indeterminado',
-        createdAt: new Date().toISOString(),
-        expiresAt: null,
-        currentSessionId: sessionId
-      };
-      updated.push(virtualJoao);
-      targetUser = virtualJoao;
-    }
-
-    setInternalUsers(updated);
-    localStorage.setItem('dep_internal_users', JSON.stringify(updated));
-
-    // Save directly to Firestore if connected
-    if (targetUser && isCloudConnected) {
-      try {
-        const opName = currentSession ? currentSession.username : ((targetUser as InternalUser).username || 'admin');
-        await saveInternalUser(opName, targetUser);
-      } catch (err) {
-        console.error("Erro ao atualizar sessão do usuário na nuvem:", err);
-      }
-    }
-  };
-
   const handleLogoutInternalSession = () => {
-    if (currentSession) {
-      const username = currentSession.username;
-      const matched = internalUsers.find(u => u.username.toLowerCase() === username.toLowerCase());
-      if (matched) {
-        const updatedUser = { ...matched, currentSessionId: null };
-        setInternalUsers(prev => prev.map(u => u.id === updatedUser.id ? updatedUser : u));
-        if (currentSession && isCloudConnected) {
-          saveInternalUser(currentSession.username, updatedUser).catch(err => console.error(err));
-        }
-      }
-    }
-
     setCurrentSession(null);
     localStorage.removeItem('dep_current_session');
     setCurrentTab('dashboard');
@@ -1328,7 +1148,6 @@ export default function App() {
           onLoginSuccess={(session) => {
             setCurrentSession(session);
             localStorage.setItem('dep_current_session', JSON.stringify(session));
-            setIsConcurrentAlertOpen(false);
             setWelcomeUser(session.fullName);
             // Fetch and sync data right after login
             handleFetchAndSyncOnLogin(session);
@@ -1337,7 +1156,6 @@ export default function App() {
             }, 6000);
           }}
           internalUsers={internalUsers}
-          onUpdateUserSession={handleUpdateUserSession}
           onImportBackup={handleImportBackup}
           isCloudConnected={isCloudConnected}
           onToggleCloudConnected={setIsCloudConnected}
@@ -1357,41 +1175,6 @@ export default function App() {
           onSignOutComplete={handleSignOutComplete}
           isAdmin={currentSession?.isAdmin || false}
         />
-
-        {/* Concurrent session blocked modal */}
-        <AnimatePresence>
-          {isConcurrentAlertOpen && (
-            <div className="fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex items-center justify-center p-4">
-              <motion.div
-                initial={{ opacity: 0, scale: 0.95 }}
-                animate={{ opacity: 1, scale: 1 }}
-                exit={{ opacity: 0, scale: 0.95 }}
-                className="bg-[#161B22] border-2 border-rose-500/30 rounded-2xl w-full max-w-md overflow-hidden shadow-2xl flex flex-col p-6 text-center space-y-4"
-              >
-                <div className="mx-auto w-12 h-12 bg-rose-500/10 border border-rose-500/20 rounded-full flex items-center justify-center text-rose-400">
-                  <AlertTriangle size={24} className="animate-pulse" />
-                </div>
-                <div className="space-y-1">
-                  <h3 className="text-sm font-black text-white uppercase tracking-wide">
-                    Acesso Simultâneo Bloqueado
-                  </h3>
-                  <p className="text-xs text-slate-400 leading-relaxed">
-                    Sua conta foi desconectada porque ela foi acessada a partir de outro navegador ou dispositivo.
-                  </p>
-                  <p className="text-[11px] text-slate-500 bg-slate-900/50 p-3 rounded-xl border border-slate-850">
-                    💡 <strong>Segurança Avançada:</strong> O compartilhamento de senhas ("lending login") é monitorado pelo sistema para garantir a integridade dos relatórios diários de caixa.
-                  </p>
-                </div>
-                <button
-                  onClick={() => setIsConcurrentAlertOpen(false)}
-                  className="w-full py-2.5 rounded-xl bg-slate-800 hover:bg-slate-750 text-slate-200 hover:text-white font-bold text-xs uppercase cursor-pointer transition-all"
-                >
-                  Entendi
-                </button>
-              </motion.div>
-            </div>
-          )}
-        </AnimatePresence>
       </>
     );
   }
@@ -1512,10 +1295,6 @@ export default function App() {
                  currentTab === 'reports-services' ? 'Relatório de Serviços' :
                  currentTab === 'reports-expenses' ? 'Relatório de Saídas' :
                  currentTab === 'reports-comparative' ? 'Relatório Comparativo' :
-                 currentTab === 'usermanagement' ? 'Usuários' :
-                 currentTab === 'leads' ? 'Leads do Site' :
-                 currentTab === 'operators' ? 'Operadores Conectados' :
-                 currentTab === 'cloudconsumption' ? 'Consumo da Nuvem' :
                  currentTab.toUpperCase()}
               </span>
             </div>
@@ -1728,32 +1507,6 @@ export default function App() {
               expenses={filteredExpenses}
               subCategories={filteredSubCategories}
               currentSession={currentSession}
-            />
-          )}
-
-          {currentTab === 'usermanagement' && currentSession?.isAdmin && (
-            <UserManagement
-              users={internalUsers}
-              onAddUser={handleRegisterUser}
-              onRemoveUser={handleRevokeUser}
-              onUpdateUser={handleUpdateUser}
-            />
-          )}
-
-          {currentTab === 'leads' && currentSession?.isAdmin && (
-            <LeadsManagement />
-          )}
-
-          {currentTab === 'operators' && currentSession?.isAdmin && (
-            <ConnectedOperators
-              users={internalUsers}
-              onForceRefreshCloud={handleForceRefreshCloud}
-            />
-          )}
-
-          {currentTab === 'cloudconsumption' && currentSession?.isAdmin && (
-            <CloudConsumption
-              onForceRefreshCloud={handleForceRefreshCloud}
             />
           )}
         </main>

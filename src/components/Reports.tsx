@@ -353,6 +353,11 @@ function MultiSelect({ label, options, selected, onChange, allLabel }: MultiSele
   );
 }
 
+const currencyFormatter = new Intl.NumberFormat('pt-BR', {
+  style: 'currency',
+  currency: 'BRL'
+});
+
 export default function Reports({ services, expenses, subCategories }: ReportsProps) {  // Filter states (instant updates, no submit button needed)
   const [startDate, setStartDate] = useState<string>('');
   const [endDate, setEndDate] = useState<string>('');
@@ -365,12 +370,7 @@ export default function Reports({ services, expenses, subCategories }: ReportsPr
   const [sortOrder, setSortOrder] = useState<'oldest' | 'newest'>('newest');
 
   // Format currency helper
-  const formatCurrency = (val: number) => {
-    return new Intl.NumberFormat('pt-BR', {
-      style: 'currency',
-      currency: 'BRL'
-    }).format(val);
-  };
+  const formatCurrency = (val: number) => currencyFormatter.format(val);
 
   // Derive filter lists
   // 1. Subcategories list (of type RECEITA + used)
