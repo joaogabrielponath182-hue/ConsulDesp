@@ -3,20 +3,20 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useRef } from 'react';
+import React, { useState } from 'react';
 import SystemLogo from './SystemLogo';
-import { Shield, Key, AlertCircle, Loader2, Coins, FileUp, CloudUpload, RefreshCw, ExternalLink } from 'lucide-react';
+import { Shield, Key, AlertCircle, Loader2 } from 'lucide-react';
 import { InternalUser, UserSession } from '../types';
 
 interface LoginScreenProps {
   onLoginSuccess: (session: UserSession) => void;
   internalUsers: InternalUser[];
-  onImportBackup: (data: any) => Promise<void> | void;
-  isCloudConnected: boolean;
-  onToggleCloudConnected: (connected: boolean) => void;
-  onPullCloudData: () => Promise<void>;
-  onPushCloudData: () => Promise<void>;
-  isCloudLoading: boolean;
+  onImportBackup?: (data: any) => Promise<void> | void;
+  isCloudConnected?: boolean;
+  onToggleCloudConnected?: (connected: boolean) => void;
+  onPullCloudData?: () => Promise<void>;
+  onPushCloudData?: () => Promise<void>;
+  isCloudLoading?: boolean;
   initialUsername?: string;
   initialPassword?: string;
 }
@@ -24,12 +24,6 @@ interface LoginScreenProps {
 export default function LoginScreen({
   onLoginSuccess,
   internalUsers,
-  onImportBackup,
-  isCloudConnected,
-  onToggleCloudConnected,
-  onPullCloudData,
-  onPushCloudData,
-  isCloudLoading,
   initialUsername = '',
   initialPassword = ''
 }: LoginScreenProps) {
@@ -47,10 +41,6 @@ export default function LoginScreen({
   }, [initialUsername, initialPassword]);
   const [isLoading, setIsLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
-
-  const fileInputRef = useRef<HTMLInputElement>(null);
-  const [importSuccess, setImportSuccess] = useState('');
-  const [importError, setImportError] = useState('');
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -133,40 +123,6 @@ export default function LoginScreen({
     } finally {
       setIsLoading(false);
     }
-  };
-
-  const handleImportData = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setImportError('');
-    setImportSuccess('');
-    const fileReader = new FileReader();
-    const files = e.target.files;
-    if (!files || files.length === 0) return;
-
-    fileReader.onload = (event) => {
-      try {
-        const parsed = JSON.parse(event.target?.result as string);
-        if (parsed && (parsed.services || parsed.expenses || parsed.subCategories || parsed.internalUsers)) {
-          onImportBackup({
-            services: parsed.services || [],
-            expenses: parsed.expenses || [],
-            subCategories: parsed.subCategories || [],
-            clients: parsed.clients || [],
-            internalUsers: parsed.internalUsers || [],
-            personalExpenses: parsed.personalExpenses || []
-          });
-          setImportSuccess('Backup importado com sucesso! Usuários e registros carregados.');
-          
-          if (fileInputRef.current) {
-            fileInputRef.current.value = '';
-          }
-        } else {
-          setImportError('Arquivo de backup inválido ou incompatível.');
-        }
-      } catch (err) {
-        setImportError('Erro ao ler ou processar o arquivo de backup JSON.');
-      }
-    };
-    fileReader.readAsText(files[0]);
   };
 
   return (
@@ -264,109 +220,7 @@ export default function LoginScreen({
             )}
           </button>
         </form>
-
-        <div className="text-center py-2 bg-emerald-500/5 rounded-xl border border-emerald-500/10 hover:bg-emerald-500/10 transition-colors">
-          <a
-            href="https://drive.google.com/drive/folders/1izvu7ehWsFSSb6R8-V9wfxWSqEhqIXLm"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="inline-flex items-center gap-1.5 text-xs text-emerald-400 hover:text-emerald-300 font-bold transition-all py-1"
-          >
-            <span>Deseja conhecer nosso sistema? Clique aqui.</span>
-            <ExternalLink size={12} className="shrink-0" />
-          </a>
-        </div>
-
-        <div className="text-center pt-4 border-t border-slate-800/60 space-y-3">
-          {/* Cloud Connection Control Panel */}
-          <div className="bg-[#0F1115] border border-slate-850 p-4 rounded-xl text-center space-y-3">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-1.5">
-                <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse shadow-lg shadow-emerald-500/50" />
-                <span className="text-[10px] text-slate-300 font-bold uppercase tracking-wider">
-                  Nuvem do Administrador
-                </span>
-              </div>
-              <span className="text-[9px] bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 px-2 py-0.5 rounded-md font-extrabold uppercase">
-                Conectado
-              </span>
-            </div>
-            
-            <div className="text-left">
-              <p className="text-[10px] text-slate-400 leading-normal">
-                ✓ Conexão automática ativa. Usuários cadastrados e dados de lançamentos são lidos e salvos diretamente na nuvem central.
-              </p>
-            </div>
-            
-            <div className="grid grid-cols-2 gap-2 pt-1">
-              <button
-                type="button"
-                onClick={onPullCloudData}
-                disabled={isCloudLoading}
-                className="py-1.5 px-2 rounded-lg bg-slate-800 hover:bg-slate-750 disabled:opacity-50 disabled:cursor-not-allowed text-[10px] font-bold text-slate-200 uppercase tracking-wide cursor-pointer transition-colors border border-slate-700 flex items-center justify-center gap-1.5 active:scale-95"
-                title="Atualizar dados de usuários e tabelas a partir da nuvem"
-              >
-                <RefreshCw size={11} className={isCloudLoading ? "animate-spin text-emerald-400" : ""} />
-                <span>Puxar Dados</span>
-              </button>
-              <button
-                type="button"
-                onClick={onPushCloudData}
-                disabled={isCloudLoading}
-                className="py-1.5 px-2 rounded-lg bg-emerald-600/10 hover:bg-emerald-600/20 disabled:opacity-50 disabled:cursor-not-allowed border border-emerald-500/10 text-emerald-400 text-[10px] font-bold uppercase tracking-wide cursor-pointer transition-colors flex items-center justify-center gap-1.5 active:scale-95"
-                title="Enviar backup atual local para a nuvem"
-              >
-                <CloudUpload size={11} className={isCloudLoading ? "animate-spin text-emerald-400" : ""} />
-                <span>Enviar Dados</span>
-              </button>
-            </div>
-          </div>
-        </div>
-
-          <div className="bg-[#0F1115] border border-slate-850 p-4 rounded-xl text-center space-y-3">
-            <div className="space-y-1 text-left">
-              <p className="text-[10px] text-slate-300 font-bold uppercase tracking-wider flex items-center gap-1.5">
-                <FileUp size={12} className="text-emerald-400" />
-                <span>Restaurar / Importar Backup</span>
-              </p>
-              <p className="text-[10px] text-slate-400 leading-normal">
-                Carregue operadores, taxas e lançamentos a partir de um arquivo JSON.
-              </p>
-            </div>
-
-            {importSuccess && (
-              <p className="text-[10px] text-emerald-400 bg-emerald-950/20 border border-emerald-900/40 p-2 rounded-lg font-medium text-left">
-                ✓ {importSuccess}
-              </p>
-            )}
-
-            {importError && (
-              <p className="text-[10px] text-rose-400 bg-rose-950/20 border border-rose-900/40 p-2 rounded-lg font-medium text-left">
-                ✕ {importError}
-              </p>
-            )}
-
-            <button
-              type="button"
-              onClick={() => fileInputRef.current?.click()}
-              className="w-full inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg bg-slate-800 hover:bg-slate-750 text-xs text-slate-200 hover:text-white font-bold uppercase tracking-wide transition-all border border-slate-700 cursor-pointer active:scale-95"
-            >
-              <FileUp size={13} />
-              <span>Importar Arquivo JSON</span>
-            </button>
-            <input
-              type="file"
-              ref={fileInputRef}
-              onChange={handleImportData}
-              accept=".json"
-              className="hidden"
-            />
-          </div>
-
-          <span className="text-[9px] text-zinc-500 font-mono block">
-            Acesso auditado • Proteção contra login simultâneo ativa
-          </span>
-        </div>
       </div>
-    );
-  }
+    </div>
+  );
+}
