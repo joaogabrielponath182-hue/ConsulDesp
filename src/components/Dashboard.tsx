@@ -1284,7 +1284,7 @@ export default function Dashboard({
 
       {/* Contas a Receber (Accounts Receivable) Widget */}
       <div 
-        onClick={() => onNavigate('reports-services', 'PENDENTE')}
+        onClick={() => onNavigate('reports-pending')}
         className="bg-[#161B22] border border-slate-800 rounded-2xl p-6 shadow-sm mb-6 hover:border-amber-500/45 hover:bg-slate-800/10 transition-all cursor-pointer relative overflow-hidden group select-none flex flex-col sm:flex-row sm:items-center justify-between gap-4"
       >
         <div className="absolute top-0 left-0 w-1.5 h-full bg-amber-500"></div>

@@ -1134,7 +1134,9 @@ export default function App() {
   const handleNavigate = (tab: string, initialStatus?: string) => {
     setCurrentTab(tab);
     setIsMobileSidebarOpen(false);
-    if (initialStatus) {
+    if (tab === 'reports-pending') {
+      setInitialStatusFilter('PENDENTE');
+    } else if (initialStatus) {
       setInitialStatusFilter(initialStatus);
     } else {
       setInitialStatusFilter('all');
@@ -1294,6 +1296,7 @@ export default function App() {
                  currentTab === 'reports-general' ? 'Relatório Geral' :
                  currentTab === 'reports-services' ? 'Relatório de Serviços' :
                  currentTab === 'reports-expenses' ? 'Relatório de Saídas' :
+                 currentTab === 'reports-pending' ? 'Relatório de Pendências' :
                  currentTab === 'reports-comparative' ? 'Relatório Comparativo' :
                  currentTab.toUpperCase()}
               </span>
@@ -1363,12 +1366,14 @@ export default function App() {
                     {currentTab === 'reports-general' && 'Relatório Geral (Consolidado)'}
                     {currentTab === 'reports-services' && 'Relatório de Serviços Lançados'}
                     {currentTab === 'reports-expenses' && 'Relatório de Saídas / Despesas'}
+                    {currentTab === 'reports-pending' && 'Relatório de Pendências / Contas a Receber'}
                     {currentTab === 'reports-comparative' && 'Relatório Comparativo de Períodos'}
                   </h1>
                   <p className="text-slate-400 text-xs mt-0.5">
                     {currentTab === 'reports-general' && 'Confira o demonstrativo do balanço de caixa do seu despachante.'}
                     {currentTab === 'reports-services' && 'Visualize o arquivo completo dos serviços prestados e das subtaxas.'}
                     {currentTab === 'reports-expenses' && 'Acompanhe as saídas detalhadas de gastos e despesas.'}
+                    {currentTab === 'reports-pending' && 'Acompanhe a lista completa de lançamentos e serviços com faturas pendentes.'}
                     {currentTab === 'reports-comparative' && 'Compare o faturamento, as saídas e os quantitativos entre dois períodos distintos.'}
                   </p>
                 </div>
@@ -1377,7 +1382,7 @@ export default function App() {
               {/* Sub tabs pills */}
               <div className="flex flex-wrap bg-[#161B22] p-1.5 rounded-xl border border-slate-850 gap-1.5 w-full sm:w-max">
                 <button
-                  onClick={() => setCurrentTab('reports-general')}
+                  onClick={() => handleNavigate('reports-general')}
                   className={`flex-1 sm:flex-none px-4 py-2 rounded-lg text-xs font-bold tracking-wide transition-all cursor-pointer ${
                     currentTab === 'reports-general'
                       ? 'bg-emerald-600 text-white shadow-md'
@@ -1387,7 +1392,7 @@ export default function App() {
                   Relatório Geral
                 </button>
                 <button
-                  onClick={() => setCurrentTab('reports-services')}
+                  onClick={() => handleNavigate('reports-services')}
                   className={`flex-1 sm:flex-none px-4 py-2 rounded-lg text-xs font-bold tracking-wide transition-all cursor-pointer ${
                     currentTab === 'reports-services'
                       ? 'bg-emerald-600 text-white shadow-md'
@@ -1397,7 +1402,7 @@ export default function App() {
                   Relatório de Serviços
                 </button>
                 <button
-                  onClick={() => setCurrentTab('reports-expenses')}
+                  onClick={() => handleNavigate('reports-expenses')}
                   className={`flex-1 sm:flex-none px-4 py-2 rounded-lg text-xs font-bold tracking-wide transition-all cursor-pointer ${
                     currentTab === 'reports-expenses'
                       ? 'bg-emerald-600 text-white shadow-md'
@@ -1407,7 +1412,17 @@ export default function App() {
                   Relatório de Saídas
                 </button>
                 <button
-                  onClick={() => setCurrentTab('reports-comparative')}
+                  onClick={() => handleNavigate('reports-pending')}
+                  className={`flex-1 sm:flex-none px-4 py-2 rounded-lg text-xs font-bold tracking-wide transition-all cursor-pointer ${
+                    currentTab === 'reports-pending'
+                      ? 'bg-emerald-600 text-white shadow-md'
+                      : 'text-slate-400 hover:text-white hover:bg-slate-800/40'
+                  }`}
+                >
+                  Relatório de Pendências
+                </button>
+                <button
+                  onClick={() => handleNavigate('reports-comparative')}
                   className={`flex-1 sm:flex-none px-4 py-2 rounded-lg text-xs font-bold tracking-wide transition-all cursor-pointer ${
                     currentTab === 'reports-comparative'
                       ? 'bg-emerald-600 text-white shadow-md'
@@ -1434,7 +1449,7 @@ export default function App() {
             />
           </div>
 
-          <div className={currentTab === 'reports-services' ? '' : 'hidden'}>
+          <div className={(currentTab === 'reports-services' || currentTab === 'reports-pending') ? '' : 'hidden'}>
             <Services
               services={filteredServices}
               subCategories={filteredSubCategories}
@@ -1446,7 +1461,7 @@ export default function App() {
               onEditService={handleEditService}
               viewMode="list"
               initialStatusFilter={initialStatusFilter}
-              onRedirectToForm={() => setCurrentTab('services')}
+              onRedirectToForm={() => handleNavigate('services')}
             />
           </div>
 

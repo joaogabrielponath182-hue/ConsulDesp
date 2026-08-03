@@ -107,6 +107,7 @@ export default function Sidebar({
         { id: 'reports-general', name: 'Relatório Geral' },
         { id: 'reports-services', name: 'Relatório de Serviços' },
         { id: 'reports-expenses', name: 'Relatório de Saídas' },
+        { id: 'reports-pending', name: 'Relatório de Pendências' },
         { id: 'reports-comparative', name: 'Relatório Comparativo' }
       ]
     },
