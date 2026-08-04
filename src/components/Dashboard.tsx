@@ -502,36 +502,50 @@ export default function Dashboard({
     return agg;
   }, [expensesThisMonth]);
 
-  // Compute counts for specific subcategories for the selected month
-  const subcategoryCounts = React.useMemo(() => {
-    let honorarios = 0;
-    let honorariosRevenda = 0;
-    let placas = 0;
-    let retCrlve = 0;
-    let atpv = 0;
+  // Compute counts and average values for specific subcategories for the selected month
+  const subcategoryStats = React.useMemo(() => {
+    let honorarios = { count: 0, total: 0 };
+    let honorariosRevenda = { count: 0, total: 0 };
+    let placas = { count: 0, total: 0 };
+    let retCrlve = { count: 0, total: 0 };
+    let atpv = { count: 0, total: 0 };
 
     servicesThisMonth.forEach(srv => {
       if (srv.items && srv.items.length > 0) {
         srv.items.forEach(item => {
           const name = (item.name || '').trim().toUpperCase();
           const normalized = name.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+          const val = Number(item.value) || 0;
           
           if (normalized === "HONORARIO REVENDA" || normalized.startsWith("HONORARIO REVENDA") || normalized.includes("REVENDA")) {
-            honorariosRevenda++;
+            honorariosRevenda.count++;
+            honorariosRevenda.total += val;
           } else if (normalized === "HONORARIO" || normalized === "HONORARIOS" || normalized.startsWith("HONORARIO")) {
-            honorarios++;
+            honorarios.count++;
+            honorarios.total += val;
           } else if (normalized === "PLACA" || normalized === "PLACAS" || normalized.startsWith("PLACA")) {
-            placas++;
+            placas.count++;
+            placas.total += val;
           } else if (normalized.includes("CRLV")) {
-            retCrlve++;
+            retCrlve.count++;
+            retCrlve.total += val;
           } else if (normalized === "ATPV-E" || normalized === "ATPV" || normalized.includes("ATPV")) {
-            atpv++;
+            atpv.count++;
+            atpv.total += val;
           }
         });
       }
     });
 
-    return { honorarios, honorariosRevenda, placas, retCrlve, atpv };
+    const calcAvg = (stat: { count: number; total: number }) => (stat.count > 0 ? stat.total / stat.count : 0);
+
+    return {
+      honorarios: { ...honorarios, avg: calcAvg(honorarios) },
+      honorariosRevenda: { ...honorariosRevenda, avg: calcAvg(honorariosRevenda) },
+      placas: { ...placas, avg: calcAvg(placas) },
+      retCrlve: { ...retCrlve, avg: calcAvg(retCrlve) },
+      atpv: { ...atpv, avg: calcAvg(atpv) },
+    };
   }, [servicesThisMonth]);
 
   // Find subcategories with matching/coincident names in both RECEITA and GASTO for this month
@@ -808,35 +822,60 @@ export default function Dashboard({
             <div className="flex justify-between items-start">
               <div className="flex-1">
                 <p className="text-slate-400 text-xs font-semibold uppercase tracking-wider">Serviços Prestados</p>
-                <div className="space-y-1.5 mt-3">
-                  <div className="flex justify-between items-center text-xs text-slate-300 pb-1 border-b border-slate-800/60 last:border-0 last:pb-0">
-                    <span className="font-bold text-slate-400 uppercase text-[10px]">Honorário:</span>
+                <div className="space-y-2 mt-3">
+                  <div className="flex justify-between items-center text-xs text-slate-300 pb-2 border-b border-slate-800/60">
+                    <div>
+                      <span className="font-bold text-slate-300 uppercase text-[10px] block">Honorário</span>
+                      <span className="text-[10px] text-slate-400 font-mono block mt-0.5">
+                        Média: <span className="text-slate-200 font-semibold">{formatCurrency(subcategoryStats.honorarios.avg)}</span>
+                      </span>
+                    </div>
                     <span className="font-mono text-xs font-extrabold text-emerald-400">
-                      {subcategoryCounts.honorarios}
+                      {subcategoryStats.honorarios.count}
                     </span>
                   </div>
-                  <div className="flex justify-between items-center text-xs text-slate-300 pb-1 border-b border-slate-800/60 last:border-0 last:pb-0">
-                    <span className="font-bold text-slate-400 uppercase text-[10px]">Honorário Revenda:</span>
+                  <div className="flex justify-between items-center text-xs text-slate-300 pb-2 border-b border-slate-800/60">
+                    <div>
+                      <span className="font-bold text-slate-300 uppercase text-[10px] block">Honorário Revenda</span>
+                      <span className="text-[10px] text-slate-400 font-mono block mt-0.5">
+                        Média: <span className="text-slate-200 font-semibold">{formatCurrency(subcategoryStats.honorariosRevenda.avg)}</span>
+                      </span>
+                    </div>
                     <span className="font-mono text-xs font-extrabold text-teal-400">
-                      {subcategoryCounts.honorariosRevenda}
+                      {subcategoryStats.honorariosRevenda.count}
                     </span>
                   </div>
-                  <div className="flex justify-between items-center text-xs text-slate-300 pb-1 border-b border-slate-800/60 last:border-0 last:pb-0">
-                    <span className="font-bold text-slate-400 uppercase text-[10px]">Placa:</span>
+                  <div className="flex justify-between items-center text-xs text-slate-300 pb-2 border-b border-slate-800/60">
+                    <div>
+                      <span className="font-bold text-slate-300 uppercase text-[10px] block">Placa</span>
+                      <span className="text-[10px] text-slate-400 font-mono block mt-0.5">
+                        Média: <span className="text-slate-200 font-semibold">{formatCurrency(subcategoryStats.placas.avg)}</span>
+                      </span>
+                    </div>
                     <span className="font-mono text-xs font-extrabold text-amber-400">
-                      {subcategoryCounts.placas}
+                      {subcategoryStats.placas.count}
                     </span>
                   </div>
-                  <div className="flex justify-between items-center text-xs text-slate-300 pb-1 border-b border-slate-800/60 last:border-0 last:pb-0">
-                    <span className="font-bold text-slate-400 uppercase text-[10px]">Ret. CRLV-E:</span>
+                  <div className="flex justify-between items-center text-xs text-slate-300 pb-2 border-b border-slate-800/60">
+                    <div>
+                      <span className="font-bold text-slate-300 uppercase text-[10px] block">Ret. CRLV-E</span>
+                      <span className="text-[10px] text-slate-400 font-mono block mt-0.5">
+                        Média: <span className="text-slate-200 font-semibold">{formatCurrency(subcategoryStats.retCrlve.avg)}</span>
+                      </span>
+                    </div>
                     <span className="font-mono text-xs font-extrabold text-blue-400">
-                      {subcategoryCounts.retCrlve}
+                      {subcategoryStats.retCrlve.count}
                     </span>
                   </div>
                   <div className="flex justify-between items-center text-xs text-slate-300">
-                    <span className="font-bold text-slate-400 uppercase text-[10px]">ATPV-E:</span>
+                    <div>
+                      <span className="font-bold text-slate-300 uppercase text-[10px] block">ATPV-E</span>
+                      <span className="text-[10px] text-slate-400 font-mono block mt-0.5">
+                        Média: <span className="text-slate-200 font-semibold">{formatCurrency(subcategoryStats.atpv.avg)}</span>
+                      </span>
+                    </div>
                     <span className="font-mono text-xs font-extrabold text-teal-400">
-                      {subcategoryCounts.atpv}
+                      {subcategoryStats.atpv.count}
                     </span>
                   </div>
                 </div>
@@ -846,7 +885,7 @@ export default function Dashboard({
               </div>
             </div>
             <div className="mt-4 text-[10px] text-slate-500 border-t border-slate-800/80 pt-3">
-              Quantidade de lançamentos das subcategorias no mês selecionado
+              Quantidade de lançamentos e valor médio cobrado por serviço no mês selecionado
             </div>
           </div>
 
