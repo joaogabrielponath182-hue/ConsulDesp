@@ -91,6 +91,33 @@ export default function ReportsComparative({ services, expenses, subCategories, 
   const [startDateB, setStartDateB] = useState<string>(getMonthStartString(1));
   const [endDateB, setEndDateB] = useState<string>(getSameDayPreviousMonthString());
 
+  // Helper to get month name in Portuguese from date string YYYY-MM-DD
+  const getMonthNameFromDate = (dateStr: string, compareDateStr?: string) => {
+    if (!dateStr) return '';
+    const parts = dateStr.split('-');
+    if (parts.length >= 2) {
+      const year = parts[0];
+      const monthIndex = parseInt(parts[1], 10) - 1;
+      const months = [
+        'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
+        'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'
+      ];
+      const monthName = months[monthIndex] || '';
+      if (compareDateStr) {
+        const compareParts = compareDateStr.split('-');
+        if (compareParts.length >= 1 && compareParts[0] !== year) {
+          return `${monthName}/${year}`;
+        }
+      }
+      return monthName;
+    }
+    return '';
+  };
+
+  // Dynamic Month Labels based on selected dates
+  const labelMonthA = useMemo(() => getMonthNameFromDate(startDateA, startDateB) || 'A', [startDateA, startDateB]);
+  const labelMonthB = useMemo(() => getMonthNameFromDate(startDateB, startDateA) || 'B', [startDateB, startDateA]);
+
   const formatCurrency = (val: number) => currencyFormatter.format(val);
 
   const formatDateLabel = (dateStr: string) => {
@@ -392,14 +419,14 @@ export default function ReportsComparative({ services, expenses, subCategories, 
       .sort((a, b) => b.diff - a.diff)[0];
 
     let summaryText = "";
-    summaryText += `No primeiro período selecionado (${formatDateLabel(startDateA)} até ${formatDateLabel(endDateA)}), as receitas totais lançadas foram de ${formatCurrency(metricsA.totalRevenues)} e as despesas totais somaram ${formatCurrency(metricsA.totalExpenses)}. Considerando apenas as categorias configuradas para o Lucro Livre no painel geral, obtivemos no Período A um total de ${formatCurrency(lucroLivreA)} de Lucro Livre. `;
+    summaryText += `No primeiro período selecionado (${formatDateLabel(startDateA)} até ${formatDateLabel(endDateA)} - ${labelMonthA}), as receitas totais lançadas foram de ${formatCurrency(metricsA.totalRevenues)} e as despesas totais somaram ${formatCurrency(metricsA.totalExpenses)}. Considerando apenas as categorias configuradas para o Lucro Livre no painel geral, obtivemos no Período "${labelMonthA}" um total de ${formatCurrency(lucroLivreA)} de Lucro Livre. `;
     
-    summaryText += `Em comparação, no segundo período selecionado (${formatDateLabel(startDateB)} até ${formatDateLabel(endDateB)}), as receitas totais foram de ${formatCurrency(metricsB.totalRevenues)} e as despesas foram de ${formatCurrency(metricsB.totalExpenses)}, gerando um Lucro Livre de ${formatCurrency(lucroLivreB)}. `;
+    summaryText += `Em comparação, no segundo período selecionado (${formatDateLabel(startDateB)} até ${formatDateLabel(endDateB)} - ${labelMonthB}), as receitas totais foram de ${formatCurrency(metricsB.totalRevenues)} e as despesas foram de ${formatCurrency(metricsB.totalExpenses)}, gerando em ${labelMonthB} um Lucro Livre de ${formatCurrency(lucroLivreB)}. `;
 
     if (profitVar.diff > 0) {
-      summaryText += `Dessa forma, o primeiro período obteve um Lucro Livre ${formatCurrency(profitVar.diff)} maior (+${profitVar.pct.toFixed(1)}%) em relação ao segundo período analisado, com base na seleção de categorias ativas. `;
+      summaryText += `Dessa forma, o período de ${labelMonthA} obteve um Lucro Livre ${formatCurrency(profitVar.diff)} maior (+${profitVar.pct.toFixed(1)}%) em relação a ${labelMonthB}, com base na seleção de categorias ativas. `;
     } else if (profitVar.diff < 0) {
-      summaryText += `Dessa forma, o primeiro período obteve um Lucro Livre ${formatCurrency(Math.abs(profitVar.diff))} menor (${profitVar.pct.toFixed(1)}%) em relação ao segundo período analisado, com base na seleção de categorias ativas. `;
+      summaryText += `Dessa forma, o período de ${labelMonthA} obteve um Lucro Livre ${formatCurrency(Math.abs(profitVar.diff))} menor (${profitVar.pct.toFixed(1)}%) em relação a ${labelMonthB}, com base na seleção de categorias ativas. `;
     } else {
       summaryText += `Os dois períodos apresentaram lucros livres equivalentes com base nas categorias selecionadas no painel principal. `;
     }
@@ -408,7 +435,7 @@ export default function ReportsComparative({ services, expenses, subCategories, 
     if (topRevGrowth || topRevShrink) {
       summaryText += `\n\n**Análise de Categorias de Entrada**: `;
       if (topRevGrowth) {
-        summaryText += `Tivemos um aumento relevante na categoria de receita "${topRevGrowth.category}", que gerou ${formatCurrency(topRevGrowth.diff)} a mais no Período A. `;
+        summaryText += `Tivemos um aumento relevante na categoria de receita "${topRevGrowth.category}", que gerou ${formatCurrency(topRevGrowth.diff)} a mais no Período "${labelMonthA}". `;
       }
       if (topRevShrink) {
         summaryText += `Em contrapartida, tivemos um desempenho menor na categoria "${topRevShrink.category}", registrando uma redução de ${formatCurrency(Math.abs(topRevShrink.diff))} no volume financeiro total. `;
@@ -421,17 +448,17 @@ export default function ReportsComparative({ services, expenses, subCategories, 
 
     // Quantitative metrics text
     summaryText += `\n\n**Análise Quantitativa**: `;
-    summaryText += `No período de ${formatDateLabel(startDateA)} até ${formatDateLabel(endDateA)}, registramos o lançamento de ${metricsA.quantitatives.honorarios} Honorários (contra ${metricsB.quantitatives.honorarios} no período comparado), ${metricsA.quantitatives.placas} Placas (contra ${metricsB.quantitatives.placas}), ${metricsA.quantitatives.honorariosRevenda} Honorários de Revenda (contra ${metricsB.quantitatives.honorariosRevenda}), ${metricsA.quantitatives.retCrlve} Retiradas de CRLV-E (contra ${metricsB.quantitatives.retCrlve}) e ${metricsA.quantitatives.atpv} ATPV-E (contra ${metricsB.quantitatives.atpv} no período comparado). `;
+    summaryText += `No período de ${formatDateLabel(startDateA)} até ${formatDateLabel(endDateA)} (${labelMonthA}), registramos o lançamento de ${metricsA.quantitatives.honorarios} Honorários (contra ${metricsB.quantitatives.honorarios} em ${labelMonthB}), ${metricsA.quantitatives.placas} Placas (contra ${metricsB.quantitatives.placas}), ${metricsA.quantitatives.honorariosRevenda} Honorários de Revenda (contra ${metricsB.quantitatives.honorariosRevenda}), ${metricsA.quantitatives.retCrlve} Retiradas de CRLV-E (contra ${metricsB.quantitatives.retCrlve}) e ${metricsA.quantitatives.atpv} ATPV-E (contra ${metricsB.quantitatives.atpv} em ${labelMonthB}). `;
 
     // Payment methods
     const pixVar = getVariance(metricsA.pixRevenues, metricsB.pixRevenues);
-    summaryText += `Adicionalmente, os recebimentos via PIX foram de ${formatCurrency(metricsA.pixRevenues)} (Período A) contra ${formatCurrency(metricsB.pixRevenues)} (Período B), indicando uma variação de ${pixVar.diff >= 0 ? '+' : ''}${pixVar.pct.toFixed(1)}% nesta modalidade de pagamento.`;
+    summaryText += `Adicionalmente, os recebimentos via PIX foram de ${formatCurrency(metricsA.pixRevenues)} (${labelMonthA}) contra ${formatCurrency(metricsB.pixRevenues)} (${labelMonthB}), indicando uma variação de ${pixVar.diff >= 0 ? '+' : ''}${pixVar.pct.toFixed(1)}% nesta modalidade de pagamento.`;
 
     // Personal expenses insight
     if (pessoaisExpenseCats.length > 0 || metricsA.personalExpensesTotal > 0 || metricsB.personalExpensesTotal > 0) {
       const personalVar = getVariance(metricsA.personalExpensesTotal, metricsB.personalExpensesTotal);
       summaryText += `\n\n**Análise de Gastos Pessoais**: `;
-      summaryText += `Os gastos de caráter pessoal nas categorias selecionadas totalizaram ${formatCurrency(metricsA.personalExpensesTotal)} no Período A, comparado com ${formatCurrency(metricsB.personalExpensesTotal)} no Período B. `;
+      summaryText += `Os gastos de caráter pessoal nas categorias selecionadas totalizaram ${formatCurrency(metricsA.personalExpensesTotal)} em ${labelMonthA}, comparado com ${formatCurrency(metricsB.personalExpensesTotal)} em ${labelMonthB}. `;
       if (personalVar.diff > 0) {
         summaryText += `Isso representa um aumento de ${formatCurrency(personalVar.diff)} (+${personalVar.pct.toFixed(1)}%) nas despesas pessoais do primeiro período em relação ao segundo. `;
       } else if (personalVar.diff < 0) {
@@ -442,7 +469,7 @@ export default function ReportsComparative({ services, expenses, subCategories, 
     }
 
     return summaryText;
-  }, [metricsA, metricsB, revenueCategoriesComparison, expenseCategoriesComparison, startDateA, endDateA, startDateB, endDateB, pessoaisExpenseCats, servicosRevenueCats, servicosExpenseCats]);
+  }, [metricsA, metricsB, revenueCategoriesComparison, expenseCategoriesComparison, startDateA, endDateA, startDateB, endDateB, pessoaisExpenseCats, servicosRevenueCats, servicosExpenseCats, labelMonthA, labelMonthB]);
 
   // Handle printing
   const handlePrint = () => {
@@ -463,7 +490,7 @@ export default function ReportsComparative({ services, expenses, subCategories, 
           {/* Period A */}
           <div className="space-y-4 p-4 bg-[#0F1115] rounded-xl border border-slate-850/60">
             <span className="text-[10px] font-extrabold text-emerald-400 uppercase tracking-widest block">
-              Período Principal (A)
+              Período "{labelMonthA}"
             </span>
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1.5">
@@ -490,7 +517,7 @@ export default function ReportsComparative({ services, expenses, subCategories, 
           {/* Period B */}
           <div className="space-y-4 p-4 bg-[#0F1115] rounded-xl border border-slate-850/60">
             <span className="text-[10px] font-extrabold text-blue-400 uppercase tracking-widest block">
-              Período de Comparação (B)
+              Período "{labelMonthB}"
             </span>
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1.5">
@@ -569,13 +596,13 @@ export default function ReportsComparative({ services, expenses, subCategories, 
               return (
                 <>
                   <div className="flex justify-between items-baseline">
-                    <span className="text-xs text-slate-455">Período A:</span>
+                    <span className="text-xs text-slate-455">Período "{labelMonthA}":</span>
                     <span className={`text-lg font-black font-mono ${totalLivreA >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
                       {formatCurrency(totalLivreA)}
                     </span>
                   </div>
                   <div className="flex justify-between items-baseline border-b border-slate-850 pb-2.5">
-                    <span className="text-xs text-slate-455">Período B:</span>
+                    <span className="text-xs text-slate-455">Período "{labelMonthB}":</span>
                     <span className={`text-sm font-bold font-mono ${totalLivreB >= 0 ? 'text-slate-300' : 'text-rose-450'}`}>
                       {formatCurrency(totalLivreB)}
                     </span>
@@ -620,8 +647,8 @@ export default function ReportsComparative({ services, expenses, subCategories, 
                             </span>
                           </div>
                           <div className="flex justify-between text-[10px] text-slate-450 font-medium font-mono">
-                            <span>A: {formatCurrency(item.valA)}</span>
-                            <span>B: {formatCurrency(item.valB)}</span>
+                            <span>{labelMonthA}: {formatCurrency(item.valA)}</span>
+                            <span>{labelMonthB}: {formatCurrency(item.valB)}</span>
                           </div>
                           {diffVal !== 0 && (
                             <div className={`text-[9px] font-mono font-bold ${trendColor} text-right`}>
@@ -661,8 +688,8 @@ export default function ReportsComparative({ services, expenses, subCategories, 
                             </span>
                           </div>
                           <div className="flex justify-between text-[10px] text-slate-450 font-medium font-mono">
-                            <span>A: {formatCurrency(item.valA)}</span>
-                            <span>B: {formatCurrency(item.valB)}</span>
+                            <span>{labelMonthA}: {formatCurrency(item.valA)}</span>
+                            <span>{labelMonthB}: {formatCurrency(item.valB)}</span>
                           </div>
                           {diffVal !== 0 && (
                             <div className={`text-[9px] font-mono font-bold ${trendColor} text-right`}>
@@ -691,13 +718,13 @@ export default function ReportsComparative({ services, expenses, subCategories, 
           
           <div className="space-y-3">
             <div className="flex justify-between items-baseline">
-              <span className="text-xs text-slate-450">Período A:</span>
+              <span className="text-xs text-slate-450">Período "{labelMonthA}":</span>
               <span className="text-lg font-black text-white font-mono">
                 {formatCurrency(metricsA.personalExpensesTotal)}
               </span>
             </div>
             <div className="flex justify-between items-baseline border-b border-slate-850 pb-2.5">
-              <span className="text-xs text-slate-450">Período B:</span>
+              <span className="text-xs text-slate-450">Período "{labelMonthB}":</span>
               <span className="text-sm font-bold text-slate-400 font-mono">
                 {formatCurrency(metricsB.personalExpensesTotal)}
               </span>
@@ -742,8 +769,8 @@ export default function ReportsComparative({ services, expenses, subCategories, 
                           </span>
                         </div>
                         <div className="flex justify-between text-[10px] text-slate-450 font-medium font-mono">
-                          <span>A: {formatCurrency(item.valA)}</span>
-                          <span>B: {formatCurrency(item.valB)}</span>
+                          <span>{labelMonthA}: {formatCurrency(item.valA)}</span>
+                          <span>{labelMonthB}: {formatCurrency(item.valB)}</span>
                         </div>
                         {diffVal !== 0 && (
                           <div className={`text-[9px] font-mono font-bold ${trendColor} text-right`}>
@@ -774,11 +801,11 @@ export default function ReportsComparative({ services, expenses, subCategories, 
           
           <div className="space-y-3">
             <div className="flex justify-between items-baseline">
-              <span className="text-xs text-slate-450">Período A:</span>
+              <span className="text-xs text-slate-450">Período "{labelMonthA}":</span>
               <span className="text-lg font-black text-white font-mono">{formatCurrency(metricsA.paidRevenues)}</span>
             </div>
             <div className="flex justify-between items-baseline border-b border-slate-850 pb-2.5">
-              <span className="text-xs text-slate-450">Período B:</span>
+              <span className="text-xs text-slate-450">Período "{labelMonthB}":</span>
               <span className="text-sm font-bold text-slate-400 font-mono">{formatCurrency(metricsB.paidRevenues)}</span>
             </div>
             
@@ -809,11 +836,11 @@ export default function ReportsComparative({ services, expenses, subCategories, 
           
           <div className="space-y-3">
             <div className="flex justify-between items-baseline">
-              <span className="text-xs text-slate-450">Período A:</span>
+              <span className="text-xs text-slate-450">Período "{labelMonthA}":</span>
               <span className="text-lg font-black text-white font-mono">{formatCurrency(metricsA.totalExpenses)}</span>
             </div>
             <div className="flex justify-between items-baseline border-b border-slate-850 pb-2.5">
-              <span className="text-xs text-slate-450">Período B:</span>
+              <span className="text-xs text-slate-450">Período "{labelMonthB}":</span>
               <span className="text-sm font-bold text-slate-400 font-mono">{formatCurrency(metricsB.totalExpenses)}</span>
             </div>
             
@@ -850,7 +877,7 @@ export default function ReportsComparative({ services, expenses, subCategories, 
                 <div className="flex justify-between text-xs font-semibold">
                   <span>PIX</span>
                   <span className="text-slate-400 font-mono">
-                    A: <span className="text-white font-extrabold">{formatCurrency(metricsA.pixRevenues)}</span> vs B: <span className="font-bold">{formatCurrency(metricsB.pixRevenues)}</span>
+                    {labelMonthA}: <span className="text-white font-extrabold">{formatCurrency(metricsA.pixRevenues)}</span> vs {labelMonthB}: <span className="font-bold">{formatCurrency(metricsB.pixRevenues)}</span>
                   </span>
                 </div>
                 {/* Micro visual bars comparison */}
@@ -858,12 +885,12 @@ export default function ReportsComparative({ services, expenses, subCategories, 
                   <div 
                     className="bg-emerald-500 h-full transition-all"
                     style={{ width: `${metricsA.pixRevenues + metricsB.pixRevenues > 0 ? (metricsA.pixRevenues / (metricsA.pixRevenues + metricsB.pixRevenues)) * 100 : 50}%` }}
-                    title="Período A"
+                    title={`Período "${labelMonthA}"`}
                   ></div>
                   <div 
                     className="bg-[#2a303c] h-full transition-all"
                     style={{ width: `${metricsA.pixRevenues + metricsB.pixRevenues > 0 ? (metricsB.pixRevenues / (metricsA.pixRevenues + metricsB.pixRevenues)) * 100 : 50}%` }}
-                    title="Período B"
+                    title={`Período "${labelMonthB}"`}
                   ></div>
                 </div>
                 <div className="text-[10px] text-right font-semibold font-mono text-emerald-400">
@@ -879,7 +906,7 @@ export default function ReportsComparative({ services, expenses, subCategories, 
                 <div className="flex justify-between text-xs font-semibold">
                   <span>DINHEIRO</span>
                   <span className="text-slate-400 font-mono">
-                    A: <span className="text-white font-extrabold">{formatCurrency(metricsA.cashRevenues)}</span> vs B: <span className="font-bold">{formatCurrency(metricsB.cashRevenues)}</span>
+                    {labelMonthA}: <span className="text-white font-extrabold">{formatCurrency(metricsA.cashRevenues)}</span> vs {labelMonthB}: <span className="font-bold">{formatCurrency(metricsB.cashRevenues)}</span>
                   </span>
                 </div>
                 {/* Micro visual bars comparison */}
@@ -887,12 +914,12 @@ export default function ReportsComparative({ services, expenses, subCategories, 
                   <div 
                     className="bg-teal-500 h-full transition-all"
                     style={{ width: `${metricsA.cashRevenues + metricsB.cashRevenues > 0 ? (metricsA.cashRevenues / (metricsA.cashRevenues + metricsB.cashRevenues)) * 100 : 50}%` }}
-                    title="Período A"
+                    title={`Período "${labelMonthA}"`}
                   ></div>
                   <div 
                     className="bg-[#2a303c] h-full transition-all"
                     style={{ width: `${metricsA.cashRevenues + metricsB.cashRevenues > 0 ? (metricsB.cashRevenues / (metricsA.cashRevenues + metricsB.cashRevenues)) * 100 : 50}%` }}
-                    title="Período B"
+                    title={`Período "${labelMonthB}"`}
                   ></div>
                 </div>
                 <div className="text-[10px] text-right font-semibold font-mono text-teal-400">
@@ -914,7 +941,7 @@ export default function ReportsComparative({ services, expenses, subCategories, 
                 <div className="flex justify-between text-xs font-semibold">
                   <span>PIX</span>
                   <span className="text-slate-400 font-mono">
-                    A: <span className="text-white font-extrabold">{formatCurrency(metricsA.pixExpenses)}</span> vs B: <span className="font-bold">{formatCurrency(metricsB.pixExpenses)}</span>
+                    {labelMonthA}: <span className="text-white font-extrabold">{formatCurrency(metricsA.pixExpenses)}</span> vs {labelMonthB}: <span className="font-bold">{formatCurrency(metricsB.pixExpenses)}</span>
                   </span>
                 </div>
                 {/* Micro visual bars comparison */}
@@ -922,12 +949,12 @@ export default function ReportsComparative({ services, expenses, subCategories, 
                   <div 
                     className="bg-rose-500 h-full transition-all"
                     style={{ width: `${metricsA.pixExpenses + metricsB.pixExpenses > 0 ? (metricsA.pixExpenses / (metricsA.pixExpenses + metricsB.pixExpenses)) * 100 : 50}%` }}
-                    title="Período A"
+                    title={`Período "${labelMonthA}"`}
                   ></div>
                   <div 
                     className="bg-[#2a303c] h-full transition-all"
                     style={{ width: `${metricsA.pixExpenses + metricsB.pixExpenses > 0 ? (metricsB.pixExpenses / (metricsA.pixExpenses + metricsB.pixExpenses)) * 100 : 50}%` }}
-                    title="Período B"
+                    title={`Período "${labelMonthB}"`}
                   ></div>
                 </div>
                 <div className="text-[10px] text-right font-semibold font-mono text-rose-400">
@@ -943,7 +970,7 @@ export default function ReportsComparative({ services, expenses, subCategories, 
                 <div className="flex justify-between text-xs font-semibold">
                   <span>DINHEIRO</span>
                   <span className="text-slate-400 font-mono">
-                    A: <span className="text-white font-extrabold">{formatCurrency(metricsA.cashExpenses)}</span> vs B: <span className="font-bold">{formatCurrency(metricsB.cashExpenses)}</span>
+                    {labelMonthA}: <span className="text-white font-extrabold">{formatCurrency(metricsA.cashExpenses)}</span> vs {labelMonthB}: <span className="font-bold">{formatCurrency(metricsB.cashExpenses)}</span>
                   </span>
                 </div>
                 {/* Micro visual bars comparison */}
@@ -951,12 +978,12 @@ export default function ReportsComparative({ services, expenses, subCategories, 
                   <div 
                     className="bg-red-400 h-full transition-all"
                     style={{ width: `${metricsA.cashExpenses + metricsB.cashExpenses > 0 ? (metricsA.cashExpenses / (metricsA.cashExpenses + metricsB.cashExpenses)) * 100 : 50}%` }}
-                    title="Período A"
+                    title={`Período "${labelMonthA}"`}
                   ></div>
                   <div 
                     className="bg-[#2a303c] h-full transition-all"
                     style={{ width: `${metricsA.cashExpenses + metricsB.cashExpenses > 0 ? (metricsB.cashExpenses / (metricsA.cashExpenses + metricsB.cashExpenses)) * 100 : 50}%` }}
-                    title="Período B"
+                    title={`Período "${labelMonthB}"`}
                   ></div>
                 </div>
                 <div className="text-[10px] text-right font-semibold font-mono text-red-400">
@@ -1016,7 +1043,7 @@ export default function ReportsComparative({ services, expenses, subCategories, 
         <div className="bg-[#161B22] border border-slate-800 rounded-2xl p-6 shadow-sm space-y-4">
           <h3 className="text-xs font-extrabold text-emerald-400 uppercase tracking-wider pb-3 border-b border-slate-800 flex items-center justify-between">
             <span>Comparativo de Receitas por Item</span>
-            <span className="text-[9px] text-slate-450 lowercase tracking-normal">ordenado por valor total no Período A</span>
+            <span className="text-[9px] text-slate-450 lowercase tracking-normal">ordenado por valor total no Período "{labelMonthA}"</span>
           </h3>
 
           <div className="space-y-3 max-h-[350px] overflow-y-auto pr-1 select-none scrollbar-thin">
@@ -1033,11 +1060,11 @@ export default function ReportsComparative({ services, expenses, subCategories, 
                   </div>
                   <div className="grid grid-cols-2 gap-2 text-[11px] font-mono">
                     <div>
-                      <span className="text-slate-500 block text-[9px] uppercase font-bold">Período A:</span>
+                      <span className="text-slate-500 block text-[9px] uppercase font-bold">{labelMonthA}:</span>
                       <span className="text-white font-extrabold">{formatCurrency(item.valA)}</span>
                     </div>
                     <div>
-                      <span className="text-slate-500 block text-[9px] uppercase font-bold">Período B:</span>
+                      <span className="text-slate-500 block text-[9px] uppercase font-bold">{labelMonthB}:</span>
                       <span className="text-slate-400">{formatCurrency(item.valB)}</span>
                     </div>
                   </div>
@@ -1051,7 +1078,7 @@ export default function ReportsComparative({ services, expenses, subCategories, 
         <div className="bg-[#161B22] border border-slate-800 rounded-2xl p-6 shadow-sm space-y-4">
           <h3 className="text-xs font-extrabold text-rose-455 uppercase tracking-wider pb-3 border-b border-slate-800 flex items-center justify-between">
             <span>Comparativo de Gastos por Categoria</span>
-            <span className="text-[9px] text-slate-450 lowercase tracking-normal">ordenado por valor total no Período A</span>
+            <span className="text-[9px] text-slate-450 lowercase tracking-normal">ordenado por valor total no Período "{labelMonthA}"</span>
           </h3>
 
           <div className="space-y-3 max-h-[350px] overflow-y-auto pr-1 select-none scrollbar-thin">
@@ -1068,11 +1095,11 @@ export default function ReportsComparative({ services, expenses, subCategories, 
                   </div>
                   <div className="grid grid-cols-2 gap-2 text-[11px] font-mono">
                     <div>
-                      <span className="text-slate-500 block text-[9px] uppercase font-bold">Período A:</span>
+                      <span className="text-slate-500 block text-[9px] uppercase font-bold">{labelMonthA}:</span>
                       <span className="text-white font-extrabold">{formatCurrency(item.valA)}</span>
                     </div>
                     <div>
-                      <span className="text-slate-500 block text-[9px] uppercase font-bold">Período B:</span>
+                      <span className="text-slate-500 block text-[9px] uppercase font-bold">{labelMonthB}:</span>
                       <span className="text-slate-400">{formatCurrency(item.valB)}</span>
                     </div>
                   </div>
