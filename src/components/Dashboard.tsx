@@ -537,7 +537,30 @@ export default function Dashboard({
       }
     });
 
+    // Gasto com TERMOS no mês selecionado
+    let termosGasto = 0;
+    expensesThisMonth.forEach(exp => {
+      if (exp.items && exp.items.length > 0) {
+        exp.items.forEach(item => {
+          const name = (item.name || '').trim().toUpperCase();
+          const normalized = name.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+          if (normalized === "TERMOS" || normalized === "TERMO" || normalized.startsWith("TERMO")) {
+            termosGasto += Number(item.value) || 0;
+          }
+        });
+      } else {
+        const cat = (exp.category || '').trim().toUpperCase();
+        const normalized = cat.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+        if (normalized === "TERMOS" || normalized === "TERMO" || normalized.startsWith("TERMO")) {
+          termosGasto += Number(exp.value) || 0;
+        }
+      }
+    });
+
     const calcAvg = (stat: { count: number; total: number }) => (stat.count > 0 ? stat.total / stat.count : 0);
+
+    // Quantidade de termos consumidos: subtrai R$ 25 da mensalidade e divide o restante por R$ 10 por termo
+    const termosQty = termosGasto > 25 ? Math.round((termosGasto - 25) / 10) : 0;
 
     return {
       honorarios: { ...honorarios, avg: calcAvg(honorarios) },
@@ -545,8 +568,9 @@ export default function Dashboard({
       placas: { ...placas, avg: calcAvg(placas) },
       retCrlve: { ...retCrlve, avg: calcAvg(retCrlve) },
       atpv: { ...atpv, avg: calcAvg(atpv) },
+      termos: { totalGasto: termosGasto, count: termosQty }
     };
-  }, [servicesThisMonth]);
+  }, [servicesThisMonth, expensesThisMonth]);
 
   // Find subcategories with matching/coincident names in both RECEITA and GASTO for this month
   const coincidentCategories = React.useMemo(() => {
@@ -867,7 +891,7 @@ export default function Dashboard({
                       {subcategoryStats.retCrlve.count}
                     </span>
                   </div>
-                  <div className="flex justify-between items-center text-xs text-slate-300">
+                  <div className="flex justify-between items-center text-xs text-slate-300 pb-2 border-b border-slate-800/60">
                     <div>
                       <span className="font-bold text-slate-300 uppercase text-[10px] block">ATPV-E</span>
                       <span className="text-[10px] text-slate-400 font-mono block mt-0.5">
@@ -876,6 +900,17 @@ export default function Dashboard({
                     </div>
                     <span className="font-mono text-xs font-extrabold text-teal-400">
                       {subcategoryStats.atpv.count}
+                    </span>
+                  </div>
+                  <div className="flex justify-between items-center text-xs text-slate-300">
+                    <div>
+                      <span className="font-bold text-slate-300 uppercase text-[10px] block">Termos</span>
+                      <span className="text-[10px] text-slate-400 font-mono block mt-0.5">
+                        Gasto: <span className="text-slate-200 font-semibold">{formatCurrency(subcategoryStats.termos.totalGasto)}</span>
+                      </span>
+                    </div>
+                    <span className="font-mono text-xs font-extrabold text-indigo-400" title={`${subcategoryStats.termos.count} termos consumidos no mês`}>
+                      {subcategoryStats.termos.count}
                     </span>
                   </div>
                 </div>
