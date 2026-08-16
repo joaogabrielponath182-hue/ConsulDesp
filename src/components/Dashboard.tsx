@@ -559,8 +559,8 @@ export default function Dashboard({
 
     const calcAvg = (stat: { count: number; total: number }) => (stat.count > 0 ? stat.total / stat.count : 0);
 
-    // Quantidade de termos consumidos: subtrai R$ 25 da mensalidade e divide o restante por R$ 10 por termo
-    const termosQty = termosGasto > 25 ? Math.round((termosGasto - 25) / 10) : 0;
+    // Quantidade de termos consumidos: subtrai R$ 35 da mensalidade e divide o restante por R$ 10 por termo
+    const termosQty = termosGasto > 35 ? Math.round((termosGasto - 35) / 10) : 0;
 
     return {
       honorarios: { ...honorarios, avg: calcAvg(honorarios) },
