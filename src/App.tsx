@@ -1461,6 +1461,7 @@ export default function App() {
               onEditService={handleEditService}
               viewMode="list"
               initialStatusFilter={initialStatusFilter}
+              isPendingReport={currentTab === 'reports-pending'}
               onRedirectToForm={() => handleNavigate('services')}
             />
           </div>

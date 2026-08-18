@@ -27,7 +27,7 @@ import {
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { plateMatchesSearch } from '../utils/plateMatcher';
-import { generateReceiptPDF } from '../utils/receiptGenerator';
+import { generateReceiptPDF, generatePendingReportPDF } from '../utils/receiptGenerator';
 
 interface ServicesProps {
   services: Service[];
@@ -42,6 +42,7 @@ interface ServicesProps {
   onCloseNewServiceModal?: () => void;
   viewMode?: 'form' | 'list';
   initialStatusFilter?: string;
+  isPendingReport?: boolean;
   onRedirectToForm?: () => void;
 }
 
@@ -63,6 +64,7 @@ export default function Services({
   onCloseNewServiceModal,
   viewMode = 'form',
   initialStatusFilter = 'all',
+  isPendingReport = false,
   onRedirectToForm
 }: ServicesProps) {
   // Filters state
@@ -773,6 +775,38 @@ export default function Services({
     }, 0);
   }, [filteredGroupedServices]);
 
+  const totalFilteredPending = React.useMemo(() => {
+    return filteredGroupedServices.reduce((acc, curr) => {
+      const pendingSum = curr.services
+        .filter(srv => srv.status === 'PENDENTE')
+        .reduce((sum, srv) => {
+          const srvTotal = srv.items && srv.items.length > 0 
+            ? srv.items.reduce((s, it) => s + it.value, 0) 
+            : srv.totalValue || 0;
+          return sum + srvTotal;
+        }, 0);
+      return acc + pendingSum;
+    }, 0);
+  }, [filteredGroupedServices]);
+
+  const handlePrintFilteredPendingReport = () => {
+    const allPendingServices = filteredGroupedServices.flatMap(g => g.services);
+    if (allPendingServices.length === 0) return;
+
+    const activeCat = selectedCategory !== 'all' 
+      ? subCategories.find(s => s.id === selectedCategory)?.name 
+      : undefined;
+
+    generatePendingReportPDF(allPendingServices, clients, {
+      clientName: selectedClient !== 'all' ? selectedClient : undefined,
+      search: search.trim() || undefined,
+      startDate: startDate || undefined,
+      endDate: endDate || undefined,
+      paymentMethod: selectedPaymentMethod !== 'all' ? selectedPaymentMethod : undefined,
+      categoryName: activeCat
+    });
+  };
+
   // Live sum values in new service helper
   const tempTotalValue = serviceItems.reduce((acc, curr) => acc + curr.value, 0);
 
@@ -1431,11 +1465,33 @@ export default function Services({
             {/* Upper state header */}
             <div className="flex flex-col md:flex-row gap-4 justify-between items-start md:items-center pb-5 border-b border-slate-800">
               <div>
-                <h3 className="text-lg font-bold text-white block">Arquivos Detalhados de Serviços</h3>
-                <p className="text-xs text-slate-400 mt-0.5">Clique em qualquer serviço para visualizar as subtaxas vinculadas</p>
+                <h3 className="text-lg font-bold text-white block">
+                  {isPendingReport || initialStatusFilter === 'PENDENTE' 
+                    ? 'Relatório de Pendências / Contas a Receber' 
+                    : 'Arquivos Detalhados de Serviços'}
+                </h3>
+                <p className="text-xs text-slate-400 mt-0.5">
+                  {isPendingReport || initialStatusFilter === 'PENDENTE'
+                    ? 'Acompanhe débitos pendentes, filtre por cliente e emita o relatório unificado para impressão.'
+                    : 'Clique em qualquer serviço para visualizar as subtaxas vinculadas'}
+                </p>
               </div>
 
-              <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 w-full md:w-auto">
+              <div className="flex flex-wrap items-center gap-3 w-full md:w-auto justify-start md:justify-end">
+                {/* Print entire filtered pending report button - exclusive to Pending Report view */}
+                {(isPendingReport || initialStatusFilter === 'PENDENTE') && (
+                  <button
+                    type="button"
+                    onClick={handlePrintFilteredPendingReport}
+                    disabled={filteredGroupedServices.length === 0}
+                    className="flex items-center gap-2 px-3.5 py-2 bg-emerald-600 hover:bg-emerald-500 active:bg-emerald-700 disabled:opacity-40 disabled:cursor-not-allowed text-white text-xs font-bold rounded-xl cursor-pointer transition-all shrink-0 shadow-lg shadow-emerald-950/30 border border-emerald-500/30"
+                    title="Imprimir relatório completo com todos os serviços e débitos do filtro selecionado"
+                  >
+                    <Printer size={14} />
+                    <span>Imprimir Relatório ({filteredGroupedServices.flatMap(g => g.services).length})</span>
+                  </button>
+                )}
+
                 <button
                   type="button"
                   onClick={() => setSortOrder(prev => prev === 'oldest' ? 'newest' : 'oldest')}
@@ -1446,9 +1502,15 @@ export default function Services({
                 </button>
 
                 <div className="flex items-center gap-2">
-                  <span className="text-xs text-slate-400 font-medium">Balanço das buscas:</span>
-                  <span className="text-xs font-bold text-emerald-400 bg-emerald-650/10 border border-emerald-800/40 px-2.5 py-1.5 rounded-lg font-mono">
-                    {formatCurrency(totalFilteredRevenues)}
+                  <span className="text-xs text-slate-400 font-medium">
+                    {isPendingReport || initialStatusFilter === 'PENDENTE' ? 'Total Pendente:' : 'Balanço das buscas:'}
+                  </span>
+                  <span className={`text-xs font-bold px-2.5 py-1.5 rounded-lg font-mono ${
+                    isPendingReport || initialStatusFilter === 'PENDENTE'
+                      ? 'text-rose-400 bg-rose-950/30 border border-rose-800/40'
+                      : 'text-emerald-400 bg-emerald-650/10 border border-emerald-800/40'
+                  }`}>
+                    {formatCurrency(isPendingReport || initialStatusFilter === 'PENDENTE' ? totalFilteredPending : totalFilteredRevenues)}
                   </span>
                 </div>
               </div>
