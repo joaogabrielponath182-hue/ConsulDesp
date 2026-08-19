@@ -40,6 +40,7 @@ interface LedgerItem {
   value: number;
   status?: string;
   paidValue?: number;
+  pendingValue?: number;
   items?: Array<{ name: string; value: number }>;
 }
 interface MultiSelectOption {
@@ -358,16 +359,61 @@ const currencyFormatter = new Intl.NumberFormat('pt-BR', {
   currency: 'BRL'
 });
 
-export default function Reports({ services, expenses, subCategories }: ReportsProps) {  // Filter states (instant updates, no submit button needed)
-  const [startDate, setStartDate] = useState<string>('');
-  const [endDate, setEndDate] = useState<string>('');
-  const [selectedSubCategories, setSelectedSubCategories] = useState<string[]>(['all']);
-  const [search, setSearch] = useState<string>('');
-  const [selectedExpenseCategories, setSelectedExpenseCategories] = useState<string[]>(['all']);
-  const [paymentMethod, setPaymentMethod] = useState<string>('all');
+const GENERAL_REPORTS_FILTER_STORAGE_KEY = 'dep_reports_general_filters';
+
+interface GeneralReportFiltersStorage {
+  startDate?: string;
+  endDate?: string;
+  selectedSubCategories?: string[];
+  search?: string;
+  selectedExpenseCategories?: string[];
+  paymentMethod?: string;
+  sortOrder?: 'oldest' | 'newest';
+}
+
+const loadSavedGeneralFilters = (): GeneralReportFiltersStorage => {
+  try {
+    const raw = localStorage.getItem(GENERAL_REPORTS_FILTER_STORAGE_KEY);
+    if (raw) {
+      return JSON.parse(raw);
+    }
+  } catch (e) {
+    console.error('Erro ao carregar filtros salvos do relatório geral:', e);
+  }
+  return {};
+};
+
+export default function Reports({ services, expenses, subCategories }: ReportsProps) {
+  // Load initial filter states from localStorage so user doesn't lose context when changing tabs/screens
+  const initialFilters = useMemo(() => loadSavedGeneralFilters(), []);
+
+  const [startDate, setStartDate] = useState<string>(initialFilters.startDate || '');
+  const [endDate, setEndDate] = useState<string>(initialFilters.endDate || '');
+  const [selectedSubCategories, setSelectedSubCategories] = useState<string[]>(initialFilters.selectedSubCategories || ['all']);
+  const [search, setSearch] = useState<string>(initialFilters.search || '');
+  const [selectedExpenseCategories, setSelectedExpenseCategories] = useState<string[]>(initialFilters.selectedExpenseCategories || ['all']);
+  const [paymentMethod, setPaymentMethod] = useState<string>(initialFilters.paymentMethod || 'all');
 
   // Sort order state for general report detailed statement ('oldest' first or 'newest' first)
-  const [sortOrder, setSortOrder] = useState<'oldest' | 'newest'>('newest');
+  const [sortOrder, setSortOrder] = useState<'oldest' | 'newest'>(initialFilters.sortOrder || 'newest');
+
+  // Save filters to localStorage whenever any filter changes
+  React.useEffect(() => {
+    try {
+      const filtersToSave: GeneralReportFiltersStorage = {
+        startDate,
+        endDate,
+        selectedSubCategories,
+        search,
+        selectedExpenseCategories,
+        paymentMethod,
+        sortOrder
+      };
+      localStorage.setItem(GENERAL_REPORTS_FILTER_STORAGE_KEY, JSON.stringify(filtersToSave));
+    } catch (e) {
+      console.error('Erro ao persistir filtros do relatório geral:', e);
+    }
+  }, [startDate, endDate, selectedSubCategories, search, selectedExpenseCategories, paymentMethod, sortOrder]);
 
   // Format currency helper
   const formatCurrency = (val: number) => currencyFormatter.format(val);
@@ -434,7 +480,7 @@ export default function Reports({ services, expenses, subCategories }: ReportsPr
     return list;
   }, [subCategories, expenses]);
 
-  // Reset all filters to default
+  // Reset all filters to default and clear localStorage
   const handleResetFilters = () => {
     setStartDate('');
     setEndDate('');
@@ -442,6 +488,11 @@ export default function Reports({ services, expenses, subCategories }: ReportsPr
     setSearch('');
     setSelectedExpenseCategories(['all']);
     setPaymentMethod('all');
+    try {
+      localStorage.removeItem(GENERAL_REPORTS_FILTER_STORAGE_KEY);
+    } catch (e) {
+      console.error('Erro ao limpar filtros persistidos:', e);
+    }
   };
 
   // Filter processes/services based on active states
@@ -618,6 +669,7 @@ export default function Reports({ services, expenses, subCategories }: ReportsPr
       const paymentMethodStr = methods.join(' + ');
 
       const paidValue = group.services.filter(s => s.status === 'PAGO').reduce((sum, s) => sum + s.totalValue, 0);
+      const pendingValue = group.services.filter(s => s.status === 'PENDENTE').reduce((sum, s) => sum + s.totalValue, 0);
       const isGroupPending = group.services.every(s => s.status === 'PENDENTE') ? 'PENDENTE' : group.services.some(s => s.status === 'PENDENTE') ? 'PARCIAL' : 'PAGO';
 
       if (isMulti) {
@@ -633,9 +685,10 @@ export default function Reports({ services, expenses, subCategories }: ReportsPr
           value: group.totalValue,
           status: isGroupPending,
           paidValue: paidValue,
+          pendingValue: pendingValue,
           items: group.services.flatMap(s => 
             s.items.map(it => ({ 
-              name: `[${s.plate}] ${it.name}`, 
+              name: `[${s.plate}] ${it.name}${s.status === 'PENDENTE' ? ' (Pendente)' : ''}`, 
               value: it.value 
             }))
           )
@@ -643,6 +696,7 @@ export default function Reports({ services, expenses, subCategories }: ReportsPr
       } else {
         // Single vehicle item
         const s = group.services[0];
+        const isPend = s.status === 'PENDENTE';
         list.push({
           id: s.id,
           type: 'ENTRADA',
@@ -653,7 +707,8 @@ export default function Reports({ services, expenses, subCategories }: ReportsPr
           paymentMethod: s.paymentMethod,
           value: s.totalValue,
           status: s.status,
-          paidValue: s.status === 'PAGO' ? s.totalValue : 0,
+          paidValue: isPend ? 0 : s.totalValue,
+          pendingValue: isPend ? s.totalValue : 0,
           items: s.items.map(it => ({ name: it.name, value: it.value }))
         });
       }
@@ -922,9 +977,31 @@ export default function Reports({ services, expenses, subCategories }: ReportsPr
 
                       <div className="text-right sm:self-center self-end space-y-1">
                         {/* Transaction amount */}
-                        <span className={`text-sm font-extrabold font-mono block ${isEntrada ? isPending ? 'text-amber-400/80 line-through' : 'text-emerald-400' : 'text-rose-400'}`}>
-                          {isEntrada ? '+' : '-'}{formatCurrency(item.value)}
-                        </span>
+                        {isEntrada ? (
+                          isPending ? (
+                            <span className="text-sm font-extrabold font-mono block text-amber-400/80 line-through">
+                              +{formatCurrency(item.value)}
+                            </span>
+                          ) : isParcial ? (
+                            <div className="space-y-0.5">
+                              <span className="text-sm font-extrabold font-mono block text-emerald-400">
+                                +{formatCurrency(item.paidValue !== undefined ? item.paidValue : item.value)}
+                              </span>
+                              <span className="text-[11px] font-bold font-mono block text-amber-400/90 line-through">
+                                pendente {formatCurrency(item.pendingValue !== undefined ? item.pendingValue : (item.value - (item.paidValue || 0)))}
+                              </span>
+                            </div>
+                          ) : (
+                            <span className="text-sm font-extrabold font-mono block text-emerald-400">
+                              +{formatCurrency(item.value)}
+                            </span>
+                          )
+                        ) : (
+                          <span className="text-sm font-extrabold font-mono block text-rose-400">
+                            -{formatCurrency(item.value)}
+                          </span>
+                        )}
+
                         {/* Cumulative sum */}
                         <span className="text-[10px] text-slate-550 font-bold block select-none">
                           Acumulado: <strong className={`font-mono ${item.runningBalance >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
