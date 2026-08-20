@@ -102,7 +102,8 @@ function cleanObject<T>(obj: T): T {
 export async function fetchUserData(userId: string, isAdmin: boolean = false) {
   try {
     const isDemo = userId.toLowerCase() === 'user' || userId === 'user-demo-default' || userId === 'user-demo';
-    const userIds = isDemo ? ['user', 'user-demo-default', 'user-demo'] : [userId];
+    const isJoao = userId.toLowerCase() === 'joao.desp' || isAdmin;
+    const userIds = isDemo ? ['user', 'user-demo-default', 'user-demo'] : (isJoao ? ['joao.desp', 'admin'] : [userId]);
 
     const servicesQuery = query(collection(db, SERVICES_COLL), where('userId', 'in', userIds));
     const expensesQuery = query(collection(db, EXPENSES_COLL), where('userId', 'in', userIds));
@@ -818,13 +819,14 @@ export function cleanAndDeduplicateSubcategories(list: SubCategory[], currentOp?
       map.set(key, { ...sub });
     } else {
       const existing = map.get(key)!;
-      // If the incoming sub has an operator matching currentOp, prefer its operator and ID
-      if (currentOp && sub.operator === currentOp) {
+      // If the incoming sub has an operator matching currentOp, prefer its operator, ID and custom value
+      if (currentOp && (sub.operator === currentOp || sub.id.startsWith(`${currentOp}_`))) {
         existing.id = sub.id;
         existing.operator = sub.operator;
-      }
-      // If incoming sub has a custom defaultValue, update existing
-      if (typeof sub.defaultValue === 'number' && sub.defaultValue >= 0) {
+        if (typeof sub.defaultValue === 'number') {
+          existing.defaultValue = sub.defaultValue;
+        }
+      } else if (existing.defaultValue === 0 && typeof sub.defaultValue === 'number' && sub.defaultValue > 0) {
         existing.defaultValue = sub.defaultValue;
       }
       if (sub.categoryGroup) {

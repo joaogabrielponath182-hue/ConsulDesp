@@ -322,7 +322,7 @@ export default function App() {
     return () => unsubscribe();
   }, []);
 
-  // Ensure default subcategories exist for the current session (even offline)
+  // Ensure default subcategories exist for the current session (if not present yet)
   useEffect(() => {
     if (!currentSession) return;
     const dbUserId = currentSession.username;
@@ -335,8 +335,7 @@ export default function App() {
       defaults.forEach(defSub => {
         const foundIndex = userSubs.findIndex(sub => 
           sub.name.trim().toUpperCase() === defSub.name && 
-          (sub.type || 'RECEITA') === defSub.type &&
-          (sub.operator === dbUserId || sub.id.startsWith(`${dbUserId}_`))
+          (sub.type || 'RECEITA') === defSub.type
         );
         if (foundIndex === -1) {
           const newSub: SubCategory = {
@@ -344,6 +343,7 @@ export default function App() {
             name: defSub.name,
             defaultValue: defSub.defaultValue,
             type: defSub.type,
+            categoryGroup: defSub.categoryGroup || 'SERVIÇOS',
             operator: dbUserId
           };
           userSubs.push(newSub);
@@ -352,21 +352,12 @@ export default function App() {
           if (isCloudConnected) {
             saveSubCategory(dbUserId, newSub).catch(err => console.error(err));
           }
-        } else {
-          const found = userSubs[foundIndex];
-          if (found.defaultValue !== defSub.defaultValue) {
-            found.defaultValue = defSub.defaultValue;
-            hasChanges = true;
-
-            if (isCloudConnected) {
-              saveSubCategory(dbUserId, found).catch(err => console.error(err));
-            }
-          }
         }
+        // If it already exists, do NOT overwrite the custom defaultValue!
       });
 
       if (hasChanges) {
-        const cleaned = cleanAndDeduplicateSubcategories(userSubs);
+        const cleaned = cleanAndDeduplicateSubcategories(userSubs, dbUserId);
         localStorage.setItem('dep_subcategories', JSON.stringify(cleaned));
         return cleaned;
       }
