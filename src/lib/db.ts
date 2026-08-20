@@ -782,11 +782,10 @@ export function getFirestoreUsageMetrics(): UsageMetrics {
  * - Keeps only one entry for each combination of name and type (RECEITA or GASTO)
  * - Prefers keeping subcategories that have fixed IDs (starting with 'sub-fixed')
  */
-export function cleanAndDeduplicateSubcategories(list: SubCategory[]): SubCategory[] {
+export function cleanAndDeduplicateSubcategories(list: SubCategory[], currentOp?: string): SubCategory[] {
   if (!Array.isArray(list)) return [];
   
-  const seen = new Set<string>();
-  const cleaned: SubCategory[] = [];
+  const map = new Map<string, SubCategory>();
 
   const normalizedList = list.map(sub => {
     if (!sub) return null;
@@ -813,27 +812,28 @@ export function cleanAndDeduplicateSubcategories(list: SubCategory[]): SubCatego
 
   normalizedList.forEach(sub => {
     const type = sub.type || 'RECEITA';
-    const op = (sub.operator || 'admin').toLowerCase();
-    const key = `${sub.name}_${type}_${op}`;
+    const key = `${sub.name}_${type}`;
 
-    if (!seen.has(key)) {
-      seen.add(key);
-      cleaned.push(sub);
+    if (!map.has(key)) {
+      map.set(key, { ...sub });
     } else {
-      const index = cleaned.findIndex(c => c.name === sub.name && (c.type || 'RECEITA') === type && (c.operator || 'admin').toLowerCase() === op);
-      if (index !== -1) {
-        // If the secondary instance has a defined defaultValue, preserve it
-        if (typeof sub.defaultValue === 'number' && sub.defaultValue >= 0) {
-          cleaned[index].defaultValue = sub.defaultValue;
-        }
-        if (sub.categoryGroup) {
-          cleaned[index].categoryGroup = sub.categoryGroup;
-        }
+      const existing = map.get(key)!;
+      // If the incoming sub has an operator matching currentOp, prefer its operator and ID
+      if (currentOp && sub.operator === currentOp) {
+        existing.id = sub.id;
+        existing.operator = sub.operator;
+      }
+      // If incoming sub has a custom defaultValue, update existing
+      if (typeof sub.defaultValue === 'number' && sub.defaultValue >= 0) {
+        existing.defaultValue = sub.defaultValue;
+      }
+      if (sub.categoryGroup) {
+        existing.categoryGroup = sub.categoryGroup;
       }
     }
   });
 
-  return cleaned;
+  return Array.from(map.values());
 }
 
 /**

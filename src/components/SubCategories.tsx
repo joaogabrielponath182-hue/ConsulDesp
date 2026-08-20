@@ -35,6 +35,7 @@ export default function SubCategories({
   const [editingName, setEditingName] = useState('');
   const [editingValue, setEditingValue] = useState<number | ''>('');
   const [editingCategoryGroup, setEditingCategoryGroup] = useState<CategoryGroup>('SERVIÇOS');
+  const [editErrorMsg, setEditErrorMsg] = useState('');
 
   const filteredList = subCategories.filter(sub => {
     const matchesTab = filterType === 'ALL' || (sub.type || 'RECEITA') === filterType;
@@ -96,14 +97,16 @@ export default function SubCategories({
     setEditingName(sub.name);
     setEditingValue(sub.defaultValue);
     setEditingCategoryGroup(sub.categoryGroup || 'SERVIÇOS');
+    setEditErrorMsg('');
     setErrorMsg('');
   };
 
   const handleSaveEdit = (id: string) => {
+    setEditErrorMsg('');
     setErrorMsg('');
 
     if (!editingName.trim()) {
-      setErrorMsg('Por favor, informe o nome da subcategoria.');
+      setEditErrorMsg('Por favor, informe o nome da subcategoria.');
       return;
     }
 
@@ -111,16 +114,18 @@ export default function SubCategories({
     const currentSub = subCategories.find(s => s.id === id);
 
     if (currentSub) {
-      // Check if duplicate existence within same type, excluding itself
       const type = currentSub.type || 'RECEITA';
-      if (subCategories.some(sub => sub.id !== id && sub.name.toUpperCase() === cleanName && (sub.type || 'RECEITA') === type)) {
-        setErrorMsg(`Já existe outra subcategoria com este nome para o tipo ${type === 'RECEITA' ? 'Receita' : 'Gasto'}.`);
-        return;
+      // Only check duplicate name if name was changed
+      if (cleanName !== currentSub.name.trim().toUpperCase()) {
+        if (subCategories.some(sub => sub.id !== id && sub.name.trim().toUpperCase() === cleanName && (sub.type || 'RECEITA') === type)) {
+          setEditErrorMsg(`Já existe outra subcategoria com este nome para o tipo ${type === 'RECEITA' ? 'Receita' : 'Gasto'}.`);
+          return;
+        }
       }
     }
 
-    if (editingValue === '' || editingValue < 0) {
-      setErrorMsg('Por favor, informe um valor padrão válido.');
+    if (editingValue === '' || Number(editingValue) < 0) {
+      setEditErrorMsg('Por favor, informe um valor padrão válido.');
       return;
     }
 
@@ -128,12 +133,14 @@ export default function SubCategories({
     setEditingId(null);
     setEditingName('');
     setEditingValue('');
+    setEditErrorMsg('');
   };
 
   const handleCancelEdit = () => {
     setEditingId(null);
     setEditingName('');
     setEditingValue('');
+    setEditErrorMsg('');
     setErrorMsg('');
   };
 
@@ -416,6 +423,12 @@ export default function SubCategories({
                                 </span>
                                 <span className="text-[10px] text-slate-400 font-mono font-bold uppercase">{sub.type || 'RECEITA'}</span>
                               </div>
+
+                              {editErrorMsg && (
+                                <div className="p-2 bg-rose-950/40 border border-rose-900/30 text-rose-400 text-[10px] rounded-lg font-bold">
+                                  {editErrorMsg}
+                                </div>
+                              )}
 
                               <div>
                                 <label className="block text-[9px] font-bold text-slate-400 uppercase mb-0.5 tracking-wide">

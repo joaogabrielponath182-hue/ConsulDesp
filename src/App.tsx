@@ -155,7 +155,7 @@ export default function App() {
         // If it already exists, do NOT overwrite the user's custom defaultValue!
       }
 
-      const cleanedSubs = cleanAndDeduplicateSubcategories(userSubs);
+      const cleanedSubs = cleanAndDeduplicateSubcategories(userSubs, dbUserId);
       setSubCategories(cleanedSubs);
       setPersonalExpenses(cloudData.personalExpenses || []);
       setClients(cloudData.clients || []);
@@ -641,7 +641,7 @@ export default function App() {
         const cloudData = await fetchUserData(dbUserId, currentSession.isAdmin);
         setServices(cloudData.services);
         setExpenses(cloudData.expenses);
-        const cleanedSubs = cleanAndDeduplicateSubcategories(cloudData.subCategories);
+        const cleanedSubs = cleanAndDeduplicateSubcategories(cloudData.subCategories, dbUserId);
         setSubCategories(cleanedSubs);
         setPersonalExpenses(cloudData.personalExpenses || []);
         setClients(cloudData.clients || []);
@@ -699,7 +699,7 @@ export default function App() {
       categoryGroup,
       operator: currentSession?.username || 'admin'
     };
-    const updated = cleanAndDeduplicateSubcategories([...subCategories, newSub]);
+    const updated = cleanAndDeduplicateSubcategories([...subCategories, newSub], currentSession?.username);
     setSubCategories(updated);
     localStorage.setItem('dep_subcategories', JSON.stringify(updated));
 
@@ -758,27 +758,36 @@ export default function App() {
       normalizedName = 'SERVIÇOS';
     }
 
+    const targetSub = subCategories.find(s => s.id === id);
+    const targetType = targetSub?.type || 'RECEITA';
+
     const updated = subCategories.map(sub => {
-      if (sub.id === id) {
+      // Update by ID or by matching normalized name + type
+      const matchesTarget = sub.id === id || (targetSub && sub.name.trim().toUpperCase() === targetSub.name.trim().toUpperCase() && (sub.type || 'RECEITA') === targetType);
+      if (matchesTarget) {
         const isFixed = ['HONORÁRIO', 'HONORARIOS', 'HONORÁRIOS', 'HONORARIO', 'PLACA', 'RET. CRLV-E', 'ATPV-E'].includes(sub.name.trim().toUpperCase());
         return {
           ...sub,
           name: isFixed ? sub.name : normalizedName,
-          defaultValue,
-          categoryGroup: categoryGroup || sub.categoryGroup || 'SERVIÇOS'
+          defaultValue: Number(defaultValue),
+          categoryGroup: categoryGroup || sub.categoryGroup || 'SERVIÇOS',
+          operator: currentSession?.username || sub.operator || 'admin'
         };
       }
       return sub;
     });
-    const cleaned = cleanAndDeduplicateSubcategories(updated);
+
+    const cleaned = cleanAndDeduplicateSubcategories(updated, currentSession?.username);
     setSubCategories(cleaned);
     localStorage.setItem('dep_subcategories', JSON.stringify(cleaned));
 
     if (currentSession && isCloudConnected) {
       try {
-        const found = cleaned.find(sub => sub.id === id);
-        if (found) {
-          await saveSubCategory(currentSession.username, found);
+        const targetCleaned = cleaned.find(sub => 
+          sub.id === id || (targetSub && sub.name.trim().toUpperCase() === targetSub.name.trim().toUpperCase() && (sub.type || 'RECEITA') === targetType)
+        );
+        if (targetCleaned) {
+          await saveSubCategory(currentSession.username, targetCleaned);
         }
       } catch (err) {
         console.error("Erro ao atualizar subcategoria na nuvem:", err);
