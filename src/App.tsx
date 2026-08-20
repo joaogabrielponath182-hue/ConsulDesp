@@ -125,7 +125,7 @@ export default function App() {
       setServices(cloudData.services);
       setExpenses(cloudData.expenses);
 
-      // Make sure the operator has their correct default subcategories initialized
+      // Make sure the operator has their initial default subcategories if none exist yet
       const defaults = getDefaultsForUser(dbUserId);
       const userSubs = [...cloudData.subCategories];
 
@@ -151,18 +151,8 @@ export default function App() {
           } catch (e) {
             console.error("Erro ao inicializar subcategoria no Firestore:", e);
           }
-        } else {
-          // If the default value has changed, update it for the existing user too
-          const found = userSubs[foundIndex];
-          if (found.defaultValue !== defSub.defaultValue) {
-            found.defaultValue = defSub.defaultValue;
-            try {
-              await saveSubCategory(dbUserId, found);
-            } catch (e) {
-              console.error("Erro ao atualizar subcategoria no Firestore:", e);
-            }
-          }
         }
+        // If it already exists, do NOT overwrite the user's custom defaultValue!
       }
 
       const cleanedSubs = cleanAndDeduplicateSubcategories(userSubs);

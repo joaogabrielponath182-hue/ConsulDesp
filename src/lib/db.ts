@@ -806,17 +806,10 @@ export function cleanAndDeduplicateSubcategories(list: SubCategory[]): SubCatego
     return {
       ...sub,
       name,
+      defaultValue: typeof sub.defaultValue === 'number' ? sub.defaultValue : (Number(sub.defaultValue) || 0),
       categoryGroup: sub.categoryGroup || 'SERVIÇOS'
     } as SubCategory;
   }).filter((s): s is SubCategory => s !== null);
-
-  // Sort so that fixed subcategories (sub-fixed-*) come first
-  // This ensures that when we deduplicate, we retain the fixed subcategory with its fixed ID
-  normalizedList.sort((a, b) => {
-    const aFixed = (a.id || '').startsWith('sub-fixed') ? 1 : 0;
-    const bFixed = (b.id || '').startsWith('sub-fixed') ? 1 : 0;
-    return bFixed - aFixed; // fixed subcategories first
-  });
 
   normalizedList.forEach(sub => {
     const type = sub.type || 'RECEITA';
@@ -828,8 +821,14 @@ export function cleanAndDeduplicateSubcategories(list: SubCategory[]): SubCatego
       cleaned.push(sub);
     } else {
       const index = cleaned.findIndex(c => c.name === sub.name && (c.type || 'RECEITA') === type && (c.operator || 'admin').toLowerCase() === op);
-      if (index !== -1 && cleaned[index].defaultValue === 0 && sub.defaultValue > 0) {
-        cleaned[index].defaultValue = sub.defaultValue;
+      if (index !== -1) {
+        // If the secondary instance has a defined defaultValue, preserve it
+        if (typeof sub.defaultValue === 'number' && sub.defaultValue >= 0) {
+          cleaned[index].defaultValue = sub.defaultValue;
+        }
+        if (sub.categoryGroup) {
+          cleaned[index].categoryGroup = sub.categoryGroup;
+        }
       }
     }
   });
