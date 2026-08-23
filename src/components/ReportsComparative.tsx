@@ -468,6 +468,20 @@ export default function ReportsComparative({ services, expenses, subCategories, 
       }
     }
 
+    // Sobra insight (Lucro Livre - Gastos Pessoais)
+    const sobraA = lucroLivreA - metricsA.personalExpensesTotal;
+    const sobraB = lucroLivreB - metricsB.personalExpensesTotal;
+    const sobraVar = getVariance(sobraA, sobraB);
+    summaryText += `\n\n**Análise da Sobra Comparativa**: `;
+    summaryText += `Ao subtrair os Gastos Pessoais do Lucro Livre, a Sobra do período "${labelMonthA}" foi de ${formatCurrency(sobraA)} e no período "${labelMonthB}" foi de ${formatCurrency(sobraB)}. `;
+    if (sobraVar.diff > 0) {
+      summaryText += `Houve um saldo de sobra ${formatCurrency(sobraVar.diff)} maior (+${sobraVar.pct.toFixed(1)}%) em "${labelMonthA}" em comparação a "${labelMonthB}".`;
+    } else if (sobraVar.diff < 0) {
+      summaryText += `Houve um saldo de sobra ${formatCurrency(Math.abs(sobraVar.diff))} menor (${sobraVar.pct.toFixed(1)}%) em "${labelMonthA}" em comparação a "${labelMonthB}".`;
+    } else {
+      summaryText += `A sobra final foi equivalente em ambos os períodos.`;
+    }
+
     return summaryText;
   }, [metricsA, metricsB, revenueCategoriesComparison, expenseCategoriesComparison, startDateA, endDateA, startDateB, endDateB, pessoaisExpenseCats, servicosRevenueCats, servicosExpenseCats, labelMonthA, labelMonthB]);
 
@@ -706,82 +720,177 @@ export default function ReportsComparative({ services, expenses, subCategories, 
           </div>
         </div>
 
-        {/* Gastos Pessoais Comparativo Card */}
-        <div className="bg-[#161B22] border border-slate-800 rounded-2xl p-6 relative overflow-hidden">
-          <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-violet-500 to-fuchsia-500"></div>
-          <div className="flex justify-between items-start mb-3">
-            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Gastos Pessoais Comparativo</span>
-            <div className="p-2 rounded-lg bg-violet-500/10 text-violet-400">
-              <User size={16} />
-            </div>
-          </div>
-          
-          <div className="space-y-3">
-            <div className="flex justify-between items-baseline">
-              <span className="text-xs text-slate-450">Período "{labelMonthA}":</span>
-              <span className="text-lg font-black text-white font-mono">
-                {formatCurrency(metricsA.personalExpensesTotal)}
-              </span>
-            </div>
-            <div className="flex justify-between items-baseline border-b border-slate-850 pb-2.5">
-              <span className="text-xs text-slate-450">Período "{labelMonthB}":</span>
-              <span className="text-sm font-bold text-slate-400 font-mono">
-                {formatCurrency(metricsB.personalExpensesTotal)}
-              </span>
+        {/* Right Column: Gastos Pessoais & Sobra Comparativo */}
+        <div className="space-y-6">
+          {/* Gastos Pessoais Comparativo Card */}
+          <div className="bg-[#161B22] border border-slate-800 rounded-2xl p-6 relative overflow-hidden">
+            <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-violet-500 to-fuchsia-500"></div>
+            <div className="flex justify-between items-start mb-3">
+              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Gastos Pessoais Comparativo</span>
+              <div className="p-2 rounded-lg bg-violet-500/10 text-violet-400">
+                <User size={16} />
+              </div>
             </div>
             
-            {/* Variance */}
-            {(() => {
-              const { diff, pct } = getVariance(metricsA.personalExpensesTotal, metricsB.personalExpensesTotal);
-              return (
-                <div className="flex justify-between items-center text-xs pt-1 border-b border-slate-850 pb-2.5">
-                  <span className="text-slate-400">Variação:</span>
-                  <span className={`font-bold font-mono flex items-center gap-1 ${diff <= 0 ? 'text-emerald-400' : 'text-rose-455'}`}>
-                    {diff > 0 ? '+' : ''}{formatCurrency(diff)} ({diff > 0 ? '+' : ''}{pct.toFixed(1)}%)
-                  </span>
-                </div>
-              );
-            })()}
+            <div className="space-y-3">
+              <div className="flex justify-between items-baseline">
+                <span className="text-xs text-slate-450">Período "{labelMonthA}":</span>
+                <span className="text-lg font-black text-white font-mono">
+                  {formatCurrency(metricsA.personalExpensesTotal)}
+                </span>
+              </div>
+              <div className="flex justify-between items-baseline border-b border-slate-850 pb-2.5">
+                <span className="text-xs text-slate-450">Período "{labelMonthB}":</span>
+                <span className="text-sm font-bold text-slate-400 font-mono">
+                  {formatCurrency(metricsB.personalExpensesTotal)}
+                </span>
+              </div>
+              
+              {/* Variance */}
+              {(() => {
+                const { diff, pct } = getVariance(metricsA.personalExpensesTotal, metricsB.personalExpensesTotal);
+                return (
+                  <div className="flex justify-between items-center text-xs pt-1 border-b border-slate-850 pb-2.5">
+                    <span className="text-slate-400">Variação:</span>
+                    <span className={`font-bold font-mono flex items-center gap-1 ${diff <= 0 ? 'text-emerald-400' : 'text-rose-455'}`}>
+                      {diff > 0 ? '+' : ''}{formatCurrency(diff)} ({diff > 0 ? '+' : ''}{pct.toFixed(1)}%)
+                    </span>
+                  </div>
+                );
+              })()}
 
-            {/* Category-by-category considerations */}
-            <div className="space-y-2 pt-1.5 animate-fadeIn">
-              <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider block border-b border-slate-880/40 pb-1">Considerações por Categoria</span>
-              {personalExpenseCategoriesComparison.length === 0 ? (
-                <p className="text-[10px] text-slate-500 italic">Nenhuma categoria de gasto pessoal selecionada no painel principal.</p>
-              ) : (
-                <div className="space-y-2 select-none">
-                  {personalExpenseCategoriesComparison.map(item => {
-                    const hasA = item.valA > 0;
-                    const hasB = item.valB > 0;
-                    if (!hasA && !hasB) return null; // skip empty categories in both periods
+              {/* Category-by-category considerations */}
+              <div className="space-y-2 pt-1.5 animate-fadeIn">
+                <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider block border-b border-slate-880/40 pb-1">Considerações por Categoria</span>
+                {personalExpenseCategoriesComparison.length === 0 ? (
+                  <p className="text-[10px] text-slate-500 italic">Nenhuma categoria de gasto pessoal selecionada no painel principal.</p>
+                ) : (
+                  <div className="space-y-2 select-none">
+                    {personalExpenseCategoriesComparison.map(item => {
+                      const hasA = item.valA > 0;
+                      const hasB = item.valB > 0;
+                      if (!hasA && !hasB) return null; // skip empty categories in both periods
 
-                    const diffVal = item.valA - item.valB;
-                    const trendColor = diffVal <= 0 ? 'text-emerald-400' : 'text-rose-455';
-                    const trendIcon = diffVal > 0 ? '🔺' : diffVal < 0 ? '🔻' : '➖';
-                    const trendText = diffVal > 0 ? 'Aumentou' : diffVal < 0 ? 'Diminuiu' : 'Estável';
+                      const diffVal = item.valA - item.valB;
+                      const trendColor = diffVal <= 0 ? 'text-emerald-400' : 'text-rose-455';
+                      const trendIcon = diffVal > 0 ? '🔺' : diffVal < 0 ? '🔻' : '➖';
+                      const trendText = diffVal > 0 ? 'Aumentou' : diffVal < 0 ? 'Diminuiu' : 'Estável';
 
-                    return (
-                      <div key={item.category} className="p-2 bg-[#0F1115] rounded-xl border border-slate-850 text-[11px] space-y-1">
-                        <div className="flex justify-between font-bold text-slate-200 uppercase tracking-wide">
-                          <span className="truncate max-w-[120px]" title={item.category}>{item.category}</span>
-                          <span className={`${trendColor} flex items-center gap-0.5 text-[10px]`}>
-                            {trendText} {trendIcon}
+                      return (
+                        <div key={item.category} className="p-2 bg-[#0F1115] rounded-xl border border-slate-850 text-[11px] space-y-1">
+                          <div className="flex justify-between font-bold text-slate-200 uppercase tracking-wide">
+                            <span className="truncate max-w-[120px]" title={item.category}>{item.category}</span>
+                            <span className={`${trendColor} flex items-center gap-0.5 text-[10px]`}>
+                              {trendText} {trendIcon}
+                            </span>
+                          </div>
+                          <div className="flex justify-between text-[10px] text-slate-450 font-medium font-mono">
+                            <span>{labelMonthA}: {formatCurrency(item.valA)}</span>
+                            <span>{labelMonthB}: {formatCurrency(item.valB)}</span>
+                          </div>
+                          {diffVal !== 0 && (
+                            <div className={`text-[9px] font-mono font-bold ${trendColor} text-right`}>
+                              Var: {diffVal > 0 ? '+' : ''}{formatCurrency(diffVal)} ({diffVal > 0 ? '+' : ''}{item.pct.toFixed(1)}%)
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* Sobra Comparativo Card */}
+          <div className="bg-[#161B22] border border-slate-800 rounded-2xl p-6 relative overflow-hidden">
+            <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-emerald-400 via-teal-500 to-cyan-500"></div>
+            <div className="flex justify-between items-start mb-3">
+              <div>
+                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Sobra Comparativo</span>
+                <span className="text-[9px] text-slate-500 font-medium">Lucro Livre - Gastos Pessoais</span>
+              </div>
+              <div className="p-2 rounded-lg bg-teal-500/10 text-teal-400">
+                <Coins size={16} />
+              </div>
+            </div>
+            
+            <div className="space-y-3">
+              {(() => {
+                const totalLivreA = metricsA.selectedPaidRevenues - metricsA.selectedExpenses;
+                const totalLivreB = metricsB.selectedPaidRevenues - metricsB.selectedExpenses;
+                const sobraA = totalLivreA - metricsA.personalExpensesTotal;
+                const sobraB = totalLivreB - metricsB.personalExpensesTotal;
+                const { diff, pct } = getVariance(sobraA, sobraB);
+
+                return (
+                  <>
+                    <div className="flex justify-between items-baseline">
+                      <span className="text-xs text-slate-450">Período "{labelMonthA}":</span>
+                      <span className={`text-lg font-black font-mono ${sobraA >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+                        {formatCurrency(sobraA)}
+                      </span>
+                    </div>
+                    <div className="flex justify-between items-baseline border-b border-slate-850 pb-2.5">
+                      <span className="text-xs text-slate-450">Período "{labelMonthB}":</span>
+                      <span className={`text-sm font-bold font-mono ${sobraB >= 0 ? 'text-slate-300' : 'text-rose-400'}`}>
+                        {formatCurrency(sobraB)}
+                      </span>
+                    </div>
+                    
+                    {/* Variance */}
+                    <div className="flex justify-between items-center text-xs pt-1 border-b border-slate-850 pb-2.5">
+                      <span className="text-slate-400">Variação:</span>
+                      <span className={`font-bold font-mono flex items-center gap-1 ${diff >= 0 ? 'text-emerald-400' : 'text-rose-455'}`}>
+                        {diff >= 0 ? '+' : ''}{formatCurrency(diff)} ({diff >= 0 ? '+' : ''}{pct.toFixed(1)}%)
+                      </span>
+                    </div>
+
+                    {/* Mathematical Formula breakdown for each period */}
+                    <div className="space-y-2 pt-1.5 animate-fadeIn">
+                      <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider block border-b border-slate-850/40 pb-1">Detalhamento da Operação</span>
+                      
+                      {/* Period A Calculation */}
+                      <div className="p-2.5 bg-[#0F1115] rounded-xl border border-slate-850 text-[11px] space-y-1.5">
+                        <div className="flex justify-between items-center font-bold text-slate-200 uppercase tracking-wide">
+                          <span className="text-emerald-400 text-[10px]">Período "{labelMonthA}"</span>
+                          <span className={`font-mono text-[10px] ${sobraA >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+                            {sobraA >= 0 ? 'Saldo Positivo' : 'Déficit'}
                           </span>
                         </div>
-                        <div className="flex justify-between text-[10px] text-slate-450 font-medium font-mono">
-                          <span>{labelMonthA}: {formatCurrency(item.valA)}</span>
-                          <span>{labelMonthB}: {formatCurrency(item.valB)}</span>
+                        <div className="flex items-center justify-between text-[10px] text-slate-400 font-mono">
+                          <span>Lucro Livre: <strong className="text-slate-200">{formatCurrency(totalLivreA)}</strong></span>
+                          <span>-</span>
+                          <span>Pessoais: <strong className="text-slate-200">{formatCurrency(metricsA.personalExpensesTotal)}</strong></span>
                         </div>
-                        {diffVal !== 0 && (
-                          <div className={`text-[9px] font-mono font-bold ${trendColor} text-right`}>
-                            Var: {diffVal > 0 ? '+' : ''}{formatCurrency(diffVal)} ({diffVal > 0 ? '+' : ''}{item.pct.toFixed(1)}%)
-                          </div>
-                        )}
+                        <div className="pt-1 border-t border-slate-800/60 flex justify-between items-center text-[10px] font-mono font-bold">
+                          <span className="text-slate-400 uppercase text-[9px]">Sobra Final:</span>
+                          <span className={sobraA >= 0 ? 'text-emerald-400' : 'text-rose-400'}>{formatCurrency(sobraA)}</span>
+                        </div>
                       </div>
-                    );
-                  })}
-                </div>
-              )}
+
+                      {/* Period B Calculation */}
+                      <div className="p-2.5 bg-[#0F1115] rounded-xl border border-slate-850 text-[11px] space-y-1.5">
+                        <div className="flex justify-between items-center font-bold text-slate-200 uppercase tracking-wide">
+                          <span className="text-blue-400 text-[10px]">Período "{labelMonthB}"</span>
+                          <span className={`font-mono text-[10px] ${sobraB >= 0 ? 'text-slate-300' : 'text-rose-400'}`}>
+                            {sobraB >= 0 ? 'Saldo Positivo' : 'Déficit'}
+                          </span>
+                        </div>
+                        <div className="flex items-center justify-between text-[10px] text-slate-400 font-mono">
+                          <span>Lucro Livre: <strong className="text-slate-300">{formatCurrency(totalLivreB)}</strong></span>
+                          <span>-</span>
+                          <span>Pessoais: <strong className="text-slate-300">{formatCurrency(metricsB.personalExpensesTotal)}</strong></span>
+                        </div>
+                        <div className="pt-1 border-t border-slate-800/60 flex justify-between items-center text-[10px] font-mono font-bold">
+                          <span className="text-slate-400 uppercase text-[9px]">Sobra Final:</span>
+                          <span className={sobraB >= 0 ? 'text-slate-200' : 'text-rose-400'}>{formatCurrency(sobraB)}</span>
+                        </div>
+                      </div>
+                    </div>
+                  </>
+                );
+              })()}
             </div>
           </div>
         </div>
