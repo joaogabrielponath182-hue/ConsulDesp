@@ -1232,6 +1232,12 @@ export default function Expenses({
                                   {expense.items?.length} Veículos
                                 </span>
                               )}
+
+                              {expense.operator && (
+                                <span className="text-[9px] bg-slate-800 text-slate-300 px-2 py-0.5 rounded border border-slate-700 font-mono select-none" title="Operador responsável">
+                                  Op: {expense.operator}
+                                </span>
+                              )}
                             </div>
                             
                             <h4 className="text-sm font-bold text-white font-sans">{expense.description}</h4>

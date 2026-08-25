@@ -42,6 +42,7 @@ interface LedgerItem {
   paidValue?: number;
   pendingValue?: number;
   items?: Array<{ name: string; value: number }>;
+  operator?: string;
 }
 interface MultiSelectOption {
   id: string;
@@ -686,6 +687,7 @@ export default function Reports({ services, expenses, subCategories }: ReportsPr
           status: isGroupPending,
           paidValue: paidValue,
           pendingValue: pendingValue,
+          operator: group.services[0]?.operator,
           items: group.services.flatMap(s => 
             s.items.map(it => ({ 
               name: `[${s.plate}] ${it.name}${s.status === 'PENDENTE' ? ' (Pendente)' : ''}`, 
@@ -709,6 +711,7 @@ export default function Reports({ services, expenses, subCategories }: ReportsPr
           status: s.status,
           paidValue: isPend ? 0 : s.totalValue,
           pendingValue: isPend ? s.totalValue : 0,
+          operator: s.operator,
           items: s.items.map(it => ({ name: it.name, value: it.value }))
         });
       }
@@ -725,6 +728,7 @@ export default function Reports({ services, expenses, subCategories }: ReportsPr
         plate: e.plate,
         paymentMethod: e.paymentMethod || 'PIX',
         value: e.value,
+        operator: e.operator,
         items: e.items ? e.items.map(it => ({ name: `Placa: ${it.plate}`, value: it.value })) : undefined
       });
     });
@@ -968,6 +972,13 @@ export default function Reports({ services, expenses, subCategories }: ReportsPr
                                 </span>
                               ))}
                             </div>
+                          )}
+
+                          {/* Operator badge */}
+                          {item.operator && (
+                            <span className="text-[9px] bg-slate-800 text-slate-300 font-mono font-bold px-2 py-0.5 rounded border border-slate-700 select-none" title="Operador responsável">
+                              Op: {item.operator}
+                            </span>
                           )}
                         </div>
 

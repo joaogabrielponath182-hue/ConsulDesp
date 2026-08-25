@@ -558,16 +558,29 @@ export default function Dashboard({
     });
 
     const calcAvg = (stat: { count: number; total: number }) => (stat.count > 0 ? stat.total / stat.count : 0);
+    const calcAvgWithTermosDeduction = (stat: { count: number; total: number }) => {
+      if (stat.count <= 0) return 0;
+      const termosCost = stat.count * 10;
+      return (stat.total - termosCost) / stat.count;
+    };
 
     // Quantidade de termos consumidos: subtrai R$ 35 da mensalidade e divide o restante por R$ 10 por termo
     const termosQty = termosGasto > 35 ? Math.round((termosGasto - 35) / 10) : 0;
 
     return {
-      honorarios: { ...honorarios, avg: calcAvg(honorarios) },
+      honorarios: { 
+        ...honorarios, 
+        termosCost: honorarios.count * 10,
+        avg: calcAvgWithTermosDeduction(honorarios) 
+      },
       honorariosRevenda: { ...honorariosRevenda, avg: calcAvg(honorariosRevenda) },
       placas: { ...placas, avg: calcAvg(placas) },
       retCrlve: { ...retCrlve, avg: calcAvg(retCrlve) },
-      atpv: { ...atpv, avg: calcAvg(atpv) },
+      atpv: { 
+        ...atpv, 
+        termosCost: atpv.count * 10,
+        avg: calcAvgWithTermosDeduction(atpv) 
+      },
       termos: { totalGasto: termosGasto, count: termosQty }
     };
   }, [servicesThisMonth, expensesThisMonth]);
@@ -636,6 +649,371 @@ export default function Dashboard({
 
   // Set selected hover data state for interactive chart tooltip
   const [hoveredBarIndex, setHoveredBarIndex] = useState<number | null>(null);
+
+  const isAdmin = currentSession?.isAdmin === true;
+
+  // Reusable Card: Serviços Prestados
+  const renderServicosPrestadosCard = () => (
+    <div className="bg-[#161B22] border border-slate-800 rounded-2xl p-6 shadow-sm relative overflow-hidden group">
+      <div className="absolute top-0 left-0 w-1.5 h-full bg-amber-500"></div>
+      <div className="flex justify-between items-start">
+        <div className="flex-1">
+          <p className="text-slate-400 text-xs font-semibold uppercase tracking-wider">Serviços Prestados</p>
+          <div className="space-y-2 mt-3">
+            <div className="flex justify-between items-center text-xs text-slate-300 pb-2 border-b border-slate-800/60">
+              <div>
+                <span className="font-bold text-slate-300 uppercase text-[10px] block">Honorário</span>
+                <span className="text-[10px] text-slate-400 font-mono block mt-0.5">
+                  TERMOS CONSUMIDOS: <span className="text-slate-200 font-semibold">{formatCurrency(subcategoryStats.honorarios.termosCost)}</span>
+                </span>
+                <span className="text-[10px] text-slate-400 font-mono block mt-0.5">
+                  Média: <span className="text-slate-200 font-semibold">{formatCurrency(subcategoryStats.honorarios.avg)}</span>
+                </span>
+              </div>
+              <span className="font-mono text-xs font-extrabold text-emerald-400">
+                {subcategoryStats.honorarios.count}
+              </span>
+            </div>
+            <div className="flex justify-between items-center text-xs text-slate-300 pb-2 border-b border-slate-800/60">
+              <div>
+                <span className="font-bold text-slate-300 uppercase text-[10px] block">Honorário Revenda</span>
+                <span className="text-[10px] text-slate-400 font-mono block mt-0.5">
+                  Média: <span className="text-slate-200 font-semibold">{formatCurrency(subcategoryStats.honorariosRevenda.avg)}</span>
+                </span>
+              </div>
+              <span className="font-mono text-xs font-extrabold text-teal-400">
+                {subcategoryStats.honorariosRevenda.count}
+              </span>
+            </div>
+            <div className="flex justify-between items-center text-xs text-slate-300 pb-2 border-b border-slate-800/60">
+              <div>
+                <span className="font-bold text-slate-300 uppercase text-[10px] block">Placa</span>
+                <span className="text-[10px] text-slate-400 font-mono block mt-0.5">
+                  Média: <span className="text-slate-200 font-semibold">{formatCurrency(subcategoryStats.placas.avg)}</span>
+                </span>
+              </div>
+              <span className="font-mono text-xs font-extrabold text-amber-400">
+                {subcategoryStats.placas.count}
+              </span>
+            </div>
+            <div className="flex justify-between items-center text-xs text-slate-300 pb-2 border-b border-slate-800/60">
+              <div>
+                <span className="font-bold text-slate-300 uppercase text-[10px] block">Ret. CRLV-E</span>
+                <span className="text-[10px] text-slate-400 font-mono block mt-0.5">
+                  Média: <span className="text-slate-200 font-semibold">{formatCurrency(subcategoryStats.retCrlve.avg)}</span>
+                </span>
+              </div>
+              <span className="font-mono text-xs font-extrabold text-blue-400">
+                {subcategoryStats.retCrlve.count}
+              </span>
+            </div>
+            <div className="flex justify-between items-center text-xs text-slate-300 pb-2 border-b border-slate-800/60">
+              <div>
+                <span className="font-bold text-slate-300 uppercase text-[10px] block">ATPV-E</span>
+                <span className="text-[10px] text-slate-400 font-mono block mt-0.5">
+                  TERMOS CONSUMIDOS: <span className="text-slate-200 font-semibold">{formatCurrency(subcategoryStats.atpv.termosCost)}</span>
+                </span>
+                <span className="text-[10px] text-slate-400 font-mono block mt-0.5">
+                  Média: <span className="text-slate-200 font-semibold">{formatCurrency(subcategoryStats.atpv.avg)}</span>
+                </span>
+              </div>
+              <span className="font-mono text-xs font-extrabold text-teal-400">
+                {subcategoryStats.atpv.count}
+              </span>
+            </div>
+            <div className="flex justify-between items-center text-xs text-slate-300">
+              <div>
+                <span className="font-bold text-slate-300 uppercase text-[10px] block">Termos</span>
+                <span className="text-[10px] text-slate-400 font-mono block mt-0.5">
+                  Gasto: <span className="text-slate-200 font-semibold">{formatCurrency(subcategoryStats.termos.totalGasto)}</span>
+                </span>
+              </div>
+              <span className="font-mono text-xs font-extrabold text-indigo-400" title={`${subcategoryStats.termos.count} termos consumidos no mês`}>
+                {subcategoryStats.termos.count}
+              </span>
+            </div>
+          </div>
+        </div>
+        <div className="p-3 rounded-xl bg-amber-500/10 text-amber-400 shrink-0">
+          <Layers size={20} />
+        </div>
+      </div>
+      <div className="mt-4 text-[10px] text-slate-500 border-t border-slate-800/80 pt-3">
+        Quantidade de lançamentos e valor médio cobrado por serviço no mês selecionado
+      </div>
+    </div>
+  );
+
+  // Reusable Card: Saldo Líquido Geral
+  const renderSaldoLiquidoGeralCard = () => (
+    <div className="bg-[#161B22] border border-slate-800 rounded-2xl p-6 shadow-sm relative overflow-hidden group">
+      <div className="absolute top-0 left-0 w-1.5 h-full bg-blue-500"></div>
+      <div className="flex justify-between items-start mb-4">
+        <div className="flex-1">
+          <p className="text-slate-400 text-xs font-semibold uppercase tracking-wider">Saldo Líquido Geral</p>
+          <h3 className={`text-2xl font-bold mt-1.5 font-sans tracking-tight ${netBalanceAllTime >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+            {formatCurrency(netBalanceAllTime)}
+          </h3>
+        </div>
+        <div className="p-3 rounded-xl bg-blue-500/10 text-blue-400">
+          <DollarSign size={20} />
+        </div>
+      </div>
+
+      <div className="space-y-4 pt-3 border-t border-slate-800/80">
+        {/* DINHEIRO Section */}
+        <div>
+          <div className="flex items-center gap-1.5 mb-1">
+            <span className="w-2 h-2 rounded-full bg-amber-500"></span>
+            <span className="text-xs font-bold text-slate-300 uppercase tracking-wider">Dinheiro</span>
+          </div>
+          <div className="grid grid-cols-3 gap-2 bg-slate-900/40 p-2.5 rounded-xl border border-slate-800/50 text-[11px]">
+            <div>
+              <span className="text-slate-500 block text-[9px] uppercase font-semibold">Faturado</span>
+              <span className="font-mono text-slate-300 font-semibold">{formatCurrency(cashRevenuesAllTime)}</span>
+            </div>
+            <div>
+              <span className="text-slate-500 block text-[9px] uppercase font-semibold">Gastos</span>
+              <span className="font-mono text-slate-300 font-semibold">{formatCurrency(cashExpensesAllTime)}</span>
+            </div>
+            <div className="text-right">
+              <span className="text-slate-500 block text-[9px] uppercase font-semibold">Saldo</span>
+              <span className={`font-mono font-bold ${cashBalanceAllTime >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+                {formatCurrency(cashBalanceAllTime)}
+              </span>
+            </div>
+          </div>
+
+          {/* Conferência Diária de Caixa (Dinheiro Vivo em Notas) */}
+          <div className="mt-2.5 bg-amber-950/20 border border-amber-500/25 rounded-xl p-2.5 text-[11px] space-y-2">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-1.5">
+                <span className="text-[10px] font-bold text-amber-400 uppercase tracking-wider">Dinheiro em Caixa</span>
+                <span className="text-[9px] text-slate-500">(Conferência em Notas)</span>
+              </div>
+              {drawerCashInput && (
+                <button
+                  type="button"
+                  onClick={() => setDrawerCashInput('')}
+                  className="text-[9px] text-slate-400 hover:text-amber-300 transition-colors"
+                  title="Limpar cálculo"
+                >
+                  Limpar
+                </button>
+              )}
+            </div>
+
+            <div>
+              <input
+                type="text"
+                value={drawerCashInput}
+                onChange={(e) => setDrawerCashInput(e.target.value)}
+                placeholder="Somar notas ex: 100 + 20 + 80 + 450"
+                className="w-full bg-slate-950/90 border border-slate-700/80 rounded-lg px-2.5 py-1 text-xs font-mono text-amber-300 placeholder-slate-600 focus:outline-none focus:border-amber-500/60 transition-colors"
+              />
+            </div>
+
+            <div className="grid grid-cols-2 gap-2 pt-1.5 border-t border-slate-800/80 text-[11px]">
+              <div>
+                <span className="text-slate-400 block text-[9px] uppercase font-semibold">Total em Notas</span>
+                <span className="font-mono text-amber-300 font-bold text-xs">
+                  {formatCurrency(evaluatedDrawerCash)}
+                </span>
+              </div>
+              <div className="text-right">
+                <span className="text-slate-400 block text-[9px] uppercase font-semibold">Diferença vs Saldo</span>
+                <span
+                  className={`font-mono font-bold text-xs ${
+                    evaluatedDrawerCash === 0 && !drawerCashInput.trim()
+                      ? 'text-slate-400'
+                      : (evaluatedDrawerCash - cashBalanceAllTime) === 0
+                      ? 'text-emerald-400'
+                      : (evaluatedDrawerCash - cashBalanceAllTime) > 0
+                      ? 'text-emerald-400'
+                      : 'text-rose-400'
+                  }`}
+                >
+                  {evaluatedDrawerCash === 0 && !drawerCashInput.trim()
+                    ? formatCurrency(0)
+                    : ((evaluatedDrawerCash - cashBalanceAllTime) > 0 ? '+' : '') + formatCurrency(evaluatedDrawerCash - cashBalanceAllTime)}
+                </span>
+              </div>
+            </div>
+
+            {drawerCashInput.trim() !== '' && (
+              <div className="text-[9.5px] pt-1 border-t border-slate-800/50 flex items-center justify-between font-mono">
+                <span className="text-slate-400 font-sans">Status da Gaveta:</span>
+                {(evaluatedDrawerCash - cashBalanceAllTime) === 0 ? (
+                  <span className="text-emerald-400 font-semibold font-sans">✓ Caixa Bateu Exatamente!</span>
+                ) : (evaluatedDrawerCash - cashBalanceAllTime) > 0 ? (
+                  <span className="text-emerald-400 font-semibold font-sans">▲ Sobra: {formatCurrency(evaluatedDrawerCash - cashBalanceAllTime)}</span>
+                ) : (
+                  <span className="text-rose-400 font-semibold font-sans">▼ Falta: {formatCurrency(Math.abs(evaluatedDrawerCash - cashBalanceAllTime))}</span>
+                )}
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* PIX Section */}
+        <div>
+          <div className="flex items-center gap-1.5 mb-1">
+            <span className="w-2 h-2 rounded-full bg-teal-500"></span>
+            <span className="text-xs font-bold text-slate-300 uppercase tracking-wider">Pix</span>
+          </div>
+          <div className="grid grid-cols-3 gap-2 bg-slate-900/40 p-2.5 rounded-xl border border-slate-800/50 text-[11px]">
+            <div>
+              <span className="text-slate-500 block text-[9px] uppercase font-semibold">Faturado</span>
+              <span className="font-mono text-slate-300 font-semibold">{formatCurrency(pixRevenuesAllTime)}</span>
+            </div>
+            <div>
+              <span className="text-slate-500 block text-[9px] uppercase font-semibold">Gastos</span>
+              <span className="font-mono text-slate-300 font-semibold">{formatCurrency(pixExpensesAllTime)}</span>
+            </div>
+            <div className="text-right">
+              <span className="text-slate-500 block text-[9px] uppercase font-semibold">Saldo</span>
+              <span className={`font-mono font-bold ${pixBalanceAllTime >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+                {formatCurrency(pixBalanceAllTime)}
+              </span>
+            </div>
+          </div>
+        </div>
+
+        {/* TOTAL Section */}
+        <div>
+          <div className="flex items-center gap-1.5 mb-1">
+            <span className="w-2 h-2 rounded-full bg-blue-500"></span>
+            <span className="text-xs font-bold text-slate-300 uppercase tracking-wider">Total</span>
+          </div>
+          <div className="grid grid-cols-3 gap-2 bg-slate-900/60 p-2.5 rounded-xl border border-slate-700/50 text-[11px]">
+            <div>
+              <span className="text-slate-400 block text-[9px] uppercase font-semibold">Faturado</span>
+              <span className="font-mono text-slate-200 font-semibold">{formatCurrency(totalRevenuesAllTime)}</span>
+            </div>
+            <div>
+              <span className="text-slate-400 block text-[9px] uppercase font-semibold">Gastos</span>
+              <span className="font-mono text-slate-200 font-semibold">{formatCurrency(totalExpensesAllTime)}</span>
+            </div>
+            <div className="text-right">
+              <span className="text-slate-400 block text-[9px] uppercase font-semibold">Saldo</span>
+              <span className={`font-mono font-bold ${netBalanceAllTime >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+                {formatCurrency(netBalanceAllTime)}
+              </span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div className="mt-4 text-[10px] text-slate-500 border-t border-slate-800/80 pt-3 flex items-center justify-between">
+        <span>Filtro: Acumulado (Todos os Lançamentos)</span>
+        <span className="font-mono text-slate-400">Geral</span>
+      </div>
+    </div>
+  );
+
+  // Reusable Card: Contas a Receber
+  const renderContasAReceberCard = () => (
+    <div 
+      onClick={() => onNavigate('reports-pending')}
+      className="bg-[#161B22] border border-slate-800 rounded-2xl p-6 shadow-sm mb-6 hover:border-amber-500/45 hover:bg-slate-800/10 transition-all cursor-pointer relative overflow-hidden group select-none flex flex-col sm:flex-row sm:items-center justify-between gap-4"
+    >
+      <div className="absolute top-0 left-0 w-1.5 h-full bg-amber-500"></div>
+      <div className="flex items-center gap-4">
+        <div className="p-3 rounded-xl bg-amber-500/10 text-amber-500 shrink-0">
+          <Clock size={24} />
+        </div>
+        <div>
+          <span className="text-slate-400 text-xs font-semibold uppercase tracking-wider block">Contas a Receber</span>
+          <div className="flex items-baseline gap-2 mt-1">
+            <h3 className="text-2xl font-bold text-amber-500 font-mono">
+              {formatCurrency(totalPendingAllTime)}
+            </h3>
+            <span className="text-xs text-slate-400 font-medium">
+              ({pendingServicesAllTime.length} {pendingServicesAllTime.length === 1 ? 'lançamento pendente' : 'lançamentos pendentes'})
+            </span>
+          </div>
+          <p className="text-xs text-slate-450 mt-1">Clique para abrir o relatório de serviços filtrado por faturas pendentes</p>
+        </div>
+      </div>
+      <div className="flex items-center gap-1.5 bg-amber-500/10 hover:bg-amber-500/20 text-amber-400 text-xs font-bold px-4 py-2 rounded-xl transition-all border border-amber-500/20 group-hover:border-amber-500/40 cursor-pointer self-start sm:self-center">
+        <span>Ver Detalhes</span>
+        <FileText size={14} />
+      </div>
+    </div>
+  );
+
+  // OPERATOR VIEW: Simplified layout with only the 3 requested cards
+  if (!isAdmin) {
+    return (
+      <div className="space-y-8 animate-fadeIn">
+        {/* Upper header */}
+        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 border-b border-slate-800 pb-5">
+          <div className="flex-1">
+            <h1 className="text-3xl font-bold tracking-tight text-white">Painel Geral</h1>
+            <p className="text-slate-450 text-sm mt-1">
+              Visão geral operacional ({monthsOptions.find(m => m.value === selectedMonth)?.label}/{selectedYear})
+            </p>
+            
+            {/* Month & Year Selectors */}
+            <div className="flex flex-wrap items-center gap-3 mt-4">
+              <div className="flex items-center gap-1.5">
+                <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Mês:</span>
+                <select
+                  value={selectedMonth}
+                  onChange={e => setSelectedMonth(e.target.value)}
+                  className="px-3.5 py-1.5 bg-[#161B22] border border-slate-800 rounded-xl text-xs focus:outline-none focus:border-emerald-500 text-slate-200 font-bold cursor-pointer transition-all uppercase"
+                >
+                  {monthsOptions.map(m => (
+                    <option key={m.value} value={m.value}>{m.label}</option>
+                  ))}
+                </select>
+              </div>
+              
+              <div className="flex items-center gap-1.5">
+                <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Ano:</span>
+                <select
+                  value={selectedYear}
+                  onChange={e => setSelectedYear(e.target.value)}
+                  className="px-3.5 py-1.5 bg-[#161B22] border border-slate-800 rounded-xl text-xs focus:outline-none focus:border-emerald-500 text-slate-200 font-bold cursor-pointer transition-all font-mono"
+                >
+                  {availableYears.map(y => (
+                    <option key={y} value={y}>{y}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
+          </div>
+          <div className="flex flex-wrap gap-3">
+            <button
+              onClick={onOpenNewServiceModal}
+              id="btn-quick-service"
+              className="flex items-center gap-2 px-4 py-2.5 bg-emerald-600 hover:bg-emerald-500 active:bg-emerald-700 text-white font-medium text-sm rounded-xl shadow-lg shadow-emerald-950/20 transition-all cursor-pointer border border-emerald-500/20"
+            >
+              <Plus size={16} />
+              Novo Serviço
+            </button>
+            <button
+              onClick={onOpenNewExpenseModal}
+              id="btn-quick-expense"
+              className="flex items-center gap-2 px-4 py-2.5 bg-slate-850 hover:bg-slate-800 active:bg-slate-900 text-slate-100 font-medium text-sm rounded-xl shadow-sm border border-slate-700 transition-all cursor-pointer"
+            >
+              <Plus size={16} />
+              Registrar Gasto
+            </button>
+          </div>
+        </div>
+
+        {/* Operator KPI Grid: Serviços Prestados & Saldo Líquido Geral */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
+          {renderServicosPrestadosCard()}
+          {renderSaldoLiquidoGeralCard()}
+        </div>
+
+        {/* Contas a Receber */}
+        {renderContasAReceberCard()}
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-8 animate-fadeIn">
@@ -841,253 +1219,10 @@ export default function Dashboard({
           </div>
 
           {/* Metric Card: Serviços Prestados */}
-          <div className="bg-[#161B22] border border-slate-800 rounded-2xl p-6 shadow-sm relative overflow-hidden group">
-            <div className="absolute top-0 left-0 w-1.5 h-full bg-amber-500"></div>
-            <div className="flex justify-between items-start">
-              <div className="flex-1">
-                <p className="text-slate-400 text-xs font-semibold uppercase tracking-wider">Serviços Prestados</p>
-                <div className="space-y-2 mt-3">
-                  <div className="flex justify-between items-center text-xs text-slate-300 pb-2 border-b border-slate-800/60">
-                    <div>
-                      <span className="font-bold text-slate-300 uppercase text-[10px] block">Honorário</span>
-                      <span className="text-[10px] text-slate-400 font-mono block mt-0.5">
-                        Média: <span className="text-slate-200 font-semibold">{formatCurrency(subcategoryStats.honorarios.avg)}</span>
-                      </span>
-                    </div>
-                    <span className="font-mono text-xs font-extrabold text-emerald-400">
-                      {subcategoryStats.honorarios.count}
-                    </span>
-                  </div>
-                  <div className="flex justify-between items-center text-xs text-slate-300 pb-2 border-b border-slate-800/60">
-                    <div>
-                      <span className="font-bold text-slate-300 uppercase text-[10px] block">Honorário Revenda</span>
-                      <span className="text-[10px] text-slate-400 font-mono block mt-0.5">
-                        Média: <span className="text-slate-200 font-semibold">{formatCurrency(subcategoryStats.honorariosRevenda.avg)}</span>
-                      </span>
-                    </div>
-                    <span className="font-mono text-xs font-extrabold text-teal-400">
-                      {subcategoryStats.honorariosRevenda.count}
-                    </span>
-                  </div>
-                  <div className="flex justify-between items-center text-xs text-slate-300 pb-2 border-b border-slate-800/60">
-                    <div>
-                      <span className="font-bold text-slate-300 uppercase text-[10px] block">Placa</span>
-                      <span className="text-[10px] text-slate-400 font-mono block mt-0.5">
-                        Média: <span className="text-slate-200 font-semibold">{formatCurrency(subcategoryStats.placas.avg)}</span>
-                      </span>
-                    </div>
-                    <span className="font-mono text-xs font-extrabold text-amber-400">
-                      {subcategoryStats.placas.count}
-                    </span>
-                  </div>
-                  <div className="flex justify-between items-center text-xs text-slate-300 pb-2 border-b border-slate-800/60">
-                    <div>
-                      <span className="font-bold text-slate-300 uppercase text-[10px] block">Ret. CRLV-E</span>
-                      <span className="text-[10px] text-slate-400 font-mono block mt-0.5">
-                        Média: <span className="text-slate-200 font-semibold">{formatCurrency(subcategoryStats.retCrlve.avg)}</span>
-                      </span>
-                    </div>
-                    <span className="font-mono text-xs font-extrabold text-blue-400">
-                      {subcategoryStats.retCrlve.count}
-                    </span>
-                  </div>
-                  <div className="flex justify-between items-center text-xs text-slate-300 pb-2 border-b border-slate-800/60">
-                    <div>
-                      <span className="font-bold text-slate-300 uppercase text-[10px] block">ATPV-E</span>
-                      <span className="text-[10px] text-slate-400 font-mono block mt-0.5">
-                        Média: <span className="text-slate-200 font-semibold">{formatCurrency(subcategoryStats.atpv.avg)}</span>
-                      </span>
-                    </div>
-                    <span className="font-mono text-xs font-extrabold text-teal-400">
-                      {subcategoryStats.atpv.count}
-                    </span>
-                  </div>
-                  <div className="flex justify-between items-center text-xs text-slate-300">
-                    <div>
-                      <span className="font-bold text-slate-300 uppercase text-[10px] block">Termos</span>
-                      <span className="text-[10px] text-slate-400 font-mono block mt-0.5">
-                        Gasto: <span className="text-slate-200 font-semibold">{formatCurrency(subcategoryStats.termos.totalGasto)}</span>
-                      </span>
-                    </div>
-                    <span className="font-mono text-xs font-extrabold text-indigo-400" title={`${subcategoryStats.termos.count} termos consumidos no mês`}>
-                      {subcategoryStats.termos.count}
-                    </span>
-                  </div>
-                </div>
-              </div>
-              <div className="p-3 rounded-xl bg-amber-500/10 text-amber-400 shrink-0">
-                <Layers size={20} />
-              </div>
-            </div>
-            <div className="mt-4 text-[10px] text-slate-500 border-t border-slate-800/80 pt-3">
-              Quantidade de lançamentos e valor médio cobrado por serviço no mês selecionado
-            </div>
-          </div>
+          {renderServicosPrestadosCard()}
 
           {/* Metric Card: Saldo Real */}
-          <div className="bg-[#161B22] border border-slate-800 rounded-2xl p-6 shadow-sm relative overflow-hidden group">
-            <div className="absolute top-0 left-0 w-1.5 h-full bg-blue-500"></div>
-            <div className="flex justify-between items-start mb-4">
-              <div className="flex-1">
-                <p className="text-slate-400 text-xs font-semibold uppercase tracking-wider">Saldo Líquido Geral</p>
-                <h3 className={`text-2xl font-bold mt-1.5 font-sans tracking-tight ${netBalanceAllTime >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
-                  {formatCurrency(netBalanceAllTime)}
-                </h3>
-              </div>
-              <div className="p-3 rounded-xl bg-blue-500/10 text-blue-400">
-                <DollarSign size={20} />
-              </div>
-            </div>
-
-            <div className="space-y-4 pt-3 border-t border-slate-800/80">
-              {/* DINHEIRO Section */}
-              <div>
-                <div className="flex items-center gap-1.5 mb-1">
-                  <span className="w-2 h-2 rounded-full bg-amber-500"></span>
-                  <span className="text-xs font-bold text-slate-300 uppercase tracking-wider">Dinheiro</span>
-                </div>
-                <div className="grid grid-cols-3 gap-2 bg-slate-900/40 p-2.5 rounded-xl border border-slate-800/50 text-[11px]">
-                  <div>
-                    <span className="text-slate-500 block text-[9px] uppercase font-semibold">Faturado</span>
-                    <span className="font-mono text-slate-300 font-semibold">{formatCurrency(cashRevenuesAllTime)}</span>
-                  </div>
-                  <div>
-                    <span className="text-slate-500 block text-[9px] uppercase font-semibold">Gastos</span>
-                    <span className="font-mono text-slate-300 font-semibold">{formatCurrency(cashExpensesAllTime)}</span>
-                  </div>
-                  <div className="text-right">
-                    <span className="text-slate-500 block text-[9px] uppercase font-semibold">Saldo</span>
-                    <span className={`font-mono font-bold ${cashBalanceAllTime >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
-                      {formatCurrency(cashBalanceAllTime)}
-                    </span>
-                  </div>
-                </div>
-
-                {/* Conferência Diária de Caixa (Dinheiro Vivo em Notas) */}
-                <div className="mt-2.5 bg-amber-950/20 border border-amber-500/25 rounded-xl p-2.5 text-[11px] space-y-2">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-1.5">
-                      <span className="text-[10px] font-bold text-amber-400 uppercase tracking-wider">Dinheiro em Caixa</span>
-                      <span className="text-[9px] text-slate-500">(Conferência em Notas)</span>
-                    </div>
-                    {drawerCashInput && (
-                      <button
-                        type="button"
-                        onClick={() => setDrawerCashInput('')}
-                        className="text-[9px] text-slate-400 hover:text-amber-300 transition-colors"
-                        title="Limpar cálculo"
-                      >
-                        Limpar
-                      </button>
-                    )}
-                  </div>
-
-                  <div>
-                    <input
-                      type="text"
-                      value={drawerCashInput}
-                      onChange={(e) => setDrawerCashInput(e.target.value)}
-                      placeholder="Somar notas ex: 100 + 20 + 80 + 450"
-                      className="w-full bg-slate-950/90 border border-slate-700/80 rounded-lg px-2.5 py-1 text-xs font-mono text-amber-300 placeholder-slate-600 focus:outline-none focus:border-amber-500/60 transition-colors"
-                    />
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-2 pt-1.5 border-t border-slate-800/80 text-[11px]">
-                    <div>
-                      <span className="text-slate-400 block text-[9px] uppercase font-semibold">Total em Notas</span>
-                      <span className="font-mono text-amber-300 font-bold text-xs">
-                        {formatCurrency(evaluatedDrawerCash)}
-                      </span>
-                    </div>
-                    <div className="text-right">
-                      <span className="text-slate-400 block text-[9px] uppercase font-semibold">Diferença vs Saldo</span>
-                      <span
-                        className={`font-mono font-bold text-xs ${
-                          evaluatedDrawerCash === 0 && !drawerCashInput.trim()
-                            ? 'text-slate-400'
-                            : (evaluatedDrawerCash - cashBalanceAllTime) === 0
-                            ? 'text-emerald-400'
-                            : (evaluatedDrawerCash - cashBalanceAllTime) > 0
-                            ? 'text-emerald-400'
-                            : 'text-rose-400'
-                        }`}
-                      >
-                        {evaluatedDrawerCash === 0 && !drawerCashInput.trim()
-                          ? formatCurrency(0)
-                          : ((evaluatedDrawerCash - cashBalanceAllTime) > 0 ? '+' : '') + formatCurrency(evaluatedDrawerCash - cashBalanceAllTime)}
-                      </span>
-                    </div>
-                  </div>
-
-                  {drawerCashInput.trim() !== '' && (
-                    <div className="text-[9.5px] pt-1 border-t border-slate-800/50 flex items-center justify-between font-mono">
-                      <span className="text-slate-400 font-sans">Status da Gaveta:</span>
-                      {(evaluatedDrawerCash - cashBalanceAllTime) === 0 ? (
-                        <span className="text-emerald-400 font-semibold font-sans">✓ Caixa Bateu Exatamente!</span>
-                      ) : (evaluatedDrawerCash - cashBalanceAllTime) > 0 ? (
-                        <span className="text-emerald-400 font-semibold font-sans">▲ Sobra: {formatCurrency(evaluatedDrawerCash - cashBalanceAllTime)}</span>
-                      ) : (
-                        <span className="text-rose-400 font-semibold font-sans">▼ Falta: {formatCurrency(Math.abs(evaluatedDrawerCash - cashBalanceAllTime))}</span>
-                      )}
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              {/* PIX Section */}
-              <div>
-                <div className="flex items-center gap-1.5 mb-1">
-                  <span className="w-2 h-2 rounded-full bg-teal-500"></span>
-                  <span className="text-xs font-bold text-slate-300 uppercase tracking-wider">Pix</span>
-                </div>
-                <div className="grid grid-cols-3 gap-2 bg-slate-900/40 p-2.5 rounded-xl border border-slate-800/50 text-[11px]">
-                  <div>
-                    <span className="text-slate-500 block text-[9px] uppercase font-semibold">Faturado</span>
-                    <span className="font-mono text-slate-300 font-semibold">{formatCurrency(pixRevenuesAllTime)}</span>
-                  </div>
-                  <div>
-                    <span className="text-slate-500 block text-[9px] uppercase font-semibold">Gastos</span>
-                    <span className="font-mono text-slate-300 font-semibold">{formatCurrency(pixExpensesAllTime)}</span>
-                  </div>
-                  <div className="text-right">
-                    <span className="text-slate-500 block text-[9px] uppercase font-semibold">Saldo</span>
-                    <span className={`font-mono font-bold ${pixBalanceAllTime >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
-                      {formatCurrency(pixBalanceAllTime)}
-                    </span>
-                  </div>
-                </div>
-              </div>
-
-              {/* TOTAL Section */}
-              <div>
-                <div className="flex items-center gap-1.5 mb-1">
-                  <span className="w-2 h-2 rounded-full bg-blue-500"></span>
-                  <span className="text-xs font-bold text-slate-300 uppercase tracking-wider">Total</span>
-                </div>
-                <div className="grid grid-cols-3 gap-2 bg-slate-900/60 p-2.5 rounded-xl border border-slate-700/50 text-[11px]">
-                  <div>
-                    <span className="text-slate-400 block text-[9px] uppercase font-semibold">Faturado</span>
-                    <span className="font-mono text-slate-200 font-semibold">{formatCurrency(totalRevenuesAllTime)}</span>
-                  </div>
-                  <div>
-                    <span className="text-slate-400 block text-[9px] uppercase font-semibold">Gastos</span>
-                    <span className="font-mono text-slate-200 font-semibold">{formatCurrency(totalExpensesAllTime)}</span>
-                  </div>
-                  <div className="text-right">
-                    <span className="text-slate-400 block text-[9px] uppercase font-semibold">Saldo</span>
-                    <span className={`font-mono font-bold ${netBalanceAllTime >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
-                      {formatCurrency(netBalanceAllTime)}
-                    </span>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <div className="mt-4 text-[10px] text-slate-500 border-t border-slate-800/80 pt-3 flex items-center justify-between">
-              <span>Filtro: Acumulado (Todos os Lançamentos)</span>
-              <span className="font-mono text-slate-400">Geral</span>
-            </div>
-          </div>
+          {renderSaldoLiquidoGeralCard()}
         </div>
       </div>
 
@@ -1357,33 +1492,7 @@ export default function Dashboard({
       </div>
 
       {/* Contas a Receber (Accounts Receivable) Widget */}
-      <div 
-        onClick={() => onNavigate('reports-pending')}
-        className="bg-[#161B22] border border-slate-800 rounded-2xl p-6 shadow-sm mb-6 hover:border-amber-500/45 hover:bg-slate-800/10 transition-all cursor-pointer relative overflow-hidden group select-none flex flex-col sm:flex-row sm:items-center justify-between gap-4"
-      >
-        <div className="absolute top-0 left-0 w-1.5 h-full bg-amber-500"></div>
-        <div className="flex items-center gap-4">
-          <div className="p-3 rounded-xl bg-amber-500/10 text-amber-500 shrink-0">
-            <Clock size={24} />
-          </div>
-          <div>
-            <span className="text-slate-400 text-xs font-semibold uppercase tracking-wider block">Contas a Receber</span>
-            <div className="flex items-baseline gap-2 mt-1">
-              <h3 className="text-2xl font-bold text-amber-500 font-mono">
-                {formatCurrency(totalPendingAllTime)}
-              </h3>
-              <span className="text-xs text-slate-400 font-medium">
-                ({pendingServicesAllTime.length} {pendingServicesAllTime.length === 1 ? 'lançamento pendente' : 'lançamentos pendentes'})
-              </span>
-            </div>
-            <p className="text-xs text-slate-450 mt-1">Clique para abrir o relatório de serviços filtrado por faturas pendentes</p>
-          </div>
-        </div>
-        <div className="flex items-center gap-1.5 bg-amber-500/10 hover:bg-amber-500/20 text-amber-400 text-xs font-bold px-4 py-2 rounded-xl transition-all border border-amber-500/20 group-hover:border-amber-500/40 cursor-pointer self-start sm:self-center">
-          <span>Ver Detalhes</span>
-          <FileText size={14} />
-        </div>
-      </div>
+      {renderContasAReceberCard()}
 
       {/* Main Stats Column with Custom Grouped SVG Graph */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">

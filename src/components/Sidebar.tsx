@@ -20,6 +20,7 @@ import {
   ShieldCheck,
   Loader2,
   Users,
+  UserCheck,
   LogOut,
   HelpCircle,
   Database,
@@ -95,7 +96,9 @@ export default function Sidebar({
     }
   }, [currentTab]);
 
-  const menuItems = [
+  const isAdmin = currentSession?.isAdmin === true;
+
+  const menuItems = isAdmin ? [
     { id: 'dashboard', name: 'Painel Geral', icon: LayoutDashboard },
     { id: 'services', name: 'Serviços (Receitas)', icon: FileCheck },
     { id: 'expenses', name: 'Registro de Gastos', icon: DollarSign },
@@ -112,7 +115,23 @@ export default function Sidebar({
       ]
     },
     { id: 'subcategories', name: 'Subcategorias', icon: Layers },
-    { id: 'clients', name: 'Cadastro de Clientes', icon: Users }
+    { id: 'clients', name: 'Cadastro de Clientes', icon: Users },
+    { id: 'operators', name: 'Operadores', icon: UserCheck }
+  ] : [
+    { id: 'dashboard', name: 'Painel Geral', icon: LayoutDashboard },
+    { id: 'services', name: 'Serviços', icon: FileCheck },
+    { id: 'expenses', name: 'Registro de Gastos', icon: DollarSign },
+    { 
+      id: 'reports', 
+      name: 'Relatórios', 
+      icon: BarChart3,
+      children: [
+        { id: 'reports-general', name: 'Relatório Geral' },
+        { id: 'reports-services', name: 'Relatório de Entrada' },
+        { id: 'reports-expenses', name: 'Relatório de Saídas' },
+        { id: 'reports-pending', name: 'Relatório de Pendências' }
+      ]
+    }
   ];
 
   // Export JSON Database

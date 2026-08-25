@@ -17,6 +17,7 @@ import Expenses from './components/Expenses';
 import Reports from './components/Reports';
 import ReportsComparative from './components/ReportsComparative';
 import Clients from './components/Clients';
+import Operators from './components/Operators';
 import SystemLogo from './components/SystemLogo';
 
 import { SubCategory, Service, Expense, ExpenseCategory, PersonalExpense, Client, InternalUser, UserSession } from './types';
@@ -120,12 +121,14 @@ export default function App() {
     if (!isCloudConnected) return;
     setIsCloudLoading(true);
     try {
-      const dbUserId = session.username;
+      // The business database is shared under the primary company account 'joao.desp'
+      const isDemo = session.username.toLowerCase() === 'user' || session.username === 'user-demo-default' || session.username === 'user-demo';
+      const dbUserId = isDemo ? session.username : 'joao.desp';
       const cloudData = await fetchUserData(dbUserId, session.isAdmin);
       setServices(cloudData.services);
       setExpenses(cloudData.expenses);
 
-      // Make sure the operator has their initial default subcategories if none exist yet
+      // Make sure default subcategories exist if none exist yet
       const defaults = getDefaultsForUser(dbUserId);
       const userSubs = [...cloudData.subCategories];
 
@@ -152,7 +155,6 @@ export default function App() {
             console.error("Erro ao inicializar subcategoria no Firestore:", e);
           }
         }
-        // If it already exists, do NOT overwrite the user's custom defaultValue!
       }
 
       const cleanedSubs = cleanAndDeduplicateSubcategories(userSubs, dbUserId);
@@ -165,7 +167,7 @@ export default function App() {
       localStorage.setItem('dep_subcategories', JSON.stringify(cleanedSubs));
       localStorage.setItem('dep_personal_expenses', JSON.stringify(cloudData.personalExpenses || []));
       localStorage.setItem('dep_clients', JSON.stringify(cloudData.clients || []));
-      console.log(`Dados para ${dbUserId} sincronizados com sucesso da nuvem!`);
+      console.log(`Dados para ${session.username} (Empresa: ${dbUserId}) sincronizados com sucesso da nuvem!`);
     } catch (err) {
       console.error("Erro ao puxar dados da nuvem para o usuário:", err);
     } finally {
@@ -178,76 +180,55 @@ export default function App() {
   const [currentSession, setCurrentSession] = useState<UserSession | null>(null);
   const [welcomeUser, setWelcomeUser] = useState<string | null>(null);
 
-  // Derived filtered state for data isolation per operator/session
+  // Derived state: shared company database across administrator (joao.desp) and all registered operators
   const filteredServices = React.useMemo(() => {
     if (!currentSession) return [];
     const isDemo = currentSession.username.toLowerCase() === 'user' || currentSession.username === 'user-demo-default' || currentSession.username === 'user-demo';
-    return services.filter(s => {
-      if (currentSession.username === 'joao.desp') {
-        return s.operator === 'joao.desp' || !s.operator || s.operator === 'admin';
-      }
-      if (isDemo) {
-        return s.operator === 'user' || s.operator === 'user-demo-default' || s.operator === 'user-demo' || s.operator?.toLowerCase() === 'user';
-      }
-      return s.operator === currentSession.username;
-    });
+    if (isDemo) {
+      return services.filter(s => s.operator === 'user' || s.operator === 'user-demo-default' || s.operator === 'user-demo' || s.operator?.toLowerCase() === 'user');
+    }
+    // Entire company data is shared
+    return services;
   }, [services, currentSession]);
 
   const filteredExpenses = React.useMemo(() => {
     if (!currentSession) return [];
     const isDemo = currentSession.username.toLowerCase() === 'user' || currentSession.username === 'user-demo-default' || currentSession.username === 'user-demo';
-    return expenses.filter(e => {
-      if (currentSession.username === 'joao.desp') {
-        return e.operator === 'joao.desp' || !e.operator || e.operator === 'admin';
-      }
-      if (isDemo) {
-        return e.operator === 'user' || e.operator === 'user-demo-default' || e.operator === 'user-demo' || e.operator?.toLowerCase() === 'user';
-      }
-      return e.operator === currentSession.username;
-    });
+    if (isDemo) {
+      return expenses.filter(e => e.operator === 'user' || e.operator === 'user-demo-default' || e.operator === 'user-demo' || e.operator?.toLowerCase() === 'user');
+    }
+    // Entire company data is shared
+    return expenses;
   }, [expenses, currentSession]);
 
   const filteredPersonalExpenses = React.useMemo(() => {
     if (!currentSession) return [];
     const isDemo = currentSession.username.toLowerCase() === 'user' || currentSession.username === 'user-demo-default' || currentSession.username === 'user-demo';
-    return personalExpenses.filter(pe => {
-      if (currentSession.username === 'joao.desp') {
-        return pe.operator === 'joao.desp' || !pe.operator || pe.operator === 'admin';
-      }
-      if (isDemo) {
-        return pe.operator === 'user' || pe.operator === 'user-demo-default' || pe.operator === 'user-demo' || pe.operator?.toLowerCase() === 'user';
-      }
-      return pe.operator === currentSession.username;
-    });
+    if (isDemo) {
+      return personalExpenses.filter(pe => pe.operator === 'user' || pe.operator === 'user-demo-default' || pe.operator === 'user-demo' || pe.operator?.toLowerCase() === 'user');
+    }
+    // Entire company data is shared
+    return personalExpenses;
   }, [personalExpenses, currentSession]);
 
   const filteredClients = React.useMemo(() => {
     if (!currentSession) return [];
     const isDemo = currentSession.username.toLowerCase() === 'user' || currentSession.username === 'user-demo-default' || currentSession.username === 'user-demo';
-    return clients.filter(c => {
-      if (currentSession.username === 'joao.desp') {
-        return c.operator === 'joao.desp' || !c.operator || c.operator === 'admin';
-      }
-      if (isDemo) {
-        return c.operator === 'user' || c.operator === 'user-demo-default' || c.operator === 'user-demo' || c.operator?.toLowerCase() === 'user';
-      }
-      return c.operator === currentSession.username;
-    });
+    if (isDemo) {
+      return clients.filter(c => c.operator === 'user' || c.operator === 'user-demo-default' || c.operator === 'user-demo' || c.operator?.toLowerCase() === 'user');
+    }
+    // Entire company data is shared
+    return clients;
   }, [clients, currentSession]);
 
   const filteredSubCategories = React.useMemo(() => {
     if (!currentSession) return subCategories;
     const isDemo = currentSession.username.toLowerCase() === 'user' || currentSession.username === 'user-demo-default' || currentSession.username === 'user-demo';
-    
-    return subCategories.filter(sub => {
-      if (currentSession.username === 'joao.desp') {
-        return sub.operator === 'joao.desp' || !sub.operator || sub.operator === 'admin';
-      }
-      if (isDemo) {
-        return sub.operator === 'user' || sub.operator === 'user-demo-default' || sub.operator === 'user-demo' || sub.operator?.toLowerCase() === 'user';
-      }
-      return sub.operator === currentSession.username;
-    });
+    if (isDemo) {
+      return subCategories.filter(sub => sub.operator === 'user' || sub.operator === 'user-demo-default' || sub.operator === 'user-demo' || sub.operator?.toLowerCase() === 'user');
+    }
+    // Entire company data is shared
+    return subCategories;
   }, [subCategories, currentSession]);
 
   // Initialize and load from standard LocalStorage on initial load
@@ -1064,6 +1045,54 @@ export default function App() {
     }
   };
 
+  const handleAddOperator = async (opData: Omit<InternalUser, 'id' | 'createdAt'>) => {
+    const newOp: InternalUser = {
+      ...opData,
+      id: `usr-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`,
+      createdAt: new Date().toISOString()
+    };
+
+    const updatedUsers = [...internalUsers, newOp];
+    setInternalUsers(updatedUsers);
+    localStorage.setItem('dep_internal_users', JSON.stringify(updatedUsers));
+
+    if (isCloudConnected) {
+      try {
+        await saveInternalUser('joao.desp', newOp);
+      } catch (err) {
+        console.error("Erro ao salvar operador na nuvem:", err);
+      }
+    }
+  };
+
+  const handleUpdateOperator = async (updatedOp: InternalUser) => {
+    const updatedUsers = internalUsers.map(u => u.id === updatedOp.id ? updatedOp : u);
+    setInternalUsers(updatedUsers);
+    localStorage.setItem('dep_internal_users', JSON.stringify(updatedUsers));
+
+    if (isCloudConnected) {
+      try {
+        await saveInternalUser('joao.desp', updatedOp);
+      } catch (err) {
+        console.error("Erro ao atualizar operador na nuvem:", err);
+      }
+    }
+  };
+
+  const handleDeleteOperator = async (id: string) => {
+    const updatedUsers = internalUsers.filter(u => u.id !== id);
+    setInternalUsers(updatedUsers);
+    localStorage.setItem('dep_internal_users', JSON.stringify(updatedUsers));
+
+    if (isCloudConnected) {
+      try {
+        await deleteInternalUser(id);
+      } catch (err) {
+        console.error("Erro ao excluir operador na nuvem:", err);
+      }
+    }
+  };
+
   const handleImportBackup = async (parsedData: { 
     services: Service[]; 
     expenses: Expense[]; 
@@ -1283,8 +1312,9 @@ export default function App() {
                  currentTab === 'expenses' ? 'Registro de Gastos' :
                  currentTab === 'subcategories' ? 'Subcategorias' :
                  currentTab === 'clients' ? 'Clientes' :
+                 currentTab === 'operators' ? 'Operadores' :
                  currentTab === 'reports-general' ? 'Relatório Geral' :
-                 currentTab === 'reports-services' ? 'Relatório de Serviços' :
+                 currentTab === 'reports-services' ? (currentSession?.isAdmin ? 'Relatório de Serviços' : 'Relatório de Entrada') :
                  currentTab === 'reports-expenses' ? 'Relatório de Saídas' :
                  currentTab === 'reports-pending' ? 'Relatório de Pendências' :
                  currentTab === 'reports-comparative' ? 'Relatório Comparativo' :
@@ -1513,6 +1543,15 @@ export default function App() {
               expenses={filteredExpenses}
               subCategories={filteredSubCategories}
               currentSession={currentSession}
+            />
+          )}
+
+          {currentTab === 'operators' && currentSession?.isAdmin && (
+            <Operators
+              internalUsers={internalUsers}
+              onAddOperator={handleAddOperator}
+              onUpdateOperator={handleUpdateOperator}
+              onDeleteOperator={handleDeleteOperator}
             />
           )}
         </main>

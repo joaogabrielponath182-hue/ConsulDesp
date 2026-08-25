@@ -1737,6 +1737,13 @@ export default function Services({
                                   {service.status === 'PAGO' ? <CheckCircle size={10} /> : <Clock size={10} />}
                                   {service.status}
                                 </button>
+
+                                {/* Operator Badge */}
+                                {service.operator && (
+                                  <span className="text-[9px] bg-slate-800 text-slate-300 px-2 py-0.5 rounded border border-slate-700 font-mono select-none" title="Operador responsável">
+                                    Op: {service.operator}
+                                  </span>
+                                )}
                               </div>
 
                               <h4 className="text-sm font-bold text-white mt-1">{service.client}</h4>
@@ -1878,6 +1885,13 @@ export default function Services({
                                   {allPago ? <CheckCircle size={10} /> : <Clock size={10} />}
                                   {allPago ? 'PAGO' : `PENDENTE (${numPago}/${numTotal} PAGO)`}
                                 </span>
+
+                                {/* Operator badge */}
+                                {group.services[0]?.operator && (
+                                  <span className="text-[9px] bg-slate-800 text-slate-300 px-2 py-0.5 rounded border border-slate-700 font-mono select-none" title="Operador responsável">
+                                    Op: {group.services[0].operator}
+                                  </span>
+                                )}
                               </div>
 
                               <h4 className="text-sm font-bold text-white mt-1">{group.client}</h4>
