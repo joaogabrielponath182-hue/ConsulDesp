@@ -529,7 +529,7 @@ export default function Dashboard({
           } else if (normalized.includes("CRLV")) {
             retCrlve.count++;
             retCrlve.total += val;
-          } else if (normalized === "ATPV-E" || normalized === "ATPV" || normalized.includes("ATPV")) {
+          } else if (normalized === "ATPV-E" || normalized === "ATPV E" || normalized === "ATPVE") {
             atpv.count++;
             atpv.total += val;
           }
