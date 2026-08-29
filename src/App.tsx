@@ -732,6 +732,7 @@ export default function App() {
 
     const targetSub = subCategories.find(s => s.id === id);
     const targetType = targetSub?.type || 'RECEITA';
+    const newCategoryGroup = categoryGroup !== undefined ? categoryGroup : (targetSub?.categoryGroup || 'SERVIÇOS');
 
     const updated = subCategories.map(sub => {
       // Update by ID or by matching normalized name + type
@@ -742,7 +743,7 @@ export default function App() {
           ...sub,
           name: isFixed ? sub.name : normalizedName,
           defaultValue: Number(defaultValue),
-          categoryGroup: categoryGroup || sub.categoryGroup || 'SERVIÇOS',
+          categoryGroup: newCategoryGroup,
           operator: currentSession?.username || sub.operator || 'admin'
         };
       }
@@ -755,11 +756,16 @@ export default function App() {
 
     if (currentSession && isCloudConnected) {
       try {
+        const isDemo = currentSession.username.toLowerCase() === 'user' || currentSession.username === 'user-demo-default' || currentSession.username === 'user-demo';
+        const dbUserId = isDemo ? currentSession.username : 'joao.desp';
         const targetCleaned = cleaned.find(sub => 
           sub.id === id || (targetSub && sub.name.trim().toUpperCase() === targetSub.name.trim().toUpperCase() && (sub.type || 'RECEITA') === targetType)
         );
         if (targetCleaned) {
-          await saveSubCategory(currentSession.username, targetCleaned);
+          await saveSubCategory(dbUserId, targetCleaned);
+          if (id && id !== targetCleaned.id) {
+            await saveSubCategory(dbUserId, { ...targetCleaned, id });
+          }
         }
       } catch (err) {
         console.error("Erro ao atualizar subcategoria na nuvem:", err);

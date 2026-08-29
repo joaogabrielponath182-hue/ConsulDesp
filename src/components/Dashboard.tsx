@@ -259,6 +259,8 @@ export default function Dashboard({
     const map: Record<string, 'SERVIÇOS' | 'PESSOAIS' | 'OUTROS'> = {};
     subCategories.forEach(sub => {
       const name = sub.name.trim().toUpperCase();
+      const type = sub.type || 'RECEITA';
+      map[`${name}_${type}`] = sub.categoryGroup || 'SERVIÇOS';
       map[name] = sub.categoryGroup || 'SERVIÇOS';
     });
     return map;
@@ -301,7 +303,7 @@ export default function Dashboard({
       if (srv.items) {
         srv.items.forEach(item => {
           const catName = (item.name || '').trim().toUpperCase();
-          const group = subCategoryGroupMap[catName] || 'SERVIÇOS';
+          const group = subCategoryGroupMap[`${catName}_RECEITA`] || subCategoryGroupMap[catName] || 'SERVIÇOS';
           if (group === 'SERVIÇOS') {
             sum += item.value;
           }
@@ -317,7 +319,7 @@ export default function Dashboard({
     expensesThisMonth.forEach(exp => {
       if (exp.category) {
         const catName = exp.category.trim().toUpperCase();
-        const group = subCategoryGroupMap[catName] || 'SERVIÇOS';
+        const group = subCategoryGroupMap[`${catName}_GASTO`] || subCategoryGroupMap[catName] || 'SERVIÇOS';
         if (group === 'SERVIÇOS') {
           sum += exp.value;
         }
@@ -334,7 +336,7 @@ export default function Dashboard({
     expensesThisMonth.forEach(exp => {
       if (exp.category) {
         const catName = exp.category.trim().toUpperCase();
-        const group = subCategoryGroupMap[catName] || 'SERVIÇOS';
+        const group = subCategoryGroupMap[`${catName}_GASTO`] || subCategoryGroupMap[catName] || 'SERVIÇOS';
         if (group === 'PESSOAIS') {
           sum += exp.value;
         }
@@ -350,7 +352,7 @@ export default function Dashboard({
       if (srv.items) {
         srv.items.forEach(item => {
           const catName = (item.name || '').trim().toUpperCase();
-          const group = subCategoryGroupMap[catName] || 'SERVIÇOS';
+          const group = subCategoryGroupMap[`${catName}_RECEITA`] || subCategoryGroupMap[catName] || 'SERVIÇOS';
           if (group === 'OUTROS') {
             sum += item.value;
           }
@@ -365,7 +367,7 @@ export default function Dashboard({
     expensesThisMonth.forEach(exp => {
       if (exp.category) {
         const catName = exp.category.trim().toUpperCase();
-        const group = subCategoryGroupMap[catName] || 'SERVIÇOS';
+        const group = subCategoryGroupMap[`${catName}_GASTO`] || subCategoryGroupMap[catName] || 'SERVIÇOS';
         if (group === 'OUTROS') {
           sum += exp.value;
         }

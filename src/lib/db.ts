@@ -819,18 +819,24 @@ export function cleanAndDeduplicateSubcategories(list: SubCategory[], currentOp?
       map.set(key, { ...sub });
     } else {
       const existing = map.get(key)!;
-      // If the incoming sub has an operator matching currentOp, prefer its operator, ID and custom value
+      // If the incoming sub has an operator matching currentOp, prefer its operator, ID, custom value and categoryGroup
       if (currentOp && (sub.operator === currentOp || sub.id.startsWith(`${currentOp}_`))) {
         existing.id = sub.id;
         existing.operator = sub.operator;
         if (typeof sub.defaultValue === 'number') {
           existing.defaultValue = sub.defaultValue;
         }
-      } else if (existing.defaultValue === 0 && typeof sub.defaultValue === 'number' && sub.defaultValue > 0) {
-        existing.defaultValue = sub.defaultValue;
-      }
-      if (sub.categoryGroup) {
-        existing.categoryGroup = sub.categoryGroup;
+        if (sub.categoryGroup) {
+          existing.categoryGroup = sub.categoryGroup;
+        }
+      } else {
+        if (existing.defaultValue === 0 && typeof sub.defaultValue === 'number' && sub.defaultValue > 0) {
+          existing.defaultValue = sub.defaultValue;
+        }
+        // If sub has a non-default categoryGroup and existing has default 'SERVIÇOS', prefer sub's categoryGroup
+        if (sub.categoryGroup && sub.categoryGroup !== 'SERVIÇOS' && existing.categoryGroup === 'SERVIÇOS') {
+          existing.categoryGroup = sub.categoryGroup;
+        }
       }
     }
   });

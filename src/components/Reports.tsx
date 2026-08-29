@@ -439,7 +439,7 @@ export default function Reports({ services, expenses, subCategories }: ReportsPr
       srv.items.forEach(item => {
         const itemUpper = item.name.toUpperCase();
         if (!list.some(l => l.name === itemUpper)) {
-          const matchedSub = subCategories.find(s => s.name.toUpperCase() === itemUpper);
+          const matchedSub = subCategories.find(s => s.name.toUpperCase() === itemUpper && (s.type || 'RECEITA') === 'RECEITA');
           list.push({
             id: item.subCategoryId || item.name,
             name: itemUpper,
@@ -469,7 +469,7 @@ export default function Reports({ services, expenses, subCategories }: ReportsPr
     expenses.forEach(exp => {
       const upper = exp.category.toUpperCase();
       if (!list.some(l => l.name === upper)) {
-        const matchedSub = subCategories.find(s => s.name.toUpperCase() === upper);
+        const matchedSub = subCategories.find(s => s.name.toUpperCase() === upper && (s.type || 'RECEITA') === 'GASTO');
         list.push({
           id: upper,
           name: upper,

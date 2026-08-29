@@ -134,6 +134,8 @@ export default function ReportsComparative({ services, expenses, subCategories, 
     const map: Record<string, 'SERVIÇOS' | 'PESSOAIS' | 'OUTROS'> = {};
     subCategories.forEach(sub => {
       const name = sub.name.trim().toUpperCase();
+      const type = sub.type || 'RECEITA';
+      map[`${name}_${type}`] = sub.categoryGroup || 'SERVIÇOS';
       map[name] = sub.categoryGroup || 'SERVIÇOS';
     });
     return map;
@@ -148,7 +150,7 @@ export default function ReportsComparative({ services, expenses, subCategories, 
     services.forEach(srv => {
       srv.items?.forEach(it => {
         const name = it.name.toUpperCase().trim();
-        if ((subCategoryGroupMap[name] || 'SERVIÇOS') === 'SERVIÇOS') {
+        if ((subCategoryGroupMap[`${name}_RECEITA`] || subCategoryGroupMap[name] || 'SERVIÇOS') === 'SERVIÇOS') {
           set.add(name);
         }
       });
@@ -163,7 +165,7 @@ export default function ReportsComparative({ services, expenses, subCategories, 
       .forEach(s => set.add(s.name.toUpperCase().trim()));
     expenses.forEach(exp => {
       const name = exp.category.toUpperCase().trim();
-      if ((subCategoryGroupMap[name] || 'SERVIÇOS') === 'SERVIÇOS') {
+      if ((subCategoryGroupMap[`${name}_GASTO`] || subCategoryGroupMap[name] || 'SERVIÇOS') === 'SERVIÇOS') {
         set.add(name);
       }
     });
@@ -173,11 +175,11 @@ export default function ReportsComparative({ services, expenses, subCategories, 
   const pessoaisExpenseCats = useMemo(() => {
     const set = new Set<string>();
     subCategories
-      .filter(s => (s.categoryGroup || 'SERVIÇOS') === 'PESSOAIS')
+      .filter(s => (s.categoryGroup || 'SERVIÇOS') === 'PESSOAIS' && (s.type || 'RECEITA') === 'GASTO')
       .forEach(s => set.add(s.name.toUpperCase().trim()));
     expenses.forEach(exp => {
       const name = exp.category.toUpperCase().trim();
-      if ((subCategoryGroupMap[name] || 'SERVIÇOS') === 'PESSOAIS') {
+      if ((subCategoryGroupMap[`${name}_GASTO`] || subCategoryGroupMap[name] || 'SERVIÇOS') === 'PESSOAIS') {
         set.add(name);
       }
     });
@@ -210,7 +212,7 @@ export default function ReportsComparative({ services, expenses, subCategories, 
       if (srv.items) {
         srv.items.forEach(item => {
           const catName = (item.name || '').trim().toUpperCase();
-          const group = subCategoryGroupMap[catName] || 'SERVIÇOS';
+          const group = subCategoryGroupMap[`${catName}_RECEITA`] || subCategoryGroupMap[catName] || 'SERVIÇOS';
 
           if (group === 'SERVIÇOS') {
             selectedPaidRevenues += item.value;
@@ -225,17 +227,17 @@ export default function ReportsComparative({ services, expenses, subCategories, 
     filteredExpenses.forEach(exp => {
       if (exp.category) {
         const catName = exp.category.trim().toUpperCase();
-        const group = subCategoryGroupMap[catName] || 'SERVIÇOS';
+        const group = subCategoryGroupMap[`${catName}_GASTO`] || subCategoryGroupMap[catName] || 'SERVIÇOS';
 
-        if (group === 'SERVIÇOS') {
-          selectedExpenses += exp.value;
-          selectedExpenseCatsBreakdown[catName] = (selectedExpenseCatsBreakdown[catName] || 0) + exp.value;
-        } else if (group === 'PESSOAIS') {
-          personalExpensesTotal += exp.value;
-          personalExpensesByCategory[catName] = (personalExpensesByCategory[catName] || 0) + exp.value;
-        } else if (group === 'OUTROS') {
-          outrosExpensesTotal += exp.value;
-        }
+          if (group === 'SERVIÇOS') {
+            selectedExpenses += exp.value;
+            selectedExpenseCatsBreakdown[catName] = (selectedExpenseCatsBreakdown[catName] || 0) + exp.value;
+          } else if (group === 'PESSOAIS') {
+            personalExpensesTotal += exp.value;
+            personalExpensesByCategory[catName] = (personalExpensesByCategory[catName] || 0) + exp.value;
+          } else if (group === 'OUTROS') {
+            outrosExpensesTotal += exp.value;
+          }
       }
     });
 
