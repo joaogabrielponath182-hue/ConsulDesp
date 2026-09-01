@@ -657,6 +657,8 @@ export default function Dashboard({
   // Reusable Card: Serviços Prestados
   const renderServicosPrestadosCard = () => {
     const comissaoDinhoHonorarios = (subcategoryStats.honorarios.avg * 0.025) * subcategoryStats.honorarios.count;
+    const comissaoDinhoRetCrlve = (subcategoryStats.retCrlve.avg * 0.025) * subcategoryStats.retCrlve.count;
+    const totalComissaoDinho = comissaoDinhoHonorarios + comissaoDinhoRetCrlve;
 
     return (
       <div className="bg-[#161B22] border border-slate-800 rounded-2xl p-6 shadow-sm relative overflow-hidden group">
@@ -710,6 +712,9 @@ export default function Dashboard({
                   <span className="text-[10px] text-slate-400 font-mono block mt-0.5">
                     Média: <span className="text-slate-200 font-semibold">{formatCurrency(subcategoryStats.retCrlve.avg)}</span>
                   </span>
+                  <span className="text-[10px] text-slate-400 font-mono block mt-0.5">
+                    Comissão Dinho: <span className="text-amber-300 font-semibold">{formatCurrency(comissaoDinhoRetCrlve)}</span>
+                  </span>
                 </div>
                 <span className="font-mono text-xs font-extrabold text-blue-400">
                   {subcategoryStats.retCrlve.count}
@@ -749,7 +754,7 @@ export default function Dashboard({
         <div className="mt-4 text-[10px] text-slate-500 border-t border-slate-800/80 pt-3 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-1.5">
           <span>Quantidade e valor médio por serviço</span>
           <span className="text-slate-300 font-mono">
-            Comissão Dinho (Honorários): <strong className="text-amber-400">{formatCurrency(comissaoDinhoHonorarios)}</strong>
+            Comissão Dinho (Total): <strong className="text-amber-400">{formatCurrency(totalComissaoDinho)}</strong>
           </span>
         </div>
       </div>
