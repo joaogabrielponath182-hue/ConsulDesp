@@ -54,6 +54,15 @@ import {
 import AuthModal from './components/AuthModal';
 import LoginScreen from './components/LoginScreen';
 
+const getDbUserId = (username?: string | null): string => {
+  if (!username) return 'joao.desp';
+  const lower = username.toLowerCase();
+  if (lower === 'user' || lower === 'user-demo-default' || lower === 'user-demo') {
+    return username;
+  }
+  return 'joao.desp';
+};
+
 export default function App() {
 
   const [currentTab, setCurrentTab] = useState('dashboard');
@@ -306,7 +315,7 @@ export default function App() {
   // Ensure default subcategories exist for the current session (if not present yet)
   useEffect(() => {
     if (!currentSession) return;
-    const dbUserId = currentSession.username;
+    const dbUserId = getDbUserId(currentSession.username);
     const defaults = getDefaultsForUser(dbUserId);
 
     setSubCategories(prev => {
@@ -552,21 +561,21 @@ export default function App() {
       if (storedInternalUsers) {
         const parsedUsers = JSON.parse(storedInternalUsers) as InternalUser[];
         for (const u of parsedUsers) {
-          // Use 'joao.desp' (admin context) or current session to associate users
-          await saveInternalUser(currentSession?.username || 'joao.desp', u);
+          // Internal users are associated with the company account ('joao.desp')
+          await saveInternalUser('joao.desp', u);
         }
       }
 
       // 2. If a session is active, upload their current data (services, expenses, subcategories, etc.)
       if (currentSession) {
-        const dbUserId = currentSession.username;
+        const dbUserId = getDbUserId(currentSession.username);
         const storedSubs = localStorage.getItem('dep_subcategories');
         const storedServices = localStorage.getItem('dep_services');
         const storedExpenses = localStorage.getItem('dep_expenses');
         const storedPersonalExpenses = localStorage.getItem('dep_personal_expenses');
         const storedClients = localStorage.getItem('dep_clients');
 
-        const currentSubs = cleanAndDeduplicateSubcategories(storedSubs ? JSON.parse(storedSubs) : DEFAULT_SUBCATEGORIES);
+        const currentSubs = cleanAndDeduplicateSubcategories(storedSubs ? JSON.parse(storedSubs) : DEFAULT_SUBCATEGORIES, dbUserId);
         const currentSrvs = storedServices ? JSON.parse(storedServices) : DEFAULT_SERVICES;
         const currentExps = storedExpenses ? JSON.parse(storedExpenses) : DEFAULT_EXPENSES;
         const currentPes = storedPersonalExpenses ? JSON.parse(storedPersonalExpenses) : [];
@@ -609,7 +618,7 @@ export default function App() {
 
       // 2. Fetch business data if logged in
       if (currentSession) {
-        const dbUserId = currentSession.username;
+        const dbUserId = getDbUserId(currentSession.username);
         const cloudData = await fetchUserData(dbUserId, currentSession.isAdmin);
         setServices(cloudData.services);
         setExpenses(cloudData.expenses);
@@ -677,7 +686,7 @@ export default function App() {
 
     if (currentSession && isCloudConnected) {
       try {
-        await saveSubCategory(currentSession.username, newSub);
+        await saveSubCategory(getDbUserId(currentSession.username), newSub);
       } catch (err) {
         console.error("Erro ao salvar subcategoria na nuvem:", err);
       }
@@ -790,7 +799,7 @@ export default function App() {
 
     if (currentSession && isCloudConnected) {
       try {
-        await saveService(currentSession.username, service);
+        await saveService(getDbUserId(currentSession.username), service);
       } catch (err) {
         console.error("Erro ao salvar serviço na nuvem:", err);
       }
@@ -860,7 +869,7 @@ export default function App() {
     setTimeout(async () => {
       if (currentSession && updatedService && isCloudConnected) {
         try {
-          await saveService(currentSession.username, updatedService);
+          await saveService(getDbUserId(currentSession.username), updatedService);
         } catch (err) {
           console.error("Erro ao alterar status na nuvem:", err);
         }
@@ -886,7 +895,7 @@ export default function App() {
 
     if (currentSession && isCloudConnected) {
       try {
-        await saveExpense(currentSession.username, expense);
+        await saveExpense(getDbUserId(currentSession.username), expense);
       } catch (err) {
         console.error("Erro ao salvar gasto na nuvem:", err);
       }
@@ -914,7 +923,7 @@ export default function App() {
         const mergedService = existingSrv 
           ? { ...existingSrv, ...updatedService }
           : updatedService;
-        await saveService(currentSession.username, mergedService);
+        await saveService(getDbUserId(currentSession.username), mergedService);
       } catch (err) {
         console.error("Erro ao editar serviço na nuvem:", err);
       }
@@ -928,7 +937,7 @@ export default function App() {
 
     if (currentSession && isCloudConnected) {
       try {
-        await saveExpense(currentSession.username, updatedExpense);
+        await saveExpense(getDbUserId(currentSession.username), updatedExpense);
       } catch (err) {
         console.error("Erro ao editar gasto na nuvem:", err);
       }
@@ -961,7 +970,7 @@ export default function App() {
 
     if (currentSession && isCloudConnected) {
       try {
-        await savePersonalExpense(currentSession.username, pe);
+        await savePersonalExpense(getDbUserId(currentSession.username), pe);
       } catch (err) {
         console.error("Erro ao salvar gasto pessoal na nuvem:", err);
       }
@@ -975,7 +984,7 @@ export default function App() {
 
     if (currentSession && isCloudConnected) {
       try {
-        await savePersonalExpense(currentSession.username, updatedPe);
+        await savePersonalExpense(getDbUserId(currentSession.username), updatedPe);
       } catch (err) {
         console.error("Erro ao editar gasto pessoal na nuvem:", err);
       }
@@ -1011,7 +1020,7 @@ export default function App() {
 
     if (currentSession && isCloudConnected) {
       try {
-        await saveClient(currentSession.username, client);
+        await saveClient(getDbUserId(currentSession.username), client);
       } catch (err) {
         console.error("Erro ao salvar cliente na nuvem:", err);
       }
@@ -1044,7 +1053,7 @@ export default function App() {
 
     if (currentSession && isCloudConnected) {
       try {
-        await saveClient(currentSession.username, updatedClient);
+        await saveClient(getDbUserId(currentSession.username), updatedClient);
       } catch (err) {
         console.error("Erro ao atualizar cliente na nuvem:", err);
       }
@@ -1130,10 +1139,11 @@ export default function App() {
 
     if (currentSession && isCloudConnected) {
       try {
-        await syncLocalDataToFirestore(currentSession.username, parsedData);
+        const dbUserId = getDbUserId(currentSession.username);
+        await syncLocalDataToFirestore(dbUserId, parsedData);
         if (parsedData.internalUsers) {
           for (const u of parsedData.internalUsers) {
-            await saveInternalUser(currentSession.username, u);
+            await saveInternalUser('joao.desp', u);
           }
         }
       } catch (err) {

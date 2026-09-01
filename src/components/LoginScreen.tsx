@@ -7,6 +7,7 @@ import React, { useState } from 'react';
 import SystemLogo from './SystemLogo';
 import { Shield, Key, AlertCircle, Loader2 } from 'lucide-react';
 import { InternalUser, UserSession } from '../types';
+import { fetchInternalUsers } from '../lib/db';
 
 interface LoginScreenProps {
   onLoginSuccess: (session: UserSession) => void;
@@ -79,9 +80,25 @@ export default function LoginScreen({
       }
 
       // 2. Check Standard Custom Users
-      const foundUser = internalUsers.find(
+      let usersList = internalUsers;
+      let foundUser = usersList.find(
         (u) => u.username.toLowerCase() === cleanUsername
       );
+
+      if (!foundUser) {
+        try {
+          const remoteUsers = await fetchInternalUsers();
+          if (remoteUsers && remoteUsers.length > 0) {
+            usersList = remoteUsers;
+            localStorage.setItem('dep_internal_users', JSON.stringify(remoteUsers));
+            foundUser = usersList.find(
+              (u) => u.username.toLowerCase() === cleanUsername
+            );
+          }
+        } catch (fetchErr) {
+          console.warn("Erro ao buscar usuários na nuvem durante o login:", fetchErr);
+        }
+      }
 
       if (!foundUser) {
         setErrorMsg('Nome de usuário não encontrado no sistema.');

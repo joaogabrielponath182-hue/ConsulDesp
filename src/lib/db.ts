@@ -102,29 +102,48 @@ function cleanObject<T>(obj: T): T {
 export async function fetchUserData(userId: string, isAdmin: boolean = false) {
   try {
     const isDemo = userId.toLowerCase() === 'user' || userId === 'user-demo-default' || userId === 'user-demo';
-    const isJoao = userId.toLowerCase() === 'joao.desp' || isAdmin;
-    const userIds = isDemo ? ['user', 'user-demo-default', 'user-demo'] : (isJoao ? ['joao.desp', 'admin'] : [userId]);
 
-    const servicesQuery = query(collection(db, SERVICES_COLL), where('userId', 'in', userIds));
-    const expensesQuery = query(collection(db, EXPENSES_COLL), where('userId', 'in', userIds));
-    const subCategoriesQuery = query(collection(db, SUBCATEGORIES_COLL), where('userId', 'in', userIds));
-    const personalExpensesQuery = query(collection(db, PERSONAL_EXPENSES_COLL), where('userId', 'in', userIds));
-    const clientsQuery = query(collection(db, CLIENTS_COLL), where('userId', 'in', userIds));
+    let servicesSnap, expensesSnap, subCatsSnap, personalExpensesSnap, clientsSnap;
 
-    const [servicesSnap, expensesSnap, subCatsSnap, personalExpensesSnap, clientsSnap] = await Promise.all([
-      getDocs(servicesQuery),
-      getDocs(expensesQuery),
-      getDocs(subCategoriesQuery),
-      getDocs(personalExpensesQuery),
-      getDocs(clientsQuery)
-    ]);
+    if (isDemo) {
+      const demoUserIds = ['user', 'user-demo-default', 'user-demo'];
+      const servicesQuery = query(collection(db, SERVICES_COLL), where('userId', 'in', demoUserIds));
+      const expensesQuery = query(collection(db, EXPENSES_COLL), where('userId', 'in', demoUserIds));
+      const subCategoriesQuery = query(collection(db, SUBCATEGORIES_COLL), where('userId', 'in', demoUserIds));
+      const personalExpensesQuery = query(collection(db, PERSONAL_EXPENSES_COLL), where('userId', 'in', demoUserIds));
+      const clientsQuery = query(collection(db, CLIENTS_COLL), where('userId', 'in', demoUserIds));
+
+      [servicesSnap, expensesSnap, subCatsSnap, personalExpensesSnap, clientsSnap] = await Promise.all([
+        getDocs(servicesQuery),
+        getDocs(expensesQuery),
+        getDocs(subCategoriesQuery),
+        getDocs(personalExpensesQuery),
+        getDocs(clientsQuery)
+      ]);
+    } else {
+      // For the office company database (joao.desp and all operators), fetch all office documents
+      [servicesSnap, expensesSnap, subCatsSnap, personalExpensesSnap, clientsSnap] = await Promise.all([
+        getDocs(collection(db, SERVICES_COLL)),
+        getDocs(collection(db, EXPENSES_COLL)),
+        getDocs(collection(db, SUBCATEGORIES_COLL)),
+        getDocs(collection(db, PERSONAL_EXPENSES_COLL)),
+        getDocs(collection(db, CLIENTS_COLL))
+      ]);
+    }
 
     const totalReads = servicesSnap.size + expensesSnap.size + subCatsSnap.size + personalExpensesSnap.size + clientsSnap.size;
     trackFirestoreOp('read', totalReads);
 
+    const isDemoDoc = (docUserId?: string) => {
+      if (!docUserId) return false;
+      const lower = docUserId.toLowerCase();
+      return lower === 'user' || lower === 'user-demo' || lower === 'user-demo-default';
+    };
+
     const services: Service[] = [];
     servicesSnap.forEach((docSnap) => {
       const data = docSnap.data();
+      if (!isDemo && isDemoDoc(data.userId)) return;
       services.push({
         id: docSnap.id,
         client: data.client || '',
@@ -136,13 +155,14 @@ export async function fetchUserData(userId: string, isAdmin: boolean = false) {
         date: data.date || '',
         status: data.status || 'PENDENTE',
         groupId: data.groupId,
-        operator: data.operator
+        operator: data.operator || data.userId || 'admin'
       });
     });
 
     const expenses: Expense[] = [];
     expensesSnap.forEach((docSnap) => {
       const data = docSnap.data();
+      if (!isDemo && isDemoDoc(data.userId)) return;
       expenses.push({
         id: docSnap.id,
         description: data.description || '',
@@ -152,13 +172,14 @@ export async function fetchUserData(userId: string, isAdmin: boolean = false) {
         plate: data.plate,
         paymentMethod: data.paymentMethod,
         items: data.items,
-        operator: data.operator
+        operator: data.operator || data.userId || 'admin'
       });
     });
 
     const subCategories: SubCategory[] = [];
     subCatsSnap.forEach((docSnap) => {
       const data = docSnap.data();
+      if (!isDemo && isDemoDoc(data.userId)) return;
       subCategories.push({
         id: docSnap.id,
         name: data.name || '',
@@ -172,6 +193,7 @@ export async function fetchUserData(userId: string, isAdmin: boolean = false) {
     const personalExpenses: PersonalExpense[] = [];
     personalExpensesSnap.forEach((docSnap) => {
       const data = docSnap.data();
+      if (!isDemo && isDemoDoc(data.userId)) return;
       personalExpenses.push({
         id: docSnap.id,
         description: data.description || '',
@@ -179,13 +201,14 @@ export async function fetchUserData(userId: string, isAdmin: boolean = false) {
         date: data.date || '',
         category: data.category || '',
         paymentMethod: data.paymentMethod || 'DINHEIRO',
-        operator: data.operator
+        operator: data.operator || data.userId || 'admin'
       });
     });
 
     const clients: Client[] = [];
     clientsSnap.forEach((docSnap) => {
       const data = docSnap.data();
+      if (!isDemo && isDemoDoc(data.userId)) return;
       clients.push({
         id: docSnap.id,
         name: data.name || '',
@@ -193,7 +216,7 @@ export async function fetchUserData(userId: string, isAdmin: boolean = false) {
         phone: data.phone || '',
         company: data.company || '',
         cnpj: data.cnpj || '',
-        operator: data.operator
+        operator: data.operator || data.userId || 'admin'
       });
     });
 
