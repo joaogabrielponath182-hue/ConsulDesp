@@ -655,96 +655,106 @@ export default function Dashboard({
   const isAdmin = currentSession?.isAdmin === true;
 
   // Reusable Card: Serviços Prestados
-  const renderServicosPrestadosCard = () => (
-    <div className="bg-[#161B22] border border-slate-800 rounded-2xl p-6 shadow-sm relative overflow-hidden group">
-      <div className="absolute top-0 left-0 w-1.5 h-full bg-amber-500"></div>
-      <div className="flex justify-between items-start">
-        <div className="flex-1">
-          <p className="text-slate-400 text-xs font-semibold uppercase tracking-wider">Serviços Prestados</p>
-          <div className="space-y-2 mt-3">
-            <div className="flex justify-between items-center text-xs text-slate-300 pb-2 border-b border-slate-800/60">
-              <div>
-                <span className="font-bold text-slate-300 uppercase text-[10px] block">Honorário</span>
-                <span className="text-[10px] text-slate-400 font-mono block mt-0.5">
-                  TERMOS CONSUMIDOS: <span className="text-slate-200 font-semibold">{formatCurrency(subcategoryStats.honorarios.termosCost)}</span>
-                </span>
-                <span className="text-[10px] text-slate-400 font-mono block mt-0.5">
-                  Média: <span className="text-slate-200 font-semibold">{formatCurrency(subcategoryStats.honorarios.avg)}</span>
-                </span>
-              </div>
-              <span className="font-mono text-xs font-extrabold text-emerald-400">
-                {subcategoryStats.honorarios.count}
-              </span>
-            </div>
-            <div className="flex justify-between items-center text-xs text-slate-300 pb-2 border-b border-slate-800/60">
-              <div>
-                <span className="font-bold text-slate-300 uppercase text-[10px] block">Honorário Revenda</span>
-                <span className="text-[10px] text-slate-400 font-mono block mt-0.5">
-                  Média: <span className="text-slate-200 font-semibold">{formatCurrency(subcategoryStats.honorariosRevenda.avg)}</span>
-                </span>
-              </div>
-              <span className="font-mono text-xs font-extrabold text-teal-400">
-                {subcategoryStats.honorariosRevenda.count}
-              </span>
-            </div>
-            <div className="flex justify-between items-center text-xs text-slate-300 pb-2 border-b border-slate-800/60">
-              <div>
-                <span className="font-bold text-slate-300 uppercase text-[10px] block">Placa</span>
-                <span className="text-[10px] text-slate-400 font-mono block mt-0.5">
-                  Média: <span className="text-slate-200 font-semibold">{formatCurrency(subcategoryStats.placas.avg)}</span>
+  const renderServicosPrestadosCard = () => {
+    const comissaoDinhoHonorarios = (subcategoryStats.honorarios.avg * 0.025) * subcategoryStats.honorarios.count;
+
+    return (
+      <div className="bg-[#161B22] border border-slate-800 rounded-2xl p-6 shadow-sm relative overflow-hidden group">
+        <div className="absolute top-0 left-0 w-1.5 h-full bg-amber-500"></div>
+        <div className="flex justify-between items-start">
+          <div className="flex-1">
+            <p className="text-slate-400 text-xs font-semibold uppercase tracking-wider">Serviços Prestados</p>
+            <div className="space-y-2 mt-3">
+              <div className="flex justify-between items-center text-xs text-slate-300 pb-2 border-b border-slate-800/60">
+                <div>
+                  <span className="font-bold text-slate-300 uppercase text-[10px] block">Honorário</span>
+                  <span className="text-[10px] text-slate-400 font-mono block mt-0.5">
+                    TERMOS CONSUMIDOS: <span className="text-slate-200 font-semibold">{formatCurrency(subcategoryStats.honorarios.termosCost)}</span>
+                  </span>
+                  <span className="text-[10px] text-slate-400 font-mono block mt-0.5">
+                    Média: <span className="text-slate-200 font-semibold">{formatCurrency(subcategoryStats.honorarios.avg)}</span>
+                  </span>
+                  <span className="text-[10px] text-slate-400 font-mono block mt-0.5">
+                    Comissão Dinho: <span className="text-amber-300 font-semibold">{formatCurrency(comissaoDinhoHonorarios)}</span>
+                  </span>
+                </div>
+                <span className="font-mono text-xs font-extrabold text-emerald-400">
+                  {subcategoryStats.honorarios.count}
                 </span>
               </div>
-              <span className="font-mono text-xs font-extrabold text-amber-400">
-                {subcategoryStats.placas.count}
-              </span>
-            </div>
-            <div className="flex justify-between items-center text-xs text-slate-300 pb-2 border-b border-slate-800/60">
-              <div>
-                <span className="font-bold text-slate-300 uppercase text-[10px] block">Ret. CRLV-E</span>
-                <span className="text-[10px] text-slate-400 font-mono block mt-0.5">
-                  Média: <span className="text-slate-200 font-semibold">{formatCurrency(subcategoryStats.retCrlve.avg)}</span>
+              <div className="flex justify-between items-center text-xs text-slate-300 pb-2 border-b border-slate-800/60">
+                <div>
+                  <span className="font-bold text-slate-300 uppercase text-[10px] block">Honorário Revenda</span>
+                  <span className="text-[10px] text-slate-400 font-mono block mt-0.5">
+                    Média: <span className="text-slate-200 font-semibold">{formatCurrency(subcategoryStats.honorariosRevenda.avg)}</span>
+                  </span>
+                </div>
+                <span className="font-mono text-xs font-extrabold text-teal-400">
+                  {subcategoryStats.honorariosRevenda.count}
                 </span>
               </div>
-              <span className="font-mono text-xs font-extrabold text-blue-400">
-                {subcategoryStats.retCrlve.count}
-              </span>
-            </div>
-            <div className="flex justify-between items-center text-xs text-slate-300 pb-2 border-b border-slate-800/60">
-              <div>
-                <span className="font-bold text-slate-300 uppercase text-[10px] block">ATPV-E</span>
-                <span className="text-[10px] text-slate-400 font-mono block mt-0.5">
-                  TERMOS CONSUMIDOS: <span className="text-slate-200 font-semibold">{formatCurrency(subcategoryStats.atpv.termosCost)}</span>
-                </span>
-                <span className="text-[10px] text-slate-400 font-mono block mt-0.5">
-                  Média: <span className="text-slate-200 font-semibold">{formatCurrency(subcategoryStats.atpv.avg)}</span>
+              <div className="flex justify-between items-center text-xs text-slate-300 pb-2 border-b border-slate-800/60">
+                <div>
+                  <span className="font-bold text-slate-300 uppercase text-[10px] block">Placa</span>
+                  <span className="text-[10px] text-slate-400 font-mono block mt-0.5">
+                    Média: <span className="text-slate-200 font-semibold">{formatCurrency(subcategoryStats.placas.avg)}</span>
+                  </span>
+                </div>
+                <span className="font-mono text-xs font-extrabold text-amber-400">
+                  {subcategoryStats.placas.count}
                 </span>
               </div>
-              <span className="font-mono text-xs font-extrabold text-teal-400">
-                {subcategoryStats.atpv.count}
-              </span>
-            </div>
-            <div className="flex justify-between items-center text-xs text-slate-300">
-              <div>
-                <span className="font-bold text-slate-300 uppercase text-[10px] block">Termos</span>
-                <span className="text-[10px] text-slate-400 font-mono block mt-0.5">
-                  Gasto: <span className="text-slate-200 font-semibold">{formatCurrency(subcategoryStats.termos.totalGasto)}</span>
+              <div className="flex justify-between items-center text-xs text-slate-300 pb-2 border-b border-slate-800/60">
+                <div>
+                  <span className="font-bold text-slate-300 uppercase text-[10px] block">Ret. CRLV-E</span>
+                  <span className="text-[10px] text-slate-400 font-mono block mt-0.5">
+                    Média: <span className="text-slate-200 font-semibold">{formatCurrency(subcategoryStats.retCrlve.avg)}</span>
+                  </span>
+                </div>
+                <span className="font-mono text-xs font-extrabold text-blue-400">
+                  {subcategoryStats.retCrlve.count}
                 </span>
               </div>
-              <span className="font-mono text-xs font-extrabold text-indigo-400" title={`${subcategoryStats.termos.count} termos consumidos no mês`}>
-                {subcategoryStats.termos.count}
-              </span>
+              <div className="flex justify-between items-center text-xs text-slate-300 pb-2 border-b border-slate-800/60">
+                <div>
+                  <span className="font-bold text-slate-300 uppercase text-[10px] block">ATPV-E</span>
+                  <span className="text-[10px] text-slate-400 font-mono block mt-0.5">
+                    TERMOS CONSUMIDOS: <span className="text-slate-200 font-semibold">{formatCurrency(subcategoryStats.atpv.termosCost)}</span>
+                  </span>
+                  <span className="text-[10px] text-slate-400 font-mono block mt-0.5">
+                    Média: <span className="text-slate-200 font-semibold">{formatCurrency(subcategoryStats.atpv.avg)}</span>
+                  </span>
+                </div>
+                <span className="font-mono text-xs font-extrabold text-teal-400">
+                  {subcategoryStats.atpv.count}
+                </span>
+              </div>
+              <div className="flex justify-between items-center text-xs text-slate-300">
+                <div>
+                  <span className="font-bold text-slate-300 uppercase text-[10px] block">Termos</span>
+                  <span className="text-[10px] text-slate-400 font-mono block mt-0.5">
+                    Gasto: <span className="text-slate-200 font-semibold">{formatCurrency(subcategoryStats.termos.totalGasto)}</span>
+                  </span>
+                </div>
+                <span className="font-mono text-xs font-extrabold text-indigo-400" title={`${subcategoryStats.termos.count} termos consumidos no mês`}>
+                  {subcategoryStats.termos.count}
+                </span>
+              </div>
             </div>
           </div>
+          <div className="p-3 rounded-xl bg-amber-500/10 text-amber-400 shrink-0">
+            <Layers size={20} />
+          </div>
         </div>
-        <div className="p-3 rounded-xl bg-amber-500/10 text-amber-400 shrink-0">
-          <Layers size={20} />
+        <div className="mt-4 text-[10px] text-slate-500 border-t border-slate-800/80 pt-3 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-1.5">
+          <span>Quantidade e valor médio por serviço</span>
+          <span className="text-slate-300 font-mono">
+            Comissão Dinho (Honorários): <strong className="text-amber-400">{formatCurrency(comissaoDinhoHonorarios)}</strong>
+          </span>
         </div>
       </div>
-      <div className="mt-4 text-[10px] text-slate-500 border-t border-slate-800/80 pt-3">
-        Quantidade de lançamentos e valor médio cobrado por serviço no mês selecionado
-      </div>
-    </div>
-  );
+    );
+  };
 
   // Reusable Card: Saldo Líquido Geral
   const renderSaldoLiquidoGeralCard = () => (
