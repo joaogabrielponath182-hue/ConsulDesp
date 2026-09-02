@@ -23,6 +23,7 @@ import {
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { plateMatchesSearch } from '../utils/plateMatcher';
+import { formatDateBR } from '../utils/dateFormatter';
 
 interface ExpensesProps {
   expenses: Expense[];
@@ -722,7 +723,7 @@ export default function Expenses({
               <span className="text-[9px] font-bold text-slate-500 uppercase tracking-wide">Data</span>
               <span className="block text-[10px] font-bold text-slate-300 font-mono flex items-center justify-end gap-1 mt-0.5">
                 <Calendar size={10} className="text-slate-400" />
-                {lastLaunchedExpense.date}
+                {formatDateBR(lastLaunchedExpense.date)}
               </span>
             </div>
           </div>
@@ -1245,7 +1246,7 @@ export default function Expenses({
                             <div className="flex items-center gap-3">
                               <span className="text-[10px] text-slate-450 inline-flex items-center gap-1.5 font-medium">
                                 <Calendar size={10} className="text-slate-500" />
-                                {expense.date}
+                                {formatDateBR(expense.date)}
                               </span>
                               
                               {hasItems && (

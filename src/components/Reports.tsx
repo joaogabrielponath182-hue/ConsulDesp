@@ -21,6 +21,7 @@ import {
   ArrowUpDown
 } from 'lucide-react';
 import { plateMatchesSearch } from '../utils/plateMatcher';
+import { formatDateBR } from '../utils/dateFormatter';
 
 interface ReportsProps {
   services: Service[];
@@ -934,7 +935,7 @@ export default function Reports({ services, expenses, subCategories }: ReportsPr
                           {/* Date badge */}
                           <span className="font-mono text-[9px] text-slate-450 bg-[#161B22] border border-slate-800 px-2 py-0.5 rounded flex items-center gap-1 select-none">
                             <Calendar size={9} className="text-slate-500" />
-                            {item.date}
+                            {formatDateBR(item.date)}
                           </span>
 
                           {/* Entrada / Saida badge */}

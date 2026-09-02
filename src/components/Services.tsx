@@ -28,6 +28,7 @@ import {
 import { motion, AnimatePresence } from 'motion/react';
 import { plateMatchesSearch } from '../utils/plateMatcher';
 import { generateReceiptPDF, generatePendingReportPDF } from '../utils/receiptGenerator';
+import { formatDateBR } from '../utils/dateFormatter';
 
 interface ServicesProps {
   services: Service[];
@@ -856,7 +857,7 @@ export default function Services({
               <span className="text-[9px] font-bold text-slate-500 uppercase tracking-wide">Data</span>
               <span className="block text-[10px] font-bold text-slate-300 font-mono flex items-center justify-end gap-1 mt-0.5">
                 <Calendar size={10} className="text-slate-400" />
-                {lastLaunchedServices[0]?.date}
+                {formatDateBR(lastLaunchedServices[0]?.date)}
               </span>
             </div>
           </div>
@@ -1757,7 +1758,7 @@ export default function Services({
                                 </span>
                                 <p className="text-[10px] text-slate-450 mt-0.5 flex items-center justify-end gap-1">
                                   <Calendar size={10} className="text-slate-500" />
-                                  {service.date}
+                                  {formatDateBR(service.date)}
                                 </p>
                               </div>
                               <div className="flex items-center gap-2">
@@ -1905,7 +1906,7 @@ export default function Services({
                                 </span>
                                 <p className="text-[10px] text-slate-450 mt-0.5 flex items-center justify-end gap-1">
                                   <Calendar size={10} className="text-slate-500" />
-                                  {group.date}
+                                  {formatDateBR(group.date)}
                                 </p>
                               </div>
                               <div className="flex items-center gap-2">
