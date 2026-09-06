@@ -137,6 +137,7 @@ export interface DetranProcess {
   protocolDate?: string;
 
   // Vistoria
+  requiresInspection?: boolean; // Nem sempre é exigido vistoria (ex: 1º emplacamento faturado direto)
   inspectionDone: boolean;
   inspectionDate?: string;
 

@@ -52,9 +52,23 @@ export default function DetranProcesses({
   const [newClient, setNewClient] = useState('');
   const [newPlate, setNewPlate] = useState('');
   const [newDescription, setNewDescription] = useState('TRANSF ');
+  const [newRequiresInspection, setNewRequiresInspection] = useState(true);
   const [newFeePayer, setNewFeePayer] = useState<'ESCRITORIO' | 'CLIENTE'>('ESCRITORIO');
   const [newRequiresPlate, setNewRequiresPlate] = useState(false);
   const [newRequiresReceipt, setNewRequiresReceipt] = useState(false);
+
+  // Helper to detect 1º Emplacamento
+  const isFirstPlating = (desc: string = '') => {
+    const d = (desc || '').toUpperCase();
+    return (
+      d.includes('1º EMP') ||
+      d.includes('PRIMEIRO EMP') ||
+      d.includes('1ºEMP') ||
+      d.includes('PRIMEIRO PLAC') ||
+      d.includes('1º PLAC') ||
+      d.includes('0KM')
+    );
+  };
 
   // Clean plate helper
   const cleanPlate = (p?: string) => (p || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
@@ -101,7 +115,8 @@ export default function DetranProcesses({
     if (p.crlvIssued) return 'PRONTO_ENTREGA';
     if (p.detranApproved) return 'LIBERADO';
     if (p.protocolNumber && p.protocolNumber.trim().length > 0) return 'AGUARDANDO_DETRAN';
-    if (p.inspectionDone) return 'VISTORIA';
+    // If inspection is required and completed
+    if (p.requiresInspection !== false && p.inspectionDone) return 'VISTORIA';
     return 'ENTRADA';
   };
 
@@ -225,12 +240,14 @@ export default function DetranProcesses({
     e.preventDefault();
     if (!newClient.trim() || !newPlate.trim()) return;
 
+    const isFirstRegModal = isFirstPlating(newDescription);
     const newProc: DetranProcess = {
       id: 'proc-' + Date.now(),
       client: newClient.trim().toUpperCase(),
       plate: newPlate.trim().toUpperCase(),
       description: newDescription.trim().toUpperCase() || 'PROCESSO DETRAN',
       stage: 'ENTRADA',
+      requiresInspection: newRequiresInspection,
       inspectionDone: false,
       detranApproved: false,
       feePayer: newFeePayer,
@@ -238,7 +255,8 @@ export default function DetranProcesses({
       requiresPlate: newRequiresPlate,
       plateOrdered: false,
       plateInstalled: false,
-      requiresReceiptCollection: newRequiresReceipt,
+      // 1º Emplacamento NUNCA exige recolhimento de CRV (veículo 0km sem CRV anterior)
+      requiresReceiptCollection: isFirstRegModal ? false : newRequiresReceipt,
       receiptCollected: false,
       crlvIssued: false,
       deliveredToClient: false,
@@ -260,6 +278,7 @@ export default function DetranProcesses({
     setNewClient('');
     setNewPlate('');
     setNewDescription('TRANSF ');
+    setNewRequiresInspection(true);
     setNewFeePayer('ESCRITORIO');
     setNewRequiresPlate(false);
     setNewRequiresReceipt(false);
@@ -472,10 +491,7 @@ export default function DetranProcesses({
             const messageCount = (proc.messages || []).length;
 
             // Is First Registration?
-            const isFirstReg = 
-              proc.description.includes('1º EMP') || 
-              proc.description.includes('PRIMEIRO EMP') || 
-              proc.description.includes('0KM');
+            const isFirstReg = isFirstPlating(proc.description);
 
             return (
               <div 
@@ -568,39 +584,70 @@ export default function DetranProcesses({
 
                 {/* Workflow Checklist Grid */}
                 <div className="p-4 sm:p-5 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                  {/* Step 1: Vistoria */}
+                  {/* Step 1: Vistoria (Nem sempre exigida) */}
                   <div className={`p-3.5 rounded-xl border transition-all ${
-                    proc.inspectionDone 
-                      ? 'bg-emerald-950/15 border-emerald-900/50' 
-                      : 'bg-[#151921] border-slate-800'
+                    proc.requiresInspection === false
+                      ? 'opacity-75 bg-[#12151C] border-slate-800/60'
+                      : proc.inspectionDone 
+                        ? 'bg-emerald-950/15 border-emerald-900/50' 
+                        : 'bg-[#151921] border-slate-800'
                   }`}>
                     <div className="flex items-center justify-between mb-2">
                       <span className="text-[11px] font-black uppercase tracking-wider text-slate-300 flex items-center gap-1.5">
                         <span className="w-4 h-4 rounded-full bg-slate-800 text-slate-300 flex items-center justify-center text-[10px] font-bold">1</span>
                         Vistoria Veicular
                       </span>
-                      {plateExpenses.inspection && (
-                        <span className="text-[9px] font-mono bg-emerald-950/80 text-emerald-300 border border-emerald-800/40 px-1.5 py-0.5 rounded">
-                          ✓ Gasto R$ {plateExpenses.inspection.value.toFixed(2)}
-                        </span>
-                      )}
+                      <div className="flex items-center gap-1.5">
+                        {plateExpenses.inspection && (
+                          <span className="text-[9px] font-mono bg-emerald-950/80 text-emerald-300 border border-emerald-800/40 px-1.5 py-0.5 rounded">
+                            ✓ R$ {plateExpenses.inspection.value.toFixed(2)}
+                          </span>
+                        )}
+                        <button
+                          onClick={() => handleToggleStep(proc.id, 'requiresInspection', proc.requiresInspection === false ? true : false)}
+                          className="text-[10px] font-bold text-slate-400 hover:text-white cursor-pointer underline decoration-dotted"
+                          title="Alternar se o processo exige vistoria ou se é isento"
+                        >
+                          {proc.requiresInspection === false ? 'Não Exige' : 'Exige [X]'}
+                        </button>
+                      </div>
                     </div>
 
-                    <p className="text-[11px] text-slate-400 mb-3">
-                      {proc.inspectionDone ? 'Vistoria aprovada e cadastrada.' : 'Aguardando vistoria ou laudo ECV.'}
-                    </p>
+                    {proc.requiresInspection === false ? (
+                      <div className="space-y-2 py-1">
+                        <div className="flex items-center gap-1.5 text-xs text-emerald-400 font-semibold">
+                          <Check size={14} className="text-emerald-400" />
+                          <span>Isento de Vistoria {isFirstReg && '(1º Emplacamento)'}</span>
+                        </div>
+                        <p className="text-[11px] text-slate-400">
+                          Processo dispensado de laudo de vistoria física.
+                        </p>
+                        <button
+                          onClick={() => handleToggleStep(proc.id, 'requiresInspection', true)}
+                          className="w-full py-1 px-2 rounded-lg text-[10px] font-bold bg-slate-800/80 hover:bg-slate-800 text-slate-300 hover:text-white border border-slate-750 transition-all cursor-pointer"
+                        >
+                          Alterar para "Exigir Vistoria"
+                        </button>
+                      </div>
+                    ) : (
+                      <>
+                        <p className="text-[11px] text-slate-400 mb-3">
+                          {proc.inspectionDone ? 'Vistoria aprovada e cadastrada.' : 'Aguardando vistoria ou laudo ECV.'}
+                        </p>
 
-                    <button
-                      onClick={() => handleToggleStep(proc.id, 'inspectionDone', !proc.inspectionDone)}
-                      className={`w-full py-1.5 px-3 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
-                        proc.inspectionDone
-                          ? 'bg-emerald-600/90 text-white shadow'
-                          : 'bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white border border-slate-700'
-                      }`}
-                    >
-                      <Check size={14} />
-                      <span>{proc.inspectionDone ? 'Vistoria Concluída' : 'Marcar Vistoria Concluída'}</span>
-                    </button>
+                        <button
+                          onClick={() => handleToggleStep(proc.id, 'inspectionDone', !proc.inspectionDone)}
+                          className={`w-full py-1.5 px-3 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
+                            proc.inspectionDone
+                              ? 'bg-emerald-600/90 text-white shadow'
+                              : 'bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white border border-slate-700'
+                          }`}
+                        >
+                          <Check size={14} />
+                          <span>{proc.inspectionDone ? 'Vistoria Concluída' : 'Marcar Vistoria Concluída'}</span>
+                        </button>
+                      </>
+                    )}
                   </div>
 
                   {/* Step 2: Protocolo DETRAN */}
@@ -759,27 +806,41 @@ export default function DetranProcesses({
 
                   {/* Step 5: Recolhimento de Recibo (Conditional) */}
                   <div className={`p-3.5 rounded-xl border transition-all ${
-                    !proc.requiresReceiptCollection 
-                      ? 'opacity-60 bg-[#12151C] border-slate-800/60' 
-                      : proc.receiptCollected 
-                        ? 'bg-emerald-950/15 border-emerald-900/50' 
-                        : 'bg-amber-950/15 border-amber-900/50'
+                    isFirstReg
+                      ? 'opacity-70 bg-[#12151C] border-slate-800/60'
+                      : !proc.requiresReceiptCollection 
+                        ? 'opacity-60 bg-[#12151C] border-slate-800/60' 
+                        : proc.receiptCollected 
+                          ? 'bg-emerald-950/15 border-emerald-900/50' 
+                          : 'bg-amber-950/15 border-amber-900/50'
                   }`}>
                     <div className="flex items-center justify-between mb-2">
                       <span className="text-[11px] font-black uppercase tracking-wider text-slate-300 flex items-center gap-1.5">
                         <span className="w-4 h-4 rounded-full bg-slate-800 text-slate-300 flex items-center justify-center text-[10px] font-bold">5</span>
                         Recolhimento Recibo
                       </span>
-                      <button
-                        onClick={() => handleToggleStep(proc.id, 'requiresReceiptCollection', !proc.requiresReceiptCollection)}
-                        className="text-[10px] font-bold text-slate-400 hover:text-white cursor-pointer underline decoration-dotted"
-                        title="Alternar se o Detran exige recolhimento físico do recibo antigo"
-                      >
-                        {proc.requiresReceiptCollection ? 'Exige Recibo [X]' : 'Não Exige'}
-                      </button>
+                      {isFirstReg ? (
+                        <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-slate-800 text-slate-400 border border-slate-750">
+                          Nunca Exige (1º Emp)
+                        </span>
+                      ) : (
+                        <button
+                          onClick={() => handleToggleStep(proc.id, 'requiresReceiptCollection', !proc.requiresReceiptCollection)}
+                          className="text-[10px] font-bold text-slate-400 hover:text-white cursor-pointer underline decoration-dotted"
+                          title="Alternar se o Detran exige recolhimento físico do recibo antigo"
+                        >
+                          {proc.requiresReceiptCollection ? 'Exige Recibo [X]' : 'Não Exige'}
+                        </button>
+                      )}
                     </div>
 
-                    {proc.requiresReceiptCollection ? (
+                    {isFirstReg ? (
+                      <div className="py-1">
+                        <p className="text-[11px] text-slate-400">
+                          <strong className="text-slate-300 font-semibold">Veículo novo (0km):</strong> Nunca exige recolhimento de CRV (não possui recibo anterior).
+                        </p>
+                      </div>
+                    ) : proc.requiresReceiptCollection ? (
                       <div className="space-y-2">
                         <p className="text-[11px] text-amber-300/80">
                           {proc.receiptCollected 
@@ -982,7 +1043,13 @@ export default function DetranProcesses({
                     <button
                       key={at}
                       type="button"
-                      onClick={() => setNewDescription(at)}
+                      onClick={() => {
+                        setNewDescription(at);
+                        if (isFirstPlating(at)) {
+                          setNewRequiresPlate(true);
+                          setNewRequiresReceipt(false);
+                        }
+                      }}
                       className="px-2 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 text-[10px] font-bold cursor-pointer"
                     >
                       {at.trim()}
@@ -993,7 +1060,13 @@ export default function DetranProcesses({
                   type="text"
                   required
                   value={newDescription}
-                  onChange={(e) => setNewDescription(e.target.value.toUpperCase())}
+                  onChange={(e) => {
+                    const val = e.target.value.toUpperCase();
+                    setNewDescription(val);
+                    if (isFirstPlating(val)) {
+                      setNewRequiresReceipt(false);
+                    }
+                  }}
                   placeholder="Ex: TRANSF SAVEIRO, 1º EMPLACAMENTO"
                   className="w-full px-3 py-2 bg-[#0D1015] border border-slate-750 rounded-xl text-white focus:outline-none focus:border-emerald-500 font-bold uppercase"
                 />
@@ -1002,18 +1075,34 @@ export default function DetranProcesses({
               <div className="grid grid-cols-2 gap-3 pt-1">
                 <div>
                   <label className="block font-bold text-slate-400 uppercase tracking-wider text-[10px] mb-1">
+                    Exige Vistoria?
+                  </label>
+                  <select
+                    value={newRequiresInspection ? 'sim' : 'nao'}
+                    onChange={(e) => setNewRequiresInspection(e.target.value === 'sim')}
+                    className="w-full px-3 py-2 bg-[#0D1015] border border-slate-750 rounded-xl text-white focus:outline-none focus:border-emerald-500 text-xs"
+                  >
+                    <option value="sim">Sim, Exige Vistoria</option>
+                    <option value="nao">Não Exige (Isento)</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block font-bold text-slate-400 uppercase tracking-wider text-[10px] mb-1">
                     Quem Paga a Taxa?
                   </label>
                   <select
                     value={newFeePayer}
                     onChange={(e) => setNewFeePayer(e.target.value as any)}
-                    className="w-full px-3 py-2 bg-[#0D1015] border border-slate-750 rounded-xl text-white focus:outline-none focus:border-emerald-500"
+                    className="w-full px-3 py-2 bg-[#0D1015] border border-slate-750 rounded-xl text-white focus:outline-none focus:border-emerald-500 text-xs"
                   >
                     <option value="ESCRITORIO">Escritório Paga</option>
                     <option value="CLIENTE">Cliente Paga</option>
                   </select>
                 </div>
+              </div>
 
+              <div className="grid grid-cols-2 gap-3 pt-1">
                 <div>
                   <label className="block font-bold text-slate-400 uppercase tracking-wider text-[10px] mb-1">
                     Requer Placa?
@@ -1021,24 +1110,41 @@ export default function DetranProcesses({
                   <select
                     value={newRequiresPlate ? 'sim' : 'nao'}
                     onChange={(e) => setNewRequiresPlate(e.target.value === 'sim')}
-                    className="w-full px-3 py-2 bg-[#0D1015] border border-slate-750 rounded-xl text-white focus:outline-none focus:border-emerald-500"
+                    className="w-full px-3 py-2 bg-[#0D1015] border border-slate-750 rounded-xl text-white focus:outline-none focus:border-emerald-500 text-xs"
                   >
                     <option value="nao">Não Requer</option>
                     <option value="sim">Sim, Requer Placa</option>
                   </select>
                 </div>
+
+                <div className="flex flex-col justify-end">
+                  {isFirstPlating(newDescription) && (
+                    <span className="text-[10px] text-slate-400">
+                      ℹ️ 1º Emplacamento: vistoria nem sempre exigida e nunca exige CRV.
+                    </span>
+                  )}
+                </div>
               </div>
 
               <div>
-                <label className="flex items-center gap-2 text-slate-300 cursor-pointer pt-1">
-                  <input
-                    type="checkbox"
-                    checked={newRequiresReceipt}
-                    onChange={(e) => setNewRequiresReceipt(e.target.checked)}
-                    className="rounded text-emerald-600 focus:ring-0"
-                  />
-                  <span>Exige recolhimento do recibo antigo no Detran</span>
-                </label>
+                {isFirstPlating(newDescription) ? (
+                  <div className="p-2.5 rounded-xl bg-slate-900/70 border border-slate-800 text-[11px] text-slate-400 flex items-center gap-2">
+                    <span className="px-1.5 py-0.5 rounded bg-slate-800 text-slate-300 font-bold text-[9px] uppercase">
+                      1º Emplacamento
+                    </span>
+                    <span>Nunca exige recolhimento de CRV (veículo novo 0km).</span>
+                  </div>
+                ) : (
+                  <label className="flex items-center gap-2 text-slate-300 cursor-pointer pt-1 text-xs">
+                    <input
+                      type="checkbox"
+                      checked={newRequiresReceipt}
+                      onChange={(e) => setNewRequiresReceipt(e.target.checked)}
+                      className="rounded text-emerald-600 focus:ring-0"
+                    />
+                    <span>Exige recolhimento do recibo antigo no Detran</span>
+                  </label>
+                )}
               </div>
 
               <div className="flex justify-end gap-2 pt-3 border-t border-slate-800 mt-4">

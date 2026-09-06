@@ -853,6 +853,10 @@ export default function App() {
       const hasTaxa = (service.items || []).some(item => (item.name || '').toUpperCase().includes('TAXA'));
       const hasPlaca = (service.items || []).some(item => (item.name || '').toUpperCase().includes('PLACA'));
 
+      const descUpper = (service.description || '').toUpperCase();
+      const isFirstReg = descUpper.includes('1º EMP') || descUpper.includes('PRIMEIRO EMP') || descUpper.includes('1ºEMP') || descUpper.includes('0KM');
+      const hasVistoria = (service.items || []).some(item => (item.name || '').toUpperCase().includes('VISTORIA'));
+
       const autoProc: DetranProcess = {
         id: `proc-${service.id}`,
         serviceId: service.id,
@@ -860,15 +864,18 @@ export default function App() {
         plate: service.plate || '',
         description: (service.description && service.description.trim()) 
           ? service.description.toUpperCase() 
-          : `TRANSF ${cleanP || ''}`.trim(),
+          : (isFirstReg ? `1º EMPLACAMENTO ${cleanP || ''}`.trim() : `TRANSF ${cleanP || ''}`.trim()),
         stage: 'ENTRADA',
+        // 1º Emplacamento nem sempre exige vistoria (apenas se houver vistoria discriminada ou conforme necessidade)
+        requiresInspection: isFirstReg ? hasVistoria : true,
         inspectionDone: false,
         detranApproved: false,
         feePayer: hasTaxa ? 'ESCRITORIO' : 'CLIENTE',
         feePaid: false,
-        requiresPlate: hasPlaca,
+        requiresPlate: hasPlaca || isFirstReg,
         plateOrdered: false,
         plateInstalled: false,
+        // 1º Emplacamento NUNCA exige recolhimento de CRV (veículo novo 0km)
         requiresReceiptCollection: false,
         receiptCollected: false,
         crlvIssued: false,
@@ -1340,6 +1347,10 @@ export default function App() {
       const hasTaxa = (serv.items || []).some(item => (item.name || '').toUpperCase().includes('TAXA'));
       const hasPlaca = (serv.items || []).some(item => (item.name || '').toUpperCase().includes('PLACA'));
 
+      const descUpper = (serv.description || '').toUpperCase();
+      const isFirstReg = descUpper.includes('1º EMP') || descUpper.includes('PRIMEIRO EMP') || descUpper.includes('1ºEMP') || descUpper.includes('0KM');
+      const hasVistoria = (serv.items || []).some(item => (item.name || '').toUpperCase().includes('VISTORIA'));
+
       const autoProc: DetranProcess = {
         id: `proc-${serv.id}`,
         serviceId: serv.id,
@@ -1347,15 +1358,18 @@ export default function App() {
         plate: serv.plate || '',
         description: (serv.description && serv.description.trim()) 
           ? serv.description.toUpperCase() 
-          : `TRANSF ${cleanP || ''}`.trim(),
+          : (isFirstReg ? `1º EMPLACAMENTO ${cleanP || ''}`.trim() : `TRANSF ${cleanP || ''}`.trim()),
         stage: 'ENTRADA',
+        // 1º Emplacamento nem sempre exige vistoria (apenas se discriminada no serviço ou conforme necessidade)
+        requiresInspection: isFirstReg ? hasVistoria : true,
         inspectionDone: false,
         detranApproved: false,
         feePayer: hasTaxa ? 'ESCRITORIO' : 'CLIENTE',
         feePaid: false,
-        requiresPlate: hasPlaca,
+        requiresPlate: hasPlaca || isFirstReg,
         plateOrdered: false,
         plateInstalled: false,
+        // 1º Emplacamento NUNCA exige recolhimento de CRV (veículo novo 0km)
         requiresReceiptCollection: false,
         receiptCollected: false,
         crlvIssued: false,
