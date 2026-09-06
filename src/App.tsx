@@ -1167,6 +1167,10 @@ export default function App() {
 
   // Switch tab and close drawer helper
   const handleNavigate = (tab: string, initialStatus?: string) => {
+    // Restrict comparative report and operators tab for non-admin operators
+    if (!currentSession?.isAdmin && (tab === 'reports-comparative' || tab === 'operators')) {
+      tab = 'reports-general';
+    }
     setCurrentTab(tab);
     setIsMobileSidebarOpen(false);
     if (tab === 'reports-pending') {
@@ -1177,6 +1181,13 @@ export default function App() {
       setInitialStatusFilter('all');
     }
   };
+
+  // Safety redirect: ensure non-admin operator cannot access restricted tabs
+  useEffect(() => {
+    if (currentSession && !currentSession.isAdmin && (currentTab === 'reports-comparative' || currentTab === 'operators')) {
+      setCurrentTab('reports-general');
+    }
+  }, [currentSession, currentTab]);
 
   if (!currentSession) {
     return (
@@ -1457,16 +1468,18 @@ export default function App() {
                 >
                   Relatório de Pendências
                 </button>
-                <button
-                  onClick={() => handleNavigate('reports-comparative')}
-                  className={`flex-1 sm:flex-none px-4 py-2 rounded-lg text-xs font-bold tracking-wide transition-all cursor-pointer ${
-                    currentTab === 'reports-comparative'
-                      ? 'bg-emerald-600 text-white shadow-md'
-                      : 'text-slate-400 hover:text-white hover:bg-slate-800/40'
-                  }`}
-                >
-                  Relatório Comparativo
-                </button>
+                {currentSession?.isAdmin && (
+                  <button
+                    onClick={() => handleNavigate('reports-comparative')}
+                    className={`flex-1 sm:flex-none px-4 py-2 rounded-lg text-xs font-bold tracking-wide transition-all cursor-pointer ${
+                      currentTab === 'reports-comparative'
+                        ? 'bg-emerald-600 text-white shadow-md'
+                        : 'text-slate-400 hover:text-white hover:bg-slate-800/40'
+                    }`}
+                  >
+                    Relatório Comparativo
+                  </button>
+                )}
               </div>
             </div>
           )}
@@ -1553,7 +1566,7 @@ export default function App() {
             />
           )}
 
-          {currentTab === 'reports-comparative' && (
+          {currentTab === 'reports-comparative' && currentSession?.isAdmin && (
             <ReportsComparative
               services={filteredServices}
               expenses={filteredExpenses}
