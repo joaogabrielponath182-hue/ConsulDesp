@@ -30,6 +30,10 @@ service cloud.firestore {
       allow read, write: if true;
     }
 
+    match /detran_processes/{id} {
+      allow read, write: if true;
+    }
+
     match /leads/{id} {
       allow read, write: if true;
     }

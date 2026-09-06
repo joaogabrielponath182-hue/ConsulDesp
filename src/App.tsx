@@ -18,9 +18,10 @@ import Reports from './components/Reports';
 import ReportsComparative from './components/ReportsComparative';
 import Clients from './components/Clients';
 import Operators from './components/Operators';
+import DetranProcesses from './components/DetranProcesses';
 import SystemLogo from './components/SystemLogo';
 
-import { SubCategory, Service, Expense, ExpenseCategory, PersonalExpense, Client, InternalUser, UserSession } from './types';
+import { SubCategory, Service, Expense, ExpenseCategory, PersonalExpense, Client, InternalUser, UserSession, DetranProcess } from './types';
 import { 
   DEFAULT_SUBCATEGORIES, 
   DEFAULT_SERVICES, 
@@ -49,7 +50,10 @@ import {
   fetchInternalUsers,
   saveInternalUser,
   deleteInternalUser,
-  cleanAndDeduplicateSubcategories
+  cleanAndDeduplicateSubcategories,
+  saveDetranProcess,
+  deleteDetranProcess,
+  fetchDetranProcesses
 } from './lib/db';
 import AuthModal from './components/AuthModal';
 import LoginScreen from './components/LoginScreen';
@@ -90,6 +94,14 @@ export default function App() {
   const [expenses, setExpenses] = useState<Expense[]>([]);
   const [personalExpenses, setPersonalExpenses] = useState<PersonalExpense[]>([]);
   const [clients, setClients] = useState<Client[]>([]);
+  const [detranProcesses, setDetranProcesses] = useState<DetranProcess[]>(() => {
+    try {
+      const stored = localStorage.getItem('dep_detran_processes');
+      return stored ? JSON.parse(stored) : [];
+    } catch {
+      return [];
+    }
+  });
 
   // Firebase auth & syncing states
   const [currentUser, setCurrentUser] = useState<User | null>(null);
@@ -176,6 +188,18 @@ export default function App() {
       localStorage.setItem('dep_subcategories', JSON.stringify(cleanedSubs));
       localStorage.setItem('dep_personal_expenses', JSON.stringify(cloudData.personalExpenses || []));
       localStorage.setItem('dep_clients', JSON.stringify(cloudData.clients || []));
+
+      // Fetch Detran processes
+      try {
+        const cloudProcesses = await fetchDetranProcesses(dbUserId);
+        if (cloudProcesses && cloudProcesses.length > 0) {
+          setDetranProcesses(cloudProcesses);
+          localStorage.setItem('dep_detran_processes', JSON.stringify(cloudProcesses));
+        }
+      } catch (procErr) {
+        console.error("Erro ao puxar processos do Detran da nuvem:", procErr);
+      }
+
       console.log(`Dados para ${session.username} (Empresa: ${dbUserId}) sincronizados com sucesso da nuvem!`);
     } catch (err) {
       console.error("Erro ao puxar dados da nuvem para o usuário:", err);
@@ -632,6 +656,17 @@ export default function App() {
         localStorage.setItem('dep_subcategories', JSON.stringify(cleanedSubs));
         localStorage.setItem('dep_personal_expenses', JSON.stringify(cloudData.personalExpenses || []));
         localStorage.setItem('dep_clients', JSON.stringify(cloudData.clients || []));
+
+        // Detran Processes
+        try {
+          const cloudProcesses = await fetchDetranProcesses(dbUserId);
+          if (cloudProcesses && cloudProcesses.length > 0) {
+            setDetranProcesses(cloudProcesses);
+            localStorage.setItem('dep_detran_processes', JSON.stringify(cloudProcesses));
+          }
+        } catch (procErr) {
+          console.error("Erro ao puxar processos do Detran na atualização forçada:", procErr);
+        }
       }
     } catch (err) {
       console.error("Erro ao forçar atualização da nuvem:", err);
@@ -648,12 +683,14 @@ export default function App() {
     const storedExpenses = localStorage.getItem('dep_expenses');
     const storedPersonalExpenses = localStorage.getItem('dep_personal_expenses');
     const storedClients = localStorage.getItem('dep_clients');
+    const storedProcesses = localStorage.getItem('dep_detran_processes');
     
     setSubCategories(storedSubs ? JSON.parse(storedSubs) : DEFAULT_SUBCATEGORIES);
     setServices(storedServices ? JSON.parse(storedServices) : DEFAULT_SERVICES);
     setExpenses(storedExpenses ? JSON.parse(storedExpenses) : DEFAULT_EXPENSES);
     setPersonalExpenses(storedPersonalExpenses ? JSON.parse(storedPersonalExpenses) : []);
     setClients(storedClients ? JSON.parse(storedClients) : []);
+    setDetranProcesses(storedProcesses ? JSON.parse(storedProcesses) : []);
   };
 
   // Save states helper wrappers
@@ -797,6 +834,65 @@ export default function App() {
       return updated;
     });
 
+    // Auto-create Detran Process if service has HONORÁRIO
+    const hasHonorario = (service.items || []).some(item => {
+      const nm = (item.name || '').toUpperCase();
+      return nm.includes('HONORARIO') || nm.includes('HONORÁRIO');
+    });
+
+    if (hasHonorario) {
+      const cleanP = (service.plate || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+      const hasTaxa = (service.items || []).some(item => (item.name || '').toUpperCase().includes('TAXA'));
+      const hasPlaca = (service.items || []).some(item => (item.name || '').toUpperCase().includes('PLACA'));
+
+      const autoProc: DetranProcess = {
+        id: `proc-${service.id}`,
+        serviceId: service.id,
+        client: service.client || 'CLIENTE BALCÃO',
+        plate: service.plate || '',
+        description: (service.description && service.description.trim()) 
+          ? service.description.toUpperCase() 
+          : `TRANSF ${cleanP || ''}`.trim(),
+        stage: 'ENTRADA',
+        inspectionDone: false,
+        detranApproved: false,
+        feePayer: hasTaxa ? 'ESCRITORIO' : 'CLIENTE',
+        feePaid: false,
+        requiresPlate: hasPlaca,
+        plateOrdered: false,
+        plateInstalled: false,
+        requiresReceiptCollection: false,
+        receiptCollected: false,
+        crlvIssued: false,
+        deliveredToClient: false,
+        messages: [
+          {
+            id: `msg-${Date.now()}`,
+            author: currentSession?.fullName || service.operator || 'Atendimento',
+            text: `Processo aberto automaticamente via atendimento (${service.client || 'Cliente'}).`,
+            timestamp: `${new Date().toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })} às ${new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}`
+          }
+        ],
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        operator: currentSession?.fullName || service.operator,
+        userId: getDbUserId(currentSession?.username)
+      };
+
+      setDetranProcesses(prev => {
+        const filtered = prev.filter(p => p.serviceId !== service.id);
+        const updated = [autoProc, ...filtered];
+        localStorage.setItem('dep_detran_processes', JSON.stringify(updated));
+        return updated;
+      });
+
+      if (currentSession && isCloudConnected) {
+        saveDetranProcess(getDbUserId(currentSession.username), autoProc).catch(e => 
+          console.error("Erro ao salvar processo Detran gerado na nuvem:", e)
+        );
+      }
+    }
+
     if (currentSession && isCloudConnected) {
       try {
         await saveService(getDbUserId(currentSession.username), service);
@@ -892,6 +988,52 @@ export default function App() {
     const updated = [expense, ...expenses];
     setExpenses(updated);
     localStorage.setItem('dep_expenses', JSON.stringify(updated));
+
+    // Automate Detran process updates if expense is VISTORIA, TAXA DETRAN, or PLACA for a plate
+    const cleanP = (expense.plate || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+    if (cleanP) {
+      const catAndDesc = `${expense.category} ${expense.description}`.toUpperCase();
+      const isVistoria = catAndDesc.includes('VISTORIA');
+      const isTaxa = catAndDesc.includes('TAXA') || catAndDesc.includes('DETRAN');
+      const isPlaca = catAndDesc.includes('PLACA');
+
+      if (isVistoria || isTaxa || isPlaca) {
+        setDetranProcesses(prev => {
+          let changed = false;
+          const next = prev.map(proc => {
+            const pPlate = (proc.plate || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+            if (pPlate === cleanP) {
+              changed = true;
+              return {
+                ...proc,
+                inspectionDone: isVistoria ? true : proc.inspectionDone,
+                inspectionDate: isVistoria ? expense.date : proc.inspectionDate,
+                feePaid: isTaxa ? true : proc.feePaid,
+                feePaidDate: isTaxa ? expense.date : proc.feePaidDate,
+                feeExpenseId: isTaxa ? expense.id : proc.feeExpenseId,
+                plateOrdered: isPlaca ? true : proc.plateOrdered,
+                plateExpenseId: isPlaca ? expense.id : proc.plateExpenseId,
+                updatedAt: new Date().toISOString()
+              };
+            }
+            return proc;
+          });
+
+          if (changed) {
+            localStorage.setItem('dep_detran_processes', JSON.stringify(next));
+            if (currentSession && isCloudConnected) {
+              const target = next.find(p => (p.plate || '').toUpperCase().replace(/[^A-Z0-9]/g, '') === cleanP);
+              if (target) {
+                saveDetranProcess(getDbUserId(currentSession.username), target).catch(e =>
+                  console.error("Erro ao sincronizar processo com gasto na nuvem:", e)
+                );
+              }
+            }
+          }
+          return next;
+        });
+      }
+    }
 
     if (currentSession && isCloudConnected) {
       try {
@@ -1107,6 +1249,126 @@ export default function App() {
       }
     }
   };
+
+  // Detran Processes Management
+  const handleSaveProcess = async (proc: DetranProcess) => {
+    setDetranProcesses(prev => {
+      const idx = prev.findIndex(p => p.id === proc.id);
+      let updated: DetranProcess[];
+      if (idx >= 0) {
+        updated = [...prev];
+        updated[idx] = proc;
+      } else {
+        updated = [proc, ...prev];
+      }
+      localStorage.setItem('dep_detran_processes', JSON.stringify(updated));
+      return updated;
+    });
+
+    if (currentSession && isCloudConnected) {
+      try {
+        await saveDetranProcess(getDbUserId(currentSession.username), proc);
+      } catch (err) {
+        console.error("Erro ao salvar processo Detran na nuvem:", err);
+      }
+    }
+  };
+
+  const handleDeleteProcess = async (id: string) => {
+    setDetranProcesses(prev => {
+      const updated = prev.filter(p => p.id !== id);
+      localStorage.setItem('dep_detran_processes', JSON.stringify(updated));
+      return updated;
+    });
+
+    if (currentSession && isCloudConnected) {
+      try {
+        await deleteDetranProcess(id);
+      } catch (err) {
+        console.error("Erro ao deletar processo Detran na nuvem:", err);
+      }
+    }
+  };
+
+  // Synchronize Detran Processes with existing services
+  const syncProcessesWithServices = (servicesList: Service[], existingProcesses: DetranProcess[]) => {
+    const updatedList = [...existingProcesses];
+    let createdCount = 0;
+
+    servicesList.forEach(serv => {
+      const hasHonorario = (serv.items || []).some(item => {
+        const nm = (item.name || '').toUpperCase();
+        return nm.includes('HONORARIO') || nm.includes('HONORÁRIO');
+      });
+
+      if (!hasHonorario) return;
+
+      const cleanP = (serv.plate || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+      const alreadyExists = updatedList.some(p => 
+        p.serviceId === serv.id || (cleanP && (p.plate || '').toUpperCase().replace(/[^A-Z0-9]/g, '') === cleanP)
+      );
+
+      if (alreadyExists) return;
+
+      const hasTaxa = (serv.items || []).some(item => (item.name || '').toUpperCase().includes('TAXA'));
+      const hasPlaca = (serv.items || []).some(item => (item.name || '').toUpperCase().includes('PLACA'));
+
+      const autoProc: DetranProcess = {
+        id: `proc-${serv.id}`,
+        serviceId: serv.id,
+        client: serv.client || 'CLIENTE BALCÃO',
+        plate: serv.plate || '',
+        description: (serv.description && serv.description.trim()) 
+          ? serv.description.toUpperCase() 
+          : `TRANSF ${cleanP || ''}`.trim(),
+        stage: 'ENTRADA',
+        inspectionDone: false,
+        detranApproved: false,
+        feePayer: hasTaxa ? 'ESCRITORIO' : 'CLIENTE',
+        feePaid: false,
+        requiresPlate: hasPlaca,
+        plateOrdered: false,
+        plateInstalled: false,
+        requiresReceiptCollection: false,
+        receiptCollected: false,
+        crlvIssued: false,
+        deliveredToClient: false,
+        messages: [
+          {
+            id: `msg-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+            author: serv.operator || 'Atendimento',
+            text: `Processo sincronizado a partir do serviço de ${serv.client || 'atendimento'}.`,
+            timestamp: `${new Date().toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })} às ${new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}`
+          }
+        ],
+        createdAt: serv.date ? new Date(serv.date).toISOString() : new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        operator: serv.operator || 'admin',
+        userId: getDbUserId(currentSession?.username)
+      };
+
+      updatedList.push(autoProc);
+      createdCount++;
+
+      if (currentSession && isCloudConnected) {
+        saveDetranProcess(getDbUserId(currentSession.username), autoProc).catch(e =>
+          console.error("Erro ao sincronizar processo na nuvem:", e)
+        );
+      }
+    });
+
+    if (createdCount > 0) {
+      setDetranProcesses(updatedList);
+      localStorage.setItem('dep_detran_processes', JSON.stringify(updatedList));
+    }
+  };
+
+  // Auto-sync processes whenever services are available
+  useEffect(() => {
+    if (filteredServices.length > 0) {
+      syncProcessesWithServices(filteredServices, detranProcesses);
+    }
+  }, [filteredServices.length]);
 
   const handleImportBackup = async (parsedData: { 
     services: Service[]; 
@@ -1336,6 +1598,7 @@ export default function App() {
               <span className="text-[10px] sm:text-xs font-black uppercase bg-emerald-950/40 text-emerald-400 px-2.5 py-1 rounded-xl border border-emerald-900/50">
                 {currentTab === 'dashboard' ? 'Painel Geral' :
                  currentTab === 'services' ? 'Serviços' :
+                 currentTab === 'processes' ? 'Processos DETRAN' :
                  currentTab === 'expenses' ? 'Registro de Gastos' :
                  currentTab === 'subcategories' ? 'Subcategorias' :
                  currentTab === 'clients' ? 'Clientes' :
@@ -1514,6 +1777,18 @@ export default function App() {
               onRedirectToForm={() => handleNavigate('services')}
             />
           </div>
+
+          {currentTab === 'processes' && (
+            <DetranProcesses
+              processes={detranProcesses}
+              services={filteredServices}
+              expenses={filteredExpenses}
+              currentSession={currentSession}
+              onSaveProcess={handleSaveProcess}
+              onDeleteProcess={handleDeleteProcess}
+              onSyncWithServices={() => syncProcessesWithServices(filteredServices, detranProcesses)}
+            />
+          )}
 
           {currentTab === 'clients' && (
             <Clients

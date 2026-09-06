@@ -109,3 +109,70 @@ export interface Lead {
   status: 'PENDENTE' | 'CONTATADO' | 'REJEITADO';
 }
 
+export interface ProcessMessage {
+  id: string;
+  author: string;
+  text: string;
+  timestamp: string;
+}
+
+export type ProcessStage = 
+  | 'ENTRADA'            // Coleta de documentos / balcão
+  | 'VISTORIA'           // Vistoria realizada / aguardando laudo
+  | 'AGUARDANDO_DETRAN'  // Protocolado no Detran
+  | 'LIBERADO'           // Liberado pelo Detran (fases finais: taxa/placa/recibo)
+  | 'PRONTO_ENTREGA'     // CRLV-e emitido
+  | 'CONCLUIDO';         // Entregue ao cliente
+
+export interface DetranProcess {
+  id: string;
+  serviceId?: string;
+  client: string;
+  plate: string;
+  description: string;
+  stage: ProcessStage;
+
+  // Protocolo DETRAN
+  protocolNumber?: string;
+  protocolDate?: string;
+
+  // Vistoria
+  inspectionDone: boolean;
+  inspectionDate?: string;
+
+  // Aprovação DETRAN
+  detranApproved: boolean;
+  detranApprovedDate?: string;
+
+  // Taxa DETRAN
+  feePayer: 'ESCRITORIO' | 'CLIENTE';
+  feePaid: boolean;
+  feePaidDate?: string;
+  feeExpenseId?: string;
+
+  // Placa
+  requiresPlate: boolean;
+  plateOrdered: boolean;
+  plateInstalled: boolean;
+  plateExpenseId?: string;
+
+  // Recolhimento de Recibo
+  requiresReceiptCollection: boolean;
+  receiptCollected: boolean;
+
+  // Emissão CRLV-e e Entrega
+  crlvIssued: boolean;
+  crlvIssuedDate?: string;
+  deliveredToClient: boolean;
+  deliveredDate?: string;
+
+  // Chat / Recados Internos
+  messages: ProcessMessage[];
+
+  // Metadados
+  createdAt: string;
+  updatedAt: string;
+  operator?: string;
+  userId?: string;
+}
+

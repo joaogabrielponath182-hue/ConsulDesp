@@ -25,7 +25,8 @@ import {
   HelpCircle,
   Database,
   RefreshCw,
-  MessageSquare
+  MessageSquare,
+  FolderKanban
 } from 'lucide-react';
 import { motion } from 'motion/react';
 import { User } from 'firebase/auth';
@@ -101,6 +102,7 @@ export default function Sidebar({
   const menuItems = isAdmin ? [
     { id: 'dashboard', name: 'Painel Geral', icon: LayoutDashboard },
     { id: 'services', name: 'Serviços (Receitas)', icon: FileCheck },
+    { id: 'processes', name: 'Processos DETRAN', icon: FolderKanban },
     { id: 'expenses', name: 'Registro de Gastos', icon: DollarSign },
     { 
       id: 'reports', 
@@ -120,6 +122,7 @@ export default function Sidebar({
   ] : [
     { id: 'dashboard', name: 'Painel Geral', icon: LayoutDashboard },
     { id: 'services', name: 'Serviços', icon: FileCheck },
+    { id: 'processes', name: 'Processos DETRAN', icon: FolderKanban },
     { id: 'expenses', name: 'Registro de Gastos', icon: DollarSign },
     { 
       id: 'reports', 
