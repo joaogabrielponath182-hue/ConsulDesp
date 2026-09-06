@@ -97,7 +97,13 @@ export default function App() {
   const [detranProcesses, setDetranProcesses] = useState<DetranProcess[]>(() => {
     try {
       const stored = localStorage.getItem('dep_detran_processes');
-      return stored ? JSON.parse(stored) : [];
+      const parsed: DetranProcess[] = stored ? JSON.parse(stored) : [];
+      // Clean and start only on services from 01/09/2026 onwards
+      const filtered = parsed.filter(p => !p.createdAt || p.createdAt.substring(0, 10) >= '2026-09-01');
+      if (filtered.length !== parsed.length) {
+        localStorage.setItem('dep_detran_processes', JSON.stringify(filtered));
+      }
+      return filtered;
     } catch {
       return [];
     }
@@ -189,12 +195,13 @@ export default function App() {
       localStorage.setItem('dep_personal_expenses', JSON.stringify(cloudData.personalExpenses || []));
       localStorage.setItem('dep_clients', JSON.stringify(cloudData.clients || []));
 
-      // Fetch Detran processes
+      // Fetch Detran processes (starting from 01/09/2026 onwards)
       try {
         const cloudProcesses = await fetchDetranProcesses(dbUserId);
         if (cloudProcesses && cloudProcesses.length > 0) {
-          setDetranProcesses(cloudProcesses);
-          localStorage.setItem('dep_detran_processes', JSON.stringify(cloudProcesses));
+          const validProcs = cloudProcesses.filter(p => !p.createdAt || p.createdAt.substring(0, 10) >= '2026-09-01');
+          setDetranProcesses(validProcs);
+          localStorage.setItem('dep_detran_processes', JSON.stringify(validProcs));
         }
       } catch (procErr) {
         console.error("Erro ao puxar processos do Detran da nuvem:", procErr);
@@ -834,13 +841,14 @@ export default function App() {
       return updated;
     });
 
-    // Auto-create Detran Process if service has HONORÁRIO
+    // Auto-create Detran Process if service has HONORÁRIO and is from 01/09/2026 onwards
+    const serviceDateStr = service.date ? service.date.substring(0, 10) : new Date().toISOString().substring(0, 10);
     const hasHonorario = (service.items || []).some(item => {
       const nm = (item.name || '').toUpperCase();
       return nm.includes('HONORARIO') || nm.includes('HONORÁRIO');
     });
 
-    if (hasHonorario) {
+    if (hasHonorario && serviceDateStr >= '2026-09-01') {
       const cleanP = (service.plate || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
       const hasTaxa = (service.items || []).some(item => (item.name || '').toUpperCase().includes('TAXA'));
       const hasPlaca = (service.items || []).some(item => (item.name || '').toUpperCase().includes('PLACA'));
@@ -1290,12 +1298,31 @@ export default function App() {
     }
   };
 
-  // Synchronize Detran Processes with existing services
+  // Synchronize Detran Processes with existing services (only starting from 01/09/2026)
   const syncProcessesWithServices = (servicesList: Service[], existingProcesses: DetranProcess[]) => {
-    const updatedList = [...existingProcesses];
+    // Purge any older processes prior to 01/09/2026
+    const validExisting = existingProcesses.filter(p => {
+      if (p.serviceId) {
+        const matchingServ = servicesList.find(s => s.id === p.serviceId);
+        if (matchingServ && matchingServ.date && matchingServ.date.substring(0, 10) < '2026-09-01') {
+          return false;
+        }
+      }
+      if (p.createdAt && p.createdAt.substring(0, 10) < '2026-09-01') {
+        return false;
+      }
+      return true;
+    });
+
+    const updatedList = [...validExisting];
     let createdCount = 0;
+    let listModified = validExisting.length !== existingProcesses.length;
 
     servicesList.forEach(serv => {
+      // Must only process services from 01/09/2026 onwards
+      const servDate = serv.date ? serv.date.substring(0, 10) : '';
+      if (servDate < '2026-09-01') return;
+
       const hasHonorario = (serv.items || []).some(item => {
         const nm = (item.name || '').toUpperCase();
         return nm.includes('HONORARIO') || nm.includes('HONORÁRIO');
@@ -1349,6 +1376,7 @@ export default function App() {
 
       updatedList.push(autoProc);
       createdCount++;
+      listModified = true;
 
       if (currentSession && isCloudConnected) {
         saveDetranProcess(getDbUserId(currentSession.username), autoProc).catch(e =>
@@ -1357,7 +1385,7 @@ export default function App() {
       }
     });
 
-    if (createdCount > 0) {
+    if (listModified) {
       setDetranProcesses(updatedList);
       localStorage.setItem('dep_detran_processes', JSON.stringify(updatedList));
     }

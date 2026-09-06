@@ -105,9 +105,13 @@ export default function DetranProcesses({
     return 'ENTRADA';
   };
 
-  // Filter processes
+  // Filter processes (only from 01/09/2026 onwards)
   const filteredProcesses = useMemo(() => {
     return processes.filter(p => {
+      // Must only start on services from 01/09/2026 onwards
+      const dateStr = p.createdAt ? p.createdAt.substring(0, 10) : '';
+      if (dateStr && dateStr < '2026-09-01') return false;
+
       const term = searchTerm.toLowerCase().trim();
       const matchSearch = 
         !term ||
@@ -126,9 +130,14 @@ export default function DetranProcesses({
     });
   }, [processes, searchTerm, stageFilter]);
 
-  // Counts for tabs
+  // Counts for tabs (only from 01/09/2026 onwards)
   const counts = useMemo(() => {
-    let total = processes.length;
+    const validProcesses = processes.filter(p => {
+      const dateStr = p.createdAt ? p.createdAt.substring(0, 10) : '';
+      return !dateStr || dateStr >= '2026-09-01';
+    });
+
+    let total = validProcesses.length;
     let active = 0;
     let entrada = 0;
     let vistoria = 0;
@@ -137,7 +146,7 @@ export default function DetranProcesses({
     let prontoEntrega = 0;
     let concluido = 0;
 
-    processes.forEach(p => {
+    validProcesses.forEach(p => {
       const st = calculateProcessStage(p);
       if (st !== 'CONCLUIDO') active++;
       if (st === 'ENTRADA') entrada++;
@@ -435,7 +444,7 @@ export default function DetranProcesses({
           <p className="text-xs text-slate-500 mt-1 max-w-md mx-auto">
             {searchTerm 
               ? 'Nenhum veículo corresponde à sua busca atual.' 
-              : 'Assim que o operador lançar serviços com HONORÁRIO, eles aparecerão aqui automaticamente, ou você pode clicar no botão "+ Novo Processo".'}
+              : 'A esteira exibe processos para serviços a partir de 01/09/2026. Assim que o operador lançar serviços com HONORÁRIO a partir desta data, eles aparecerão aqui automaticamente, ou você pode clicar no botão "+ Novo Processo".'}
           </p>
           <div className="mt-5 flex justify-center gap-3">
             <button
