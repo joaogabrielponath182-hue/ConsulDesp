@@ -117,7 +117,7 @@ export interface ProcessMessage {
 }
 
 export type ProcessStage = 
-  | 'ENTRADA'            // Coleta de documentos / balcão
+  | 'ENTRADA'            // Recebido (Sem Abertura)
   | 'VISTORIA'           // Vistoria realizada / aguardando laudo
   | 'AGUARDANDO_DETRAN'  // Protocolado no Detran
   | 'LIBERADO'           // Liberado pelo Detran (fases finais: taxa/placa/recibo)
@@ -133,9 +133,11 @@ export interface DetranProcess {
   description: string;
   stage: ProcessStage;
 
-  // Protocolo DETRAN
+  // Processo / Protocolo DETRAN
   protocolNumber?: string;
   protocolDate?: string;
+  processOpened?: boolean;
+  processOpenedDate?: string;
 
   // Vistoria
   requiresInspection?: boolean; // Nem sempre é exigido vistoria (ex: 1º emplacamento faturado direto)

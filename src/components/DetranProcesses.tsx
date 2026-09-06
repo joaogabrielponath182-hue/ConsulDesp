@@ -47,6 +47,13 @@ export default function DetranProcesses({
   const [expandedChatId, setExpandedChatId] = useState<string | null>(null);
   const [newMessageText, setNewMessageText] = useState<{ [processId: string]: string }>({});
   const [isNewProcessModalOpen, setIsNewProcessModalOpen] = useState(false);
+  const [isSyncing, setIsSyncing] = useState(false);
+
+  const handleSyncClick = () => {
+    setIsSyncing(true);
+    onSyncWithServices();
+    setTimeout(() => setIsSyncing(false), 900);
+  };
 
   // New process manual state
   const [newClient, setNewClient] = useState('');
@@ -115,7 +122,8 @@ export default function DetranProcesses({
       return 'FINALIZADO';
     }
     if (p.detranApproved) return 'LIBERADO';
-    if (p.protocolNumber && p.protocolNumber.trim().length > 0) return 'AGUARDANDO_DETRAN';
+    const isOpened = p.processOpened || (!!p.protocolNumber && p.protocolNumber.trim().length > 0);
+    if (isOpened) return 'AGUARDANDO_DETRAN';
     // If inspection is required and completed
     if (p.requiresInspection !== false && p.inspectionDone) return 'VISTORIA';
     return 'ENTRADA';
@@ -217,6 +225,36 @@ export default function DetranProcesses({
       updatedAt: new Date().toISOString()
     };
 
+    if (stepKey === 'processOpened') {
+      const isOpened = !!value;
+      updated.processOpened = isOpened;
+      if (isOpened) {
+        if (!updated.processOpenedDate) {
+          updated.processOpenedDate = new Date().toLocaleDateString('pt-BR');
+        }
+        if (!updated.protocolDate) {
+          updated.protocolDate = new Date().toLocaleDateString('pt-BR');
+        }
+      } else {
+        updated.processOpenedDate = undefined;
+        if (!updated.protocolNumber?.trim()) {
+          updated.protocolDate = undefined;
+        }
+      }
+    }
+
+    if (stepKey === 'detranApproved') {
+      const isApproved = !!value;
+      updated.detranApproved = isApproved;
+      if (isApproved) {
+        if (!updated.detranApprovedDate) {
+          updated.detranApprovedDate = new Date().toLocaleDateString('pt-BR');
+        }
+      } else {
+        updated.detranApprovedDate = undefined;
+      }
+    }
+
     if (stepKey === 'crlvIssued') {
       const isIssued = !!value;
       updated.crlvIssued = isIssued;
@@ -240,10 +278,11 @@ export default function DetranProcesses({
     const targetProcess = processes.find(p => p.id === processId);
     if (!targetProcess) return;
 
+    const hasProtocol = protocolVal.trim().length > 0;
     const updated: DetranProcess = {
       ...targetProcess,
       protocolNumber: protocolVal,
-      protocolDate: protocolVal.trim() ? new Date().toLocaleDateString('pt-BR') : undefined,
+      protocolDate: hasProtocol ? (targetProcess.protocolDate || new Date().toLocaleDateString('pt-BR')) : targetProcess.protocolDate,
       updatedAt: new Date().toISOString()
     };
     updated.stage = calculateProcessStage(updated);
@@ -327,12 +366,13 @@ export default function DetranProcesses({
 
           <div className="flex flex-wrap items-center gap-2">
             <button
-              onClick={onSyncWithServices}
-              className="px-3.5 py-2 rounded-xl bg-slate-900/80 hover:bg-slate-800 border border-slate-750 text-slate-300 hover:text-white text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer shadow-sm"
-              title="Verifica se há novos serviços com HONORÁRIO para criar os processos automaticamente"
+              onClick={handleSyncClick}
+              disabled={isSyncing}
+              className="px-3.5 py-2 rounded-xl bg-slate-900/80 hover:bg-slate-800 border border-slate-750 text-slate-300 hover:text-white text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer shadow-sm disabled:opacity-60"
+              title="Verifica novos serviços e atualiza dados corrigidos (placas, taxas e categorias)"
             >
-              <RefreshCw size={14} className="text-emerald-400" />
-              <span>Sincronizar Serviços</span>
+              <RefreshCw size={14} className={`text-emerald-400 ${isSyncing ? 'animate-spin' : ''}`} />
+              <span>{isSyncing ? 'Sincronizando...' : 'Sincronizar Serviços'}</span>
             </button>
 
             <button
@@ -368,7 +408,7 @@ export default function DetranProcesses({
             }`}
           >
             <span className="w-1.5 h-1.5 rounded-full bg-amber-400"></span>
-            <span>Balcão / Entrada</span>
+            <span>Recebido (Sem Abertura)</span>
             <span className="px-1.5 py-0.2 rounded-full bg-black/30 text-[10px]">{counts.entrada}</span>
           </button>
 
@@ -470,11 +510,12 @@ export default function DetranProcesses({
           </p>
           <div className="mt-5 flex justify-center gap-3">
             <button
-              onClick={onSyncWithServices}
-              className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-xs font-bold text-slate-300 hover:text-white transition-all cursor-pointer flex items-center gap-1.5"
+              onClick={handleSyncClick}
+              disabled={isSyncing}
+              className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-xs font-bold text-slate-300 hover:text-white transition-all cursor-pointer flex items-center gap-1.5 disabled:opacity-60"
             >
-              <RefreshCw size={14} className="text-emerald-400" />
-              <span>Sincronizar com Serviços</span>
+              <RefreshCw size={14} className={`text-emerald-400 ${isSyncing ? 'animate-spin' : ''}`} />
+              <span>{isSyncing ? 'Sincronizando...' : 'Sincronizar com Serviços'}</span>
             </button>
             <button
               onClick={() => setIsNewProcessModalOpen(true)}
@@ -535,7 +576,7 @@ export default function DetranProcesses({
                             {currentStage === 'LIBERADO' && 'Liberado pelo Detran'}
                             {currentStage === 'AGUARDANDO_DETRAN' && 'Em Análise no Detran'}
                             {currentStage === 'VISTORIA' && 'Aguardando Vistoria'}
-                            {currentStage === 'ENTRADA' && 'Entrada / Balcão'}
+                            {currentStage === 'ENTRADA' && 'Recebido (Sem Abertura)'}
                           </span>
                         </div>
 
@@ -656,60 +697,72 @@ export default function DetranProcesses({
                     )}
                   </div>
 
-                  {/* Step 2: Protocolo DETRAN */}
-                  <div className={`p-3.5 rounded-xl border transition-all ${
-                    proc.detranApproved 
-                      ? 'bg-emerald-950/15 border-emerald-900/50' 
-                      : proc.protocolNumber?.trim() 
-                        ? 'bg-indigo-950/15 border-indigo-900/50' 
-                        : 'bg-[#151921] border-slate-800'
-                  }`}>
-                    <div className="flex items-center justify-between mb-2">
-                      <span className="text-[11px] font-black uppercase tracking-wider text-slate-300 flex items-center gap-1.5">
-                        <span className="w-4 h-4 rounded-full bg-slate-800 text-slate-300 flex items-center justify-center text-[10px] font-bold">2</span>
-                        Protocolo DETRAN
-                      </span>
-                      {proc.protocolDate && (
-                        <span className="text-[10px] text-slate-400">{proc.protocolDate}</span>
-                      )}
-                    </div>
+                  {/* Step 2: Processo DETRAN */}
+                  {(() => {
+                    const isProcessOpened = proc.processOpened ?? (!!proc.protocolNumber && proc.protocolNumber.trim().length > 0);
+                    return (
+                      <div className={`p-3.5 rounded-xl border transition-all ${
+                        proc.detranApproved 
+                          ? 'bg-emerald-950/15 border-emerald-900/50' 
+                          : isProcessOpened 
+                            ? 'bg-indigo-950/15 border-indigo-900/50' 
+                            : 'bg-[#151921] border-slate-800'
+                      }`}>
+                        <div className="flex items-center justify-between mb-2">
+                          <span className="text-[11px] font-black uppercase tracking-wider text-slate-300 flex items-center gap-1.5">
+                            <span className="w-4 h-4 rounded-full bg-slate-800 text-slate-300 flex items-center justify-center text-[10px] font-bold">2</span>
+                            Processo DETRAN
+                          </span>
+                          {(proc.processOpenedDate || proc.protocolDate) && (
+                            <span className="text-[10px] text-slate-400">
+                              {proc.processOpenedDate || proc.protocolDate}
+                            </span>
+                          )}
+                        </div>
 
-                    <div className="space-y-2 mb-3">
-                      <div className="flex items-center gap-1.5">
-                        <input
-                          type="text"
-                          value={proc.protocolNumber || ''}
-                          onChange={(e) => handleUpdateProtocol(proc.id, e.target.value)}
-                          placeholder={isFirstReg ? "Ex: 2026/..." : "36.XXX.XXX"}
-                          className="w-full px-2.5 py-1.5 bg-[#0D1015] border border-slate-750 rounded-lg text-xs font-mono text-white placeholder-slate-600 focus:outline-none focus:border-indigo-500"
-                        />
-                        {!isFirstReg && (!proc.protocolNumber || !proc.protocolNumber.startsWith('36.')) && (
-                          <button
-                            onClick={() => handleUpdateProtocol(proc.id, '36.')}
-                            className="px-2 py-1.5 bg-indigo-950/60 hover:bg-indigo-900/80 border border-indigo-800 text-indigo-300 rounded-lg text-[10px] font-mono font-bold cursor-pointer shrink-0"
-                            title="Preencher prefixo padrão 36."
-                          >
-                            +36.
-                          </button>
-                        )}
-                      </div>
+                        <div className="space-y-2 mb-3">
+                          <div className="flex items-center gap-1.5">
+                            <input
+                              type="text"
+                              value={proc.protocolNumber || ''}
+                              onChange={(e) => handleUpdateProtocol(proc.id, e.target.value)}
+                              placeholder="Inserir número do processo..."
+                              className="w-full px-2.5 py-1.5 bg-[#0D1015] border border-slate-750 rounded-lg text-xs font-mono text-white placeholder-slate-600 focus:outline-none focus:border-indigo-500"
+                            />
+                            <button
+                              type="button"
+                              onClick={() => handleToggleStep(proc.id, 'processOpened', !isProcessOpened)}
+                              className={`px-2.5 py-1.5 rounded-lg text-[11px] font-bold transition-all cursor-pointer flex items-center gap-1 shrink-0 ${
+                                isProcessOpened
+                                  ? 'bg-emerald-600 hover:bg-emerald-500 text-white shadow-sm'
+                                  : 'bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white border border-slate-700'
+                              }`}
+                              title={isProcessOpened ? "Processo aberto (clique para alternar)" : "Marcar como processo aberto"}
+                            >
+                              <Check size={12} className={isProcessOpened ? "text-white" : "text-slate-500"} />
+                              <span>Processo aberto</span>
+                            </button>
+                          </div>
 
-                      <div className="flex items-center justify-between pt-1">
-                        <span className="text-[11px] text-slate-400">Detran Liberou?</span>
-                        <button
-                          onClick={() => handleToggleStep(proc.id, 'detranApproved', !proc.detranApproved)}
-                          className={`px-2.5 py-1 rounded-md text-[11px] font-bold transition-all cursor-pointer flex items-center gap-1 ${
-                            proc.detranApproved
-                              ? 'bg-purple-600 text-white'
-                              : 'bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white border border-slate-700'
-                          }`}
-                        >
-                          <Check size={12} />
-                          <span>{proc.detranApproved ? 'Liberado' : 'Aguardando'}</span>
-                        </button>
+                          <div className="flex items-center justify-between pt-1">
+                            <span className="text-[11px] text-slate-400">Detran Liberou?</span>
+                            <button
+                              type="button"
+                              onClick={() => handleToggleStep(proc.id, 'detranApproved', !proc.detranApproved)}
+                              className={`px-2.5 py-1 rounded-md text-[11px] font-bold transition-all cursor-pointer flex items-center gap-1 ${
+                                proc.detranApproved
+                                  ? 'bg-purple-600 text-white'
+                                  : 'bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white border border-slate-700'
+                              }`}
+                            >
+                              <Check size={12} />
+                              <span>{proc.detranApproved ? 'Liberado' : 'Aguardando'}</span>
+                            </button>
+                          </div>
+                        </div>
                       </div>
-                    </div>
-                  </div>
+                    );
+                  })()}
 
                   {/* Step 3: Taxa DETRAN */}
                   <div className={`p-3.5 rounded-xl border transition-all ${

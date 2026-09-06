@@ -1060,6 +1060,8 @@ export default function App() {
   };
 
   const handleEditService = async (updatedService: Service) => {
+    const originalSrv = services.find(s => s.id === updatedService.id);
+
     setServices(prev => {
       const updated = prev.map(s => {
         if (s.id === updatedService.id) {
@@ -1072,6 +1074,69 @@ export default function App() {
       });
       localStorage.setItem('dep_services', JSON.stringify(updated));
       return updated;
+    });
+
+    // Also update any linked Detran Process directly
+    const servDate = updatedService.date ? updatedService.date.substring(0, 10) : '';
+    const hasHonorario = (updatedService.items || []).some(item => {
+      const nm = (item.name || '').toUpperCase();
+      return nm.includes('HONORARIO') || nm.includes('HONORÁRIO');
+    });
+
+    const cleanNewPlate = (updatedService.plate || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+    const cleanOldPlate = originalSrv ? (originalSrv.plate || '').toUpperCase().replace(/[^A-Z0-9]/g, '') : '';
+    const hasTaxa = (updatedService.items || []).some(item => (item.name || '').toUpperCase().includes('TAXA'));
+    const hasPlaca = (updatedService.items || []).some(item => (item.name || '').toUpperCase().includes('PLACA'));
+    const hasVistoria = (updatedService.items || []).some(item => (item.name || '').toUpperCase().includes('VISTORIA'));
+    const descUpper = (updatedService.description || '').toUpperCase();
+    const isFirstReg = descUpper.includes('1º EMP') || descUpper.includes('PRIMEIRO EMP') || descUpper.includes('1ºEMP') || descUpper.includes('0KM') || descUpper.includes('PRIMEIRO PLAC') || descUpper.includes('1º PLAC');
+
+    setDetranProcesses(prev => {
+      let changed = false;
+      let targetProcToSave: DetranProcess | null = null;
+
+      const next = prev.map(p => {
+        const matches = 
+          p.serviceId === updatedService.id || 
+          p.id === `proc-${updatedService.id}` || 
+          (cleanOldPlate && (p.plate || '').toUpperCase().replace(/[^A-Z0-9]/g, '') === cleanOldPlate) ||
+          (cleanNewPlate && (p.plate || '').toUpperCase().replace(/[^A-Z0-9]/g, '') === cleanNewPlate);
+
+        if (!matches) return p;
+
+        changed = true;
+        const newPlate = (updatedService.plate || '').toUpperCase().trim();
+        const expectedFeePayer: 'ESCRITORIO' | 'CLIENTE' = hasTaxa ? 'ESCRITORIO' : 'CLIENTE';
+        const expectedRequiresPlate = hasPlaca || isFirstReg;
+
+        const updatedProc: DetranProcess = {
+          ...p,
+          serviceId: updatedService.id,
+          plate: newPlate || p.plate,
+          client: (updatedService.client && updatedService.client.trim()) ? updatedService.client.trim() : p.client,
+          feePayer: expectedFeePayer,
+          requiresPlate: expectedRequiresPlate,
+          requiresInspection: isFirstReg ? hasVistoria : (hasVistoria ? true : (p.requiresInspection ?? true)),
+          requiresReceiptCollection: isFirstReg ? false : p.requiresReceiptCollection,
+          description: (updatedService.description && updatedService.description.trim()) 
+            ? updatedService.description.toUpperCase().trim() 
+            : (isFirstReg ? `1º EMPLACAMENTO ${cleanNewPlate}` : (p.description.startsWith('TRANSF') || !p.description ? `TRANSF ${cleanNewPlate}` : p.description)),
+          updatedAt: new Date().toISOString()
+        };
+
+        targetProcToSave = updatedProc;
+        return updatedProc;
+      });
+
+      if (changed) {
+        localStorage.setItem('dep_detran_processes', JSON.stringify(next));
+        if (currentSession && isCloudConnected && targetProcToSave) {
+          saveDetranProcess(getDbUserId(currentSession.username), targetProcToSave).catch(e =>
+            console.error("Erro ao sincronizar processo alterado na nuvem:", e)
+          );
+        }
+      }
+      return next;
     });
 
     if (currentSession && isCloudConnected) {
@@ -1306,7 +1371,22 @@ export default function App() {
   };
 
   // Synchronize Detran Processes with existing services (only starting from 01/09/2026)
-  const syncProcessesWithServices = (servicesList: Service[], existingProcesses: DetranProcess[]) => {
+  const syncProcessesWithServices = (
+    servicesList: Service[], 
+    existingProcesses: DetranProcess[],
+    isManual: boolean = false
+  ) => {
+    if (!servicesList || servicesList.length === 0) {
+      if (isManual) {
+        setAutoBackupStatusToast({
+          show: true,
+          type: 'info',
+          message: 'Nenhum serviço disponível para sincronização.'
+        });
+      }
+      return;
+    }
+
     // Purge any older processes prior to 01/09/2026
     const validExisting = existingProcesses.filter(p => {
       if (p.serviceId) {
@@ -1323,6 +1403,7 @@ export default function App() {
 
     const updatedList = [...validExisting];
     let createdCount = 0;
+    let updatedCount = 0;
     let listModified = validExisting.length !== existingProcesses.length;
 
     servicesList.forEach(serv => {
@@ -1338,19 +1419,126 @@ export default function App() {
       if (!hasHonorario) return;
 
       const cleanP = (serv.plate || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
-      const alreadyExists = updatedList.some(p => 
-        p.serviceId === serv.id || (cleanP && (p.plate || '').toUpperCase().replace(/[^A-Z0-9]/g, '') === cleanP)
-      );
-
-      if (alreadyExists) return;
-
       const hasTaxa = (serv.items || []).some(item => (item.name || '').toUpperCase().includes('TAXA'));
       const hasPlaca = (serv.items || []).some(item => (item.name || '').toUpperCase().includes('PLACA'));
-
-      const descUpper = (serv.description || '').toUpperCase();
-      const isFirstReg = descUpper.includes('1º EMP') || descUpper.includes('PRIMEIRO EMP') || descUpper.includes('1ºEMP') || descUpper.includes('0KM');
       const hasVistoria = (serv.items || []).some(item => (item.name || '').toUpperCase().includes('VISTORIA'));
 
+      const descUpper = (serv.description || '').toUpperCase();
+      const isFirstReg = descUpper.includes('1º EMP') || descUpper.includes('PRIMEIRO EMP') || descUpper.includes('1ºEMP') || descUpper.includes('0KM') || descUpper.includes('PRIMEIRO PLAC') || descUpper.includes('1º PLAC');
+
+      // Check if process already exists by serviceId or id or plate
+      const existingIndex = updatedList.findIndex(p => 
+        p.serviceId === serv.id || 
+        p.id === `proc-${serv.id}` || 
+        (cleanP && (p.plate || '').toUpperCase().replace(/[^A-Z0-9]/g, '') === cleanP)
+      );
+
+      if (existingIndex >= 0) {
+        const existing = { ...updatedList[existingIndex] };
+        let procModified = false;
+        const changesSummary: string[] = [];
+
+        // 1. Link serviceId if not set
+        if (!existing.serviceId) {
+          existing.serviceId = serv.id;
+          procModified = true;
+        }
+
+        // 2. Correct plate if different
+        const servPlateFormatted = (serv.plate || '').toUpperCase().trim();
+        if (servPlateFormatted && existing.plate !== servPlateFormatted) {
+          const oldPlate = existing.plate;
+          existing.plate = servPlateFormatted;
+          changesSummary.push(`placa: "${oldPlate || 'sem placa'}" ➔ "${servPlateFormatted}"`);
+          procModified = true;
+        }
+
+        // 3. Correct client if different
+        const servClientFormatted = (serv.client || '').trim();
+        if (servClientFormatted && existing.client !== servClientFormatted) {
+          existing.client = servClientFormatted;
+          changesSummary.push('cliente atualizado');
+          procModified = true;
+        }
+
+        // 4. Correct Category / Items (Taxa, Placa, Vistoria, Recolhimento)
+        const expectedFeePayer: 'ESCRITORIO' | 'CLIENTE' = hasTaxa ? 'ESCRITORIO' : 'CLIENTE';
+        if (existing.feePayer !== expectedFeePayer) {
+          existing.feePayer = expectedFeePayer;
+          changesSummary.push(`taxa: ${expectedFeePayer === 'ESCRITORIO' ? 'escritório' : 'cliente'}`);
+          procModified = true;
+        }
+
+        const expectedRequiresPlate = hasPlaca || isFirstReg;
+        if (existing.requiresPlate !== expectedRequiresPlate) {
+          existing.requiresPlate = expectedRequiresPlate;
+          changesSummary.push(`placa mercosul: ${expectedRequiresPlate ? 'sim' : 'não'}`);
+          procModified = true;
+        }
+
+        if (isFirstReg) {
+          if (existing.requiresReceiptCollection !== false) {
+            existing.requiresReceiptCollection = false;
+            procModified = true;
+          }
+          if (existing.requiresInspection !== hasVistoria) {
+            existing.requiresInspection = hasVistoria;
+            changesSummary.push(`vistoria: ${hasVistoria ? 'sim' : 'isento'}`);
+            procModified = true;
+          }
+        } else {
+          if (hasVistoria && existing.requiresInspection === false) {
+            existing.requiresInspection = true;
+            changesSummary.push(`vistoria: sim`);
+            procModified = true;
+          }
+        }
+
+        // 5. Correct Description
+        if (serv.description && serv.description.trim()) {
+          const newDesc = serv.description.toUpperCase().trim();
+          if (existing.description !== newDesc) {
+            existing.description = newDesc;
+            procModified = true;
+          }
+        } else if (cleanP) {
+          if (!existing.description || existing.description.startsWith('TRANSF ') || existing.description.startsWith('1º EMPLACAMENTO ')) {
+            const defDesc = isFirstReg ? `1º EMPLACAMENTO ${cleanP}` : `TRANSF ${cleanP}`;
+            if (existing.description !== defDesc) {
+              existing.description = defDesc;
+              procModified = true;
+            }
+          }
+        }
+
+        if (procModified) {
+          existing.updatedAt = new Date().toISOString();
+          if (changesSummary.length > 0) {
+            existing.messages = [
+              ...(existing.messages || []),
+              {
+                id: `msg-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+                author: currentSession?.fullName || 'Sincronização',
+                text: `Dados sincronizados do serviço: ${changesSummary.join(', ')}.`,
+                timestamp: `${new Date().toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })} às ${new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}`
+              }
+            ];
+          }
+
+          updatedList[existingIndex] = existing;
+          updatedCount++;
+          listModified = true;
+
+          if (currentSession && isCloudConnected) {
+            saveDetranProcess(getDbUserId(currentSession.username), existing).catch(e =>
+              console.error("Erro ao sincronizar processo atualizado na nuvem:", e)
+            );
+          }
+        }
+        return;
+      }
+
+      // If does not exist yet, create new process
       const autoProc: DetranProcess = {
         id: `proc-${serv.id}`,
         serviceId: serv.id,
@@ -1360,7 +1548,6 @@ export default function App() {
           ? serv.description.toUpperCase() 
           : (isFirstReg ? `1º EMPLACAMENTO ${cleanP || ''}`.trim() : `TRANSF ${cleanP || ''}`.trim()),
         stage: 'ENTRADA',
-        // 1º Emplacamento nem sempre exige vistoria (apenas se discriminada no serviço ou conforme necessidade)
         requiresInspection: isFirstReg ? hasVistoria : true,
         inspectionDone: false,
         detranApproved: false,
@@ -1369,7 +1556,6 @@ export default function App() {
         requiresPlate: hasPlaca || isFirstReg,
         plateOrdered: false,
         plateInstalled: false,
-        // 1º Emplacamento NUNCA exige recolhimento de CRV (veículo novo 0km)
         requiresReceiptCollection: false,
         receiptCollected: false,
         crlvIssued: false,
@@ -1403,14 +1589,33 @@ export default function App() {
       setDetranProcesses(updatedList);
       localStorage.setItem('dep_detran_processes', JSON.stringify(updatedList));
     }
+
+    if (isManual) {
+      if (updatedCount > 0 || createdCount > 0) {
+        const parts: string[] = [];
+        if (updatedCount > 0) parts.push(`${updatedCount} processo(s) com dados atualizados`);
+        if (createdCount > 0) parts.push(`${createdCount} novo(s) processo(s) criado(s)`);
+        setAutoBackupStatusToast({
+          show: true,
+          type: 'success',
+          message: `Sincronização concluída: ${parts.join(' e ')} com base nos serviços!`
+        });
+      } else {
+        setAutoBackupStatusToast({
+          show: true,
+          type: 'info',
+          message: 'Sincronização verificada: Todos os processos já estão com placas e categorias atualizadas.'
+        });
+      }
+    }
   };
 
   // Auto-sync processes whenever services are available
   useEffect(() => {
     if (filteredServices.length > 0) {
-      syncProcessesWithServices(filteredServices, detranProcesses);
+      syncProcessesWithServices(filteredServices, detranProcesses, false);
     }
-  }, [filteredServices.length]);
+  }, [filteredServices]);
 
   const handleImportBackup = async (parsedData: { 
     services: Service[]; 
@@ -1828,7 +2033,7 @@ export default function App() {
               currentSession={currentSession}
               onSaveProcess={handleSaveProcess}
               onDeleteProcess={handleDeleteProcess}
-              onSyncWithServices={() => syncProcessesWithServices(filteredServices, detranProcesses)}
+              onSyncWithServices={() => syncProcessesWithServices(filteredServices, detranProcesses, true)}
             />
           )}
 
