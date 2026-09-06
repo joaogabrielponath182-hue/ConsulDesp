@@ -111,8 +111,9 @@ export default function DetranProcesses({
 
   // Compute active stage dynamically or update
   const calculateProcessStage = (p: DetranProcess): ProcessStage => {
-    if (p.deliveredToClient) return 'CONCLUIDO';
-    if (p.crlvIssued) return 'PRONTO_ENTREGA';
+    if (p.crlvIssued || p.deliveredToClient || p.stage === 'FINALIZADO' || p.stage === 'CONCLUIDO') {
+      return 'FINALIZADO';
+    }
     if (p.detranApproved) return 'LIBERADO';
     if (p.protocolNumber && p.protocolNumber.trim().length > 0) return 'AGUARDANDO_DETRAN';
     // If inspection is required and completed
@@ -140,7 +141,10 @@ export default function DetranProcesses({
       const currentStage = calculateProcessStage(p);
 
       if (stageFilter === 'ALL') return true;
-      if (stageFilter === 'ACTIVE') return currentStage !== 'CONCLUIDO';
+      if (stageFilter === 'ACTIVE') return currentStage !== 'FINALIZADO' && currentStage !== 'CONCLUIDO';
+      if (stageFilter === 'FINALIZADO' || stageFilter === 'CONCLUIDO' || stageFilter === 'PRONTO_ENTREGA') {
+        return currentStage === 'FINALIZADO' || currentStage === 'CONCLUIDO' || currentStage === 'PRONTO_ENTREGA';
+      }
       return currentStage === stageFilter;
     });
   }, [processes, searchTerm, stageFilter]);
@@ -158,21 +162,19 @@ export default function DetranProcesses({
     let vistoria = 0;
     let aguardandoDetran = 0;
     let liberado = 0;
-    let prontoEntrega = 0;
-    let concluido = 0;
+    let finalizado = 0;
 
     validProcesses.forEach(p => {
       const st = calculateProcessStage(p);
-      if (st !== 'CONCLUIDO') active++;
+      if (st !== 'FINALIZADO' && st !== 'CONCLUIDO') active++;
       if (st === 'ENTRADA') entrada++;
       if (st === 'VISTORIA') vistoria++;
       if (st === 'AGUARDANDO_DETRAN') aguardandoDetran++;
       if (st === 'LIBERADO') liberado++;
-      if (st === 'PRONTO_ENTREGA') prontoEntrega++;
-      if (st === 'CONCLUIDO') concluido++;
+      if (st === 'FINALIZADO' || st === 'CONCLUIDO' || st === 'PRONTO_ENTREGA') finalizado++;
     });
 
-    return { total, active, entrada, vistoria, aguardandoDetran, liberado, prontoEntrega, concluido };
+    return { total, active, entrada, vistoria, aguardandoDetran, liberado, finalizado };
   }, [processes]);
 
   // Send new message in chat
@@ -214,6 +216,19 @@ export default function DetranProcesses({
       [stepKey]: value,
       updatedAt: new Date().toISOString()
     };
+
+    if (stepKey === 'crlvIssued') {
+      const isIssued = !!value;
+      updated.crlvIssued = isIssued;
+      updated.deliveredToClient = isIssued;
+      if (isIssued) {
+        updated.crlvIssuedDate = new Date().toISOString();
+        updated.deliveredDate = new Date().toISOString();
+      } else {
+        updated.crlvIssuedDate = undefined;
+        updated.deliveredDate = undefined;
+      }
+    }
 
     // Auto-update stage
     updated.stage = calculateProcessStage(updated);
@@ -397,28 +412,16 @@ export default function DetranProcesses({
           </button>
 
           <button
-            onClick={() => setStageFilter('PRONTO_ENTREGA')}
+            onClick={() => setStageFilter('FINALIZADO')}
             className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
-              stageFilter === 'PRONTO_ENTREGA'
+              stageFilter === 'FINALIZADO' || stageFilter === 'CONCLUIDO' || stageFilter === 'PRONTO_ENTREGA'
                 ? 'bg-emerald-600 text-white shadow-md'
                 : 'bg-[#161B22] text-slate-400 hover:text-white hover:bg-slate-800/60 border border-slate-800'
             }`}
           >
             <span className="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>
-            <span>Pronto p/ Entrega</span>
-            <span className="px-1.5 py-0.2 rounded-full bg-black/30 text-[10px]">{counts.prontoEntrega}</span>
-          </button>
-
-          <button
-            onClick={() => setStageFilter('CONCLUIDO')}
-            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
-              stageFilter === 'CONCLUIDO'
-                ? 'bg-slate-700 text-white shadow-md'
-                : 'bg-[#161B22] text-slate-400 hover:text-white hover:bg-slate-800/60 border border-slate-800'
-            }`}
-          >
-            <span>Concluídos / Arquivo</span>
-            <span className="px-1.5 py-0.2 rounded-full bg-black/30 text-[10px]">{counts.concluido}</span>
+            <span>Finalizados (CRVe Emitido)</span>
+            <span className="px-1.5 py-0.2 rounded-full bg-black/30 text-[10px]">{counts.finalizado}</span>
           </button>
 
           <button
@@ -516,16 +519,19 @@ export default function DetranProcesses({
                             {proc.description}
                           </span>
                           {/* Stage Badge */}
-                          <span className={`text-[10px] font-extrabold uppercase px-2.5 py-0.5 rounded-full border ${
-                            currentStage === 'CONCLUIDO' ? 'bg-slate-800 text-slate-300 border-slate-700' :
-                            currentStage === 'PRONTO_ENTREGA' ? 'bg-emerald-950/80 text-emerald-400 border-emerald-800 animate-pulse' :
+                          <span className={`text-[10px] font-extrabold uppercase px-2.5 py-0.5 rounded-full border flex items-center gap-1 ${
+                            currentStage === 'FINALIZADO' || currentStage === 'CONCLUIDO' || currentStage === 'PRONTO_ENTREGA' ? 'bg-emerald-950/80 text-emerald-300 border-emerald-700/80 shadow-sm' :
                             currentStage === 'LIBERADO' ? 'bg-purple-950/80 text-purple-300 border-purple-800' :
                             currentStage === 'AGUARDANDO_DETRAN' ? 'bg-indigo-950/80 text-indigo-300 border-indigo-800' :
                             currentStage === 'VISTORIA' ? 'bg-sky-950/80 text-sky-300 border-sky-800' :
                             'bg-amber-950/80 text-amber-300 border-amber-800'
                           }`}>
-                            {currentStage === 'CONCLUIDO' && 'Concluído e Entregue'}
-                            {currentStage === 'PRONTO_ENTREGA' && '🎉 Pronto para Entrega'}
+                            {(currentStage === 'FINALIZADO' || currentStage === 'CONCLUIDO' || currentStage === 'PRONTO_ENTREGA') && (
+                              <>
+                                <Check size={11} className="text-emerald-400" />
+                                <span>Finalizado</span>
+                              </>
+                            )}
                             {currentStage === 'LIBERADO' && 'Liberado pelo Detran'}
                             {currentStage === 'AGUARDANDO_DETRAN' && 'Em Análise no Detran'}
                             {currentStage === 'VISTORIA' && 'Aguardando Vistoria'}
@@ -866,49 +872,42 @@ export default function DetranProcesses({
                     )}
                   </div>
 
-                  {/* Step 6: Emissão do Documento & Entrega */}
+                  {/* Step 6: CRVe EMITIDO */}
                   <div className={`p-3.5 rounded-xl border transition-all ${
-                    proc.deliveredToClient 
-                      ? 'bg-slate-900 border-slate-750 opacity-80' 
-                      : proc.crlvIssued 
-                        ? 'bg-emerald-950/25 border-emerald-600 shadow-md' 
-                        : 'bg-[#151921] border-slate-800'
+                    proc.crlvIssued 
+                      ? 'bg-emerald-950/25 border-emerald-600/80 shadow-md' 
+                      : 'bg-[#151921] border-slate-800'
                   }`}>
                     <div className="flex items-center justify-between mb-2">
                       <span className="text-[11px] font-black uppercase tracking-wider text-slate-300 flex items-center gap-1.5">
                         <span className="w-4 h-4 rounded-full bg-slate-800 text-slate-300 flex items-center justify-center text-[10px] font-bold">6</span>
-                        CRLV-e & Entrega
+                        CRVe EMITIDO
                       </span>
+                      {proc.crlvIssued && (
+                        <span className="text-[9px] font-extrabold uppercase px-2 py-0.5 rounded bg-emerald-900/70 text-emerald-300 border border-emerald-700/60 flex items-center gap-1">
+                          <Check size={10} />
+                          FINALIZADO
+                        </span>
+                      )}
                     </div>
 
-                    <div className="space-y-2">
-                      <button
-                        onClick={() => handleToggleStep(proc.id, 'crlvIssued', !proc.crlvIssued)}
-                        className={`w-full py-1.5 px-3 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
-                          proc.crlvIssued
-                            ? 'bg-emerald-600 text-white shadow'
-                            : 'bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white border border-slate-700'
-                        }`}
-                      >
-                        <FileCheck size={14} />
-                        <span>{proc.crlvIssued ? 'CRLV-e Emitido ✓' : 'Emitir CRLV-e'}</span>
-                      </button>
+                    <p className="text-[11px] text-slate-400 mb-3">
+                      {proc.crlvIssued 
+                        ? 'CRVe emitido com sucesso. Processo finalizado!' 
+                        : 'Aguardando emissão do documento CRVe.'}
+                    </p>
 
-                      <button
-                        onClick={() => handleToggleStep(proc.id, 'deliveredToClient', !proc.deliveredToClient)}
-                        disabled={!proc.crlvIssued}
-                        className={`w-full py-1 px-3 rounded-lg text-[11px] font-bold transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
-                          proc.deliveredToClient
-                            ? 'bg-slate-700 text-slate-300'
-                            : proc.crlvIssued
-                              ? 'bg-emerald-900/60 hover:bg-emerald-800 text-emerald-200 border border-emerald-700/60'
-                              : 'bg-slate-900 text-slate-600 border border-slate-800 cursor-not-allowed'
-                        }`}
-                      >
-                        <Check size={12} />
-                        <span>{proc.deliveredToClient ? 'Entregue ao Cliente (Finalizado)' : 'Entregar ao Cliente'}</span>
-                      </button>
-                    </div>
+                    <button
+                      onClick={() => handleToggleStep(proc.id, 'crlvIssued', !proc.crlvIssued)}
+                      className={`w-full py-2 px-3 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
+                        proc.crlvIssued
+                          ? 'bg-emerald-600 hover:bg-emerald-500 text-white shadow'
+                          : 'bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white border border-slate-700'
+                      }`}
+                    >
+                      <FileCheck size={14} />
+                      <span>{proc.crlvIssued ? 'CRVe Emitido (Finalizado) ✓' : 'Marcar CRVe Emitido'}</span>
+                    </button>
                   </div>
                 </div>
 

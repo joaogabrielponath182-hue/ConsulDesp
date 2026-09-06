@@ -121,8 +121,9 @@ export type ProcessStage =
   | 'VISTORIA'           // Vistoria realizada / aguardando laudo
   | 'AGUARDANDO_DETRAN'  // Protocolado no Detran
   | 'LIBERADO'           // Liberado pelo Detran (fases finais: taxa/placa/recibo)
-  | 'PRONTO_ENTREGA'     // CRLV-e emitido
-  | 'CONCLUIDO';         // Entregue ao cliente
+  | 'FINALIZADO'         // CRVe emitido / Processo finalizado
+  | 'PRONTO_ENTREGA'     // Para retrocompatibilidade
+  | 'CONCLUIDO';         // Para retrocompatibilidade
 
 export interface DetranProcess {
   id: string;
