@@ -44,6 +44,7 @@ export default function DetranProcesses({
 }: DetranProcessesProps) {
   const [searchTerm, setSearchTerm] = useState('');
   const [stageFilter, setStageFilter] = useState<'ALL' | 'ACTIVE' | ProcessStage>('ACTIVE');
+  const [inspectionFilter, setInspectionFilter] = useState<'ALL' | 'DONE' | 'PENDING'>('ALL');
   const [expandedChatId, setExpandedChatId] = useState<string | null>(null);
   const [newMessageText, setNewMessageText] = useState<{ [processId: string]: string }>({});
   const [isNewProcessModalOpen, setIsNewProcessModalOpen] = useState(false);
@@ -124,8 +125,7 @@ export default function DetranProcesses({
     if (p.detranApproved) return 'LIBERADO';
     const isOpened = p.processOpened || (!!p.protocolNumber && p.protocolNumber.trim().length > 0);
     if (isOpened) return 'AGUARDANDO_DETRAN';
-    // If inspection is required and completed
-    if (p.requiresInspection !== false && p.inspectionDone) return 'VISTORIA';
+    // Vistoria é feita antes do processo aberto; status permanece Recebido (Sem Abertura)
     return 'ENTRADA';
   };
 
@@ -153,9 +153,15 @@ export default function DetranProcesses({
       if (stageFilter === 'FINALIZADO' || stageFilter === 'CONCLUIDO' || stageFilter === 'PRONTO_ENTREGA') {
         return currentStage === 'FINALIZADO' || currentStage === 'CONCLUIDO' || currentStage === 'PRONTO_ENTREGA';
       }
+      if (stageFilter === 'ENTRADA') {
+        if (currentStage !== 'ENTRADA') return false;
+        if (inspectionFilter === 'DONE') return p.inspectionDone;
+        if (inspectionFilter === 'PENDING') return p.requiresInspection !== false && !p.inspectionDone;
+        return true;
+      }
       return currentStage === stageFilter;
     });
-  }, [processes, searchTerm, stageFilter]);
+  }, [processes, searchTerm, stageFilter, inspectionFilter]);
 
   // Counts for tabs (only from 01/09/2026 onwards)
   const counts = useMemo(() => {
@@ -167,7 +173,8 @@ export default function DetranProcesses({
     let total = validProcesses.length;
     let active = 0;
     let entrada = 0;
-    let vistoria = 0;
+    let vistoriaPendente = 0;
+    let vistoriaConcluida = 0;
     let aguardandoDetran = 0;
     let liberado = 0;
     let finalizado = 0;
@@ -175,14 +182,19 @@ export default function DetranProcesses({
     validProcesses.forEach(p => {
       const st = calculateProcessStage(p);
       if (st !== 'FINALIZADO' && st !== 'CONCLUIDO') active++;
-      if (st === 'ENTRADA') entrada++;
-      if (st === 'VISTORIA') vistoria++;
+      if (st === 'ENTRADA') {
+        entrada++;
+        if (p.requiresInspection !== false) {
+          if (p.inspectionDone) vistoriaConcluida++;
+          else vistoriaPendente++;
+        }
+      }
       if (st === 'AGUARDANDO_DETRAN') aguardandoDetran++;
       if (st === 'LIBERADO') liberado++;
       if (st === 'FINALIZADO' || st === 'CONCLUIDO' || st === 'PRONTO_ENTREGA') finalizado++;
     });
 
-    return { total, active, entrada, vistoria, aguardandoDetran, liberado, finalizado };
+    return { total, active, entrada, vistoriaPendente, vistoriaConcluida, aguardandoDetran, liberado, finalizado };
   }, [processes]);
 
   // Send new message in chat
@@ -388,7 +400,7 @@ export default function DetranProcesses({
         {/* Filter Pills */}
         <div className="flex flex-wrap gap-1.5 mt-6 pt-4 border-t border-slate-800/80">
           <button
-            onClick={() => setStageFilter('ACTIVE')}
+            onClick={() => { setStageFilter('ACTIVE'); setInspectionFilter('ALL'); }}
             className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
               stageFilter === 'ACTIVE'
                 ? 'bg-emerald-600 text-white shadow-md'
@@ -400,7 +412,7 @@ export default function DetranProcesses({
           </button>
 
           <button
-            onClick={() => setStageFilter('ENTRADA')}
+            onClick={() => { setStageFilter('ENTRADA'); setInspectionFilter('ALL'); }}
             className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
               stageFilter === 'ENTRADA'
                 ? 'bg-amber-600 text-white shadow-md'
@@ -413,20 +425,7 @@ export default function DetranProcesses({
           </button>
 
           <button
-            onClick={() => setStageFilter('VISTORIA')}
-            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
-              stageFilter === 'VISTORIA'
-                ? 'bg-sky-600 text-white shadow-md'
-                : 'bg-[#161B22] text-slate-400 hover:text-white hover:bg-slate-800/60 border border-slate-800'
-            }`}
-          >
-            <span className="w-1.5 h-1.5 rounded-full bg-sky-400"></span>
-            <span>Vistoria</span>
-            <span className="px-1.5 py-0.2 rounded-full bg-black/30 text-[10px]">{counts.vistoria}</span>
-          </button>
-
-          <button
-            onClick={() => setStageFilter('AGUARDANDO_DETRAN')}
+            onClick={() => { setStageFilter('AGUARDANDO_DETRAN'); setInspectionFilter('ALL'); }}
             className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
               stageFilter === 'AGUARDANDO_DETRAN'
                 ? 'bg-indigo-600 text-white shadow-md'
@@ -439,7 +438,7 @@ export default function DetranProcesses({
           </button>
 
           <button
-            onClick={() => setStageFilter('LIBERADO')}
+            onClick={() => { setStageFilter('LIBERADO'); setInspectionFilter('ALL'); }}
             className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
               stageFilter === 'LIBERADO'
                 ? 'bg-purple-600 text-white shadow-md'
@@ -452,7 +451,7 @@ export default function DetranProcesses({
           </button>
 
           <button
-            onClick={() => setStageFilter('FINALIZADO')}
+            onClick={() => { setStageFilter('FINALIZADO'); setInspectionFilter('ALL'); }}
             className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
               stageFilter === 'FINALIZADO' || stageFilter === 'CONCLUIDO' || stageFilter === 'PRONTO_ENTREGA'
                 ? 'bg-emerald-600 text-white shadow-md'
@@ -465,7 +464,7 @@ export default function DetranProcesses({
           </button>
 
           <button
-            onClick={() => setStageFilter('ALL')}
+            onClick={() => { setStageFilter('ALL'); setInspectionFilter('ALL'); }}
             className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
               stageFilter === 'ALL'
                 ? 'bg-slate-600 text-white shadow-md'
@@ -476,6 +475,47 @@ export default function DetranProcesses({
             <span className="px-1.5 py-0.2 rounded-full bg-black/30 text-[10px]">{counts.total}</span>
           </button>
         </div>
+
+        {/* Sub-filtros de Vistoria quando na etapa Recebido (Sem Abertura) */}
+        {stageFilter === 'ENTRADA' && (
+          <div className="flex flex-wrap items-center gap-2 mt-3 pt-3 border-t border-slate-800/50">
+            <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400">
+              Vistoria prévia:
+            </span>
+            <button
+              onClick={() => setInspectionFilter('ALL')}
+              className={`px-2.5 py-1 rounded-md text-[11px] font-bold transition-all cursor-pointer ${
+                inspectionFilter === 'ALL'
+                  ? 'bg-amber-600 text-white shadow-sm'
+                  : 'bg-slate-800/80 text-slate-400 hover:text-white border border-slate-750'
+              }`}
+            >
+              Todos Recebidos ({counts.entrada})
+            </button>
+            <button
+              onClick={() => setInspectionFilter('DONE')}
+              className={`px-2.5 py-1 rounded-md text-[11px] font-bold transition-all cursor-pointer flex items-center gap-1 ${
+                inspectionFilter === 'DONE'
+                  ? 'bg-emerald-600 text-white shadow-sm'
+                  : 'bg-slate-800/80 text-slate-400 hover:text-white border border-slate-750'
+              }`}
+            >
+              <Check size={12} />
+              <span>Vistoria Concluída ({counts.vistoriaConcluida})</span>
+            </button>
+            <button
+              onClick={() => setInspectionFilter('PENDING')}
+              className={`px-2.5 py-1 rounded-md text-[11px] font-bold transition-all cursor-pointer flex items-center gap-1 ${
+                inspectionFilter === 'PENDING'
+                  ? 'bg-sky-600 text-white shadow-sm'
+                  : 'bg-slate-800/80 text-slate-400 hover:text-white border border-slate-750'
+              }`}
+            >
+              <Clock size={12} />
+              <span>Aguardando Vistoria ({counts.vistoriaPendente})</span>
+            </button>
+          </div>
+        )}
 
         {/* Search Input */}
         <div className="mt-4 relative">
@@ -564,7 +604,6 @@ export default function DetranProcesses({
                             currentStage === 'FINALIZADO' || currentStage === 'CONCLUIDO' || currentStage === 'PRONTO_ENTREGA' ? 'bg-emerald-950/80 text-emerald-300 border-emerald-700/80 shadow-sm' :
                             currentStage === 'LIBERADO' ? 'bg-purple-950/80 text-purple-300 border-purple-800' :
                             currentStage === 'AGUARDANDO_DETRAN' ? 'bg-indigo-950/80 text-indigo-300 border-indigo-800' :
-                            currentStage === 'VISTORIA' ? 'bg-sky-950/80 text-sky-300 border-sky-800' :
                             'bg-amber-950/80 text-amber-300 border-amber-800'
                           }`}>
                             {(currentStage === 'FINALIZADO' || currentStage === 'CONCLUIDO' || currentStage === 'PRONTO_ENTREGA') && (
@@ -575,9 +614,27 @@ export default function DetranProcesses({
                             )}
                             {currentStage === 'LIBERADO' && 'Liberado pelo Detran'}
                             {currentStage === 'AGUARDANDO_DETRAN' && 'Em Análise no Detran'}
-                            {currentStage === 'VISTORIA' && 'Aguardando Vistoria'}
                             {currentStage === 'ENTRADA' && 'Recebido (Sem Abertura)'}
                           </span>
+
+                          {/* Tag complementar de vistoria quando o processo ainda está Recebido (Sem Abertura) */}
+                          {currentStage === 'ENTRADA' && (
+                            proc.requiresInspection === false ? (
+                              <span className="text-[9px] font-bold px-2 py-0.5 rounded-full bg-slate-800/80 text-slate-400 border border-slate-700/60 uppercase">
+                                Isento de Vistoria
+                              </span>
+                            ) : proc.inspectionDone ? (
+                              <span className="text-[9px] font-bold px-2 py-0.5 rounded-full bg-emerald-950/80 text-emerald-300 border border-emerald-800/50 flex items-center gap-1 uppercase">
+                                <Check size={10} className="text-emerald-400" />
+                                <span>Vistoria Concluída</span>
+                              </span>
+                            ) : (
+                              <span className="text-[9px] font-bold px-2 py-0.5 rounded-full bg-sky-950/60 text-sky-300 border border-sky-800/40 flex items-center gap-1 uppercase">
+                                <Clock size={10} className="text-sky-400" />
+                                <span>Aguardando Vistoria</span>
+                              </span>
+                            )
+                          )}
                         </div>
 
                         <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-slate-400 mt-1">
