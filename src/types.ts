@@ -153,6 +153,7 @@ export interface DetranProcess {
   feePaid: boolean;
   feePaidDate?: string;
   feeExpenseId?: string;
+  feePaymentMethod?: PaymentMethod;
 
   // Placa
   requiresPlate: boolean;

@@ -13,6 +13,7 @@ import {
   ChevronDown, 
   ChevronUp, 
   Check, 
+  X,
   Sparkles,
   RefreshCw,
   Trash2,
@@ -22,6 +23,15 @@ import {
   DollarSign
 } from 'lucide-react';
 import { DetranProcess, Service, Expense, UserSession, ProcessMessage, ProcessStage } from '../types';
+
+export type ProcessFilterTab = 
+  | 'ACTIVE' 
+  | 'PENDENTE_ABERTURA' 
+  | 'EM_ANALISE_DETRAN' 
+  | 'PENDENTE_TAXA' 
+  | 'PENDENTE_PLACA' 
+  | 'FINALIZADO' 
+  | 'ALL';
 
 interface DetranProcessesProps {
   processes: DetranProcess[];
@@ -43,12 +53,37 @@ export default function DetranProcesses({
   onSyncWithServices
 }: DetranProcessesProps) {
   const [searchTerm, setSearchTerm] = useState('');
-  const [stageFilter, setStageFilter] = useState<'ALL' | 'ACTIVE' | ProcessStage>('ACTIVE');
+  const [stageFilter, setStageFilter] = useState<ProcessFilterTab>('ACTIVE');
   const [inspectionFilter, setInspectionFilter] = useState<'ALL' | 'DONE' | 'PENDING'>('ALL');
   const [expandedChatId, setExpandedChatId] = useState<string | null>(null);
   const [newMessageText, setNewMessageText] = useState<{ [processId: string]: string }>({});
   const [isNewProcessModalOpen, setIsNewProcessModalOpen] = useState(false);
   const [isSyncing, setIsSyncing] = useState(false);
+
+  // Selected Month and Year for finalized processes (monthly view, identical to Painel Geral)
+  const [selectedMonth, setSelectedMonth] = useState(() => {
+    const today = new Date();
+    return String(today.getMonth() + 1).padStart(2, '0'); // e.g. "09"
+  });
+
+  const [selectedYear, setSelectedYear] = useState(() => {
+    return new Date().getFullYear().toString(); // e.g. "2026"
+  });
+
+  const monthsOptions = useMemo(() => [
+    { value: '01', label: 'Janeiro' },
+    { value: '02', label: 'Fevereiro' },
+    { value: '03', label: 'Março' },
+    { value: '04', label: 'Abril' },
+    { value: '05', label: 'Maio' },
+    { value: '06', label: 'Junho' },
+    { value: '07', label: 'Julho' },
+    { value: '08', label: 'Agosto' },
+    { value: '09', label: 'Setembro' },
+    { value: '10', label: 'Outubro' },
+    { value: '11', label: 'Novembro' },
+    { value: '12', label: 'Dezembro' }
+  ], []);
 
   const handleSyncClick = () => {
     setIsSyncing(true);
@@ -93,17 +128,22 @@ export default function DetranProcesses({
 
       for (const exp of expenses) {
         const expPlate = cleanPlate(exp.plate);
-        // Match either plate attribute or plate mentioned in description
+        const itemsMatch = exp.items && exp.items.some(item => cleanPlate(item.plate) === cPlate);
+        // Match either plate attribute, items array, or plate substring in description
         const descMatch = cleanPlate(exp.description).includes(cPlate);
-        if (expPlate === cPlate || descMatch) {
-          const catAndDesc = `${exp.category} ${exp.description}`.toUpperCase();
-          if (catAndDesc.includes('VISTORIA') && !inspectionExp) {
+
+        if (expPlate === cPlate || itemsMatch || descMatch) {
+          const catUpper = (exp.category || '').toUpperCase();
+          const descUpper = (exp.description || '').toUpperCase();
+          const catAndDesc = `${catUpper} ${descUpper}`;
+
+          if ((catAndDesc.includes('VISTORIA') || catAndDesc.includes('LAUDO') || catAndDesc.includes('ECV')) && !inspectionExp) {
             inspectionExp = exp;
           }
-          if ((catAndDesc.includes('TAXA') || catAndDesc.includes('DETRAN')) && !feeExp) {
+          if ((catAndDesc.includes('TAXA') || catAndDesc.includes('DETRAN') || catAndDesc.includes('DUDA') || catAndDesc.includes('IPVA') || catAndDesc.includes('LICENCIAMENTO')) && !feeExp) {
             feeExp = exp;
           }
-          if (catAndDesc.includes('PLACA') && !plateExp) {
+          if ((catAndDesc.includes('PLACA') || catAndDesc.includes('ESTAMPA') || catAndDesc.includes('MERCOSUL')) && !plateExp) {
             plateExp = exp;
           }
         }
@@ -116,6 +156,82 @@ export default function DetranProcesses({
       };
     };
   }, [expenses]);
+
+  // Helper to retrieve corresponding service to determine revenue payment method
+  const getProcessService = useMemo(() => {
+    return (p: DetranProcess) => {
+      if (p.serviceId) {
+        const found = services.find(s => s.id === p.serviceId);
+        if (found) return found;
+      }
+      const cPlate = cleanPlate(p.plate);
+      if (!cPlate) return null;
+      return services.find(s => cleanPlate(s.plate) === cPlate) || null;
+    };
+  }, [services]);
+
+  // Helper to extract YYYY-MM from diverse date formats (ISO, DD/MM/YYYY, etc.)
+  const extractYearMonth = (dateStr?: string): string | null => {
+    if (!dateStr || typeof dateStr !== 'string') return null;
+    const trimmed = dateStr.trim();
+    if (/^\d{4}-\d{2}/.test(trimmed)) {
+      return trimmed.substring(0, 7);
+    }
+    if (trimmed.includes('/')) {
+      const parts = trimmed.split('/');
+      if (parts.length === 3 && parts[2]?.length >= 4) {
+        const year = parts[2].substring(0, 4);
+        const month = parts[1].padStart(2, '0');
+        return `${year}-${month}`;
+      }
+    }
+    return null;
+  };
+
+  // Helper to identify the month/year of completion for a finalized process
+  const getProcessCompletionMonthYear = useMemo(() => {
+    return (p: DetranProcess): string => {
+      const crlvYm = extractYearMonth(p.crlvIssuedDate);
+      if (crlvYm) return crlvYm;
+
+      const delivYm = extractYearMonth(p.deliveredDate);
+      if (delivYm) return delivYm;
+
+      const apprvYm = extractYearMonth(p.detranApprovedDate);
+      if (apprvYm) return apprvYm;
+
+      const srv = getProcessService(p);
+      const srvYm = extractYearMonth(srv?.date);
+      if (srvYm) return srvYm;
+
+      const updYm = extractYearMonth(p.updatedAt);
+      if (updYm) return updYm;
+
+      const crtYm = extractYearMonth(p.createdAt);
+      if (crtYm) return crtYm;
+
+      return '';
+    };
+  }, [getProcessService]);
+
+  // Unique years option list for finalized processes
+  const availableYears = useMemo(() => {
+    const yearsSet = new Set<string>();
+    const currentYear = new Date().getFullYear().toString();
+    yearsSet.add(currentYear);
+
+    processes.forEach(p => {
+      const dates = [p.crlvIssuedDate, p.deliveredDate, p.detranApprovedDate, p.updatedAt, p.createdAt];
+      dates.forEach(d => {
+        const ym = extractYearMonth(d);
+        if (ym) {
+          yearsSet.add(ym.substring(0, 4));
+        }
+      });
+    });
+
+    return Array.from(yearsSet).sort();
+  }, [processes]);
 
   // Compute active stage dynamically or update
   const calculateProcessStage = (p: DetranProcess): ProcessStage => {
@@ -130,7 +246,11 @@ export default function DetranProcesses({
   };
 
   // Filter processes (only from 01/09/2026 onwards)
+  // In-progress processes are shown in full regardless of month.
+  // Finalized processes are shown for the selected month/year.
   const filteredProcesses = useMemo(() => {
+    const selectedTargetYm = `${selectedYear}-${selectedMonth}`;
+
     return processes.filter(p => {
       // Must only start on services from 01/09/2026 onwards
       const dateStr = p.createdAt ? p.createdAt.substring(0, 10) : '';
@@ -147,24 +267,43 @@ export default function DetranProcesses({
       if (!matchSearch) return false;
 
       const currentStage = calculateProcessStage(p);
+      const isFinalized = currentStage === 'FINALIZADO' || currentStage === 'CONCLUIDO' || currentStage === 'PRONTO_ENTREGA';
+      const isProcessOpened = p.processOpened || (!!p.protocolNumber && p.protocolNumber.trim().length > 0);
+      const pExpenses = getPlateExpenses(p.plate);
+      const isFeePaid = p.feePaid || !!pExpenses.fee;
+      const isPlateDone = p.plateOrdered || p.plateInstalled || !!pExpenses.plate;
+      const isInspDone = p.inspectionDone || !!pExpenses.inspection;
 
       if (stageFilter === 'ALL') return true;
-      if (stageFilter === 'ACTIVE') return currentStage !== 'FINALIZADO' && currentStage !== 'CONCLUIDO';
-      if (stageFilter === 'FINALIZADO' || stageFilter === 'CONCLUIDO' || stageFilter === 'PRONTO_ENTREGA') {
-        return currentStage === 'FINALIZADO' || currentStage === 'CONCLUIDO' || currentStage === 'PRONTO_ENTREGA';
-      }
-      if (stageFilter === 'ENTRADA') {
-        if (currentStage !== 'ENTRADA') return false;
-        if (inspectionFilter === 'DONE') return p.inspectionDone;
-        if (inspectionFilter === 'PENDING') return p.requiresInspection !== false && !p.inspectionDone;
+      if (stageFilter === 'ACTIVE') return !isFinalized;
+      if (stageFilter === 'PENDENTE_ABERTURA') {
+        if (isFinalized || isProcessOpened) return false;
+        if (inspectionFilter === 'DONE') return isInspDone;
+        if (inspectionFilter === 'PENDING') return p.requiresInspection !== false && !isInspDone;
         return true;
+      }
+      if (stageFilter === 'EM_ANALISE_DETRAN') {
+        return !isFinalized && isProcessOpened && !p.detranApproved;
+      }
+      if (stageFilter === 'PENDENTE_TAXA') {
+        return !isFinalized && !isFeePaid;
+      }
+      if (stageFilter === 'PENDENTE_PLACA') {
+        return !isFinalized && p.requiresPlate && !isPlateDone;
+      }
+      if (stageFilter === 'FINALIZADO') {
+        if (!isFinalized) return false;
+        if (selectedMonth === 'ALL') return true;
+        const pYm = getProcessCompletionMonthYear(p);
+        return pYm === selectedTargetYm;
       }
       return currentStage === stageFilter;
     });
-  }, [processes, searchTerm, stageFilter, inspectionFilter]);
+  }, [processes, searchTerm, stageFilter, inspectionFilter, getPlateExpenses, selectedMonth, selectedYear, getProcessCompletionMonthYear]);
 
   // Counts for tabs (only from 01/09/2026 onwards)
   const counts = useMemo(() => {
+    const selectedTargetYm = `${selectedYear}-${selectedMonth}`;
     const validProcesses = processes.filter(p => {
       const dateStr = p.createdAt ? p.createdAt.substring(0, 10) : '';
       return !dateStr || dateStr >= '2026-09-01';
@@ -172,30 +311,64 @@ export default function DetranProcesses({
 
     let total = validProcesses.length;
     let active = 0;
-    let entrada = 0;
+    let pendenteAbertura = 0;
     let vistoriaPendente = 0;
     let vistoriaConcluida = 0;
-    let aguardandoDetran = 0;
-    let liberado = 0;
+    let emAnaliseDetran = 0;
+    let pendenteTaxa = 0;
+    let pendentePlaca = 0;
     let finalizado = 0;
+    let finalizadoMonth = 0;
 
     validProcesses.forEach(p => {
-      const st = calculateProcessStage(p);
-      if (st !== 'FINALIZADO' && st !== 'CONCLUIDO') active++;
-      if (st === 'ENTRADA') {
-        entrada++;
-        if (p.requiresInspection !== false) {
-          if (p.inspectionDone) vistoriaConcluida++;
-          else vistoriaPendente++;
+      const currentStage = calculateProcessStage(p);
+      const isFinalized = currentStage === 'FINALIZADO' || currentStage === 'CONCLUIDO' || currentStage === 'PRONTO_ENTREGA';
+      const isProcessOpened = p.processOpened || (!!p.protocolNumber && p.protocolNumber.trim().length > 0);
+      const pExpenses = getPlateExpenses(p.plate);
+      const isFeePaid = p.feePaid || !!pExpenses.fee;
+      const isPlateDone = p.plateOrdered || p.plateInstalled || !!pExpenses.plate;
+      const isInspDone = p.inspectionDone || !!pExpenses.inspection;
+
+      if (!isFinalized) {
+        active++;
+        if (!isProcessOpened) {
+          pendenteAbertura++;
+          if (p.requiresInspection !== false) {
+            if (isInspDone) vistoriaConcluida++;
+            else vistoriaPendente++;
+          }
+        }
+        if (isProcessOpened && !p.detranApproved) {
+          emAnaliseDetran++;
+        }
+        if (!isFeePaid) {
+          pendenteTaxa++;
+        }
+        if (p.requiresPlate && !isPlateDone) {
+          pendentePlaca++;
+        }
+      } else {
+        finalizado++;
+        const pYm = getProcessCompletionMonthYear(p);
+        if (selectedMonth === 'ALL' || pYm === selectedTargetYm) {
+          finalizadoMonth++;
         }
       }
-      if (st === 'AGUARDANDO_DETRAN') aguardandoDetran++;
-      if (st === 'LIBERADO') liberado++;
-      if (st === 'FINALIZADO' || st === 'CONCLUIDO' || st === 'PRONTO_ENTREGA') finalizado++;
     });
 
-    return { total, active, entrada, vistoriaPendente, vistoriaConcluida, aguardandoDetran, liberado, finalizado };
-  }, [processes]);
+    return { 
+      total, 
+      active, 
+      pendenteAbertura, 
+      vistoriaPendente, 
+      vistoriaConcluida, 
+      emAnaliseDetran, 
+      pendenteTaxa, 
+      pendentePlaca, 
+      finalizado,
+      finalizadoMonth
+    };
+  }, [processes, getPlateExpenses, selectedMonth, selectedYear, getProcessCompletionMonthYear]);
 
   // Send new message in chat
   const handleSendMessage = (processId: string) => {
@@ -412,55 +585,69 @@ export default function DetranProcesses({
           </button>
 
           <button
-            onClick={() => { setStageFilter('ENTRADA'); setInspectionFilter('ALL'); }}
+            onClick={() => { setStageFilter('PENDENTE_ABERTURA'); setInspectionFilter('ALL'); }}
             className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
-              stageFilter === 'ENTRADA'
+              stageFilter === 'PENDENTE_ABERTURA'
                 ? 'bg-amber-600 text-white shadow-md'
                 : 'bg-[#161B22] text-slate-400 hover:text-white hover:bg-slate-800/60 border border-slate-800'
             }`}
           >
             <span className="w-1.5 h-1.5 rounded-full bg-amber-400"></span>
-            <span>Recebido (Sem Abertura)</span>
-            <span className="px-1.5 py-0.2 rounded-full bg-black/30 text-[10px]">{counts.entrada}</span>
+            <span>Pendente Abertura</span>
+            <span className="px-1.5 py-0.2 rounded-full bg-black/30 text-[10px]">{counts.pendenteAbertura}</span>
           </button>
 
           <button
-            onClick={() => { setStageFilter('AGUARDANDO_DETRAN'); setInspectionFilter('ALL'); }}
+            onClick={() => { setStageFilter('EM_ANALISE_DETRAN'); setInspectionFilter('ALL'); }}
             className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
-              stageFilter === 'AGUARDANDO_DETRAN'
+              stageFilter === 'EM_ANALISE_DETRAN'
                 ? 'bg-indigo-600 text-white shadow-md'
                 : 'bg-[#161B22] text-slate-400 hover:text-white hover:bg-slate-800/60 border border-slate-800'
             }`}
           >
             <span className="w-1.5 h-1.5 rounded-full bg-indigo-400"></span>
             <span>Em Análise DETRAN</span>
-            <span className="px-1.5 py-0.2 rounded-full bg-black/30 text-[10px]">{counts.aguardandoDetran}</span>
+            <span className="px-1.5 py-0.2 rounded-full bg-black/30 text-[10px]">{counts.emAnaliseDetran}</span>
           </button>
 
           <button
-            onClick={() => { setStageFilter('LIBERADO'); setInspectionFilter('ALL'); }}
+            onClick={() => { setStageFilter('PENDENTE_TAXA'); setInspectionFilter('ALL'); }}
             className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
-              stageFilter === 'LIBERADO'
-                ? 'bg-purple-600 text-white shadow-md'
+              stageFilter === 'PENDENTE_TAXA'
+                ? 'bg-rose-600 text-white shadow-md'
                 : 'bg-[#161B22] text-slate-400 hover:text-white hover:bg-slate-800/60 border border-slate-800'
             }`}
           >
-            <span className="w-1.5 h-1.5 rounded-full bg-purple-400"></span>
-            <span>Liberado (Taxa / Placa)</span>
-            <span className="px-1.5 py-0.2 rounded-full bg-black/30 text-[10px]">{counts.liberado}</span>
+            <span className="w-1.5 h-1.5 rounded-full bg-rose-400"></span>
+            <span>Pendente Taxa</span>
+            <span className="px-1.5 py-0.2 rounded-full bg-black/30 text-[10px]">{counts.pendenteTaxa}</span>
+          </button>
+
+          <button
+            onClick={() => { setStageFilter('PENDENTE_PLACA'); setInspectionFilter('ALL'); }}
+            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+              stageFilter === 'PENDENTE_PLACA'
+                ? 'bg-sky-600 text-white shadow-md'
+                : 'bg-[#161B22] text-slate-400 hover:text-white hover:bg-slate-800/60 border border-slate-800'
+            }`}
+          >
+            <span className="w-1.5 h-1.5 rounded-full bg-sky-400"></span>
+            <span>Pendente Placa</span>
+            <span className="px-1.5 py-0.2 rounded-full bg-black/30 text-[10px]">{counts.pendentePlaca}</span>
           </button>
 
           <button
             onClick={() => { setStageFilter('FINALIZADO'); setInspectionFilter('ALL'); }}
             className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
-              stageFilter === 'FINALIZADO' || stageFilter === 'CONCLUIDO' || stageFilter === 'PRONTO_ENTREGA'
+              stageFilter === 'FINALIZADO'
                 ? 'bg-emerald-600 text-white shadow-md'
                 : 'bg-[#161B22] text-slate-400 hover:text-white hover:bg-slate-800/60 border border-slate-800'
             }`}
+            title={`Concluídos em ${selectedMonth === 'ALL' ? 'todos os meses' : ((monthsOptions.find(m => m.value === selectedMonth)?.label || selectedMonth) + '/' + selectedYear)}: ${counts.finalizadoMonth} (Total histórico: ${counts.finalizado})`}
           >
             <span className="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>
-            <span>Finalizados (CRVe Emitido)</span>
-            <span className="px-1.5 py-0.2 rounded-full bg-black/30 text-[10px]">{counts.finalizado}</span>
+            <span>Finalizados</span>
+            <span className="px-1.5 py-0.2 rounded-full bg-black/30 text-[10px]">{counts.finalizadoMonth}</span>
           </button>
 
           <button
@@ -476,8 +663,60 @@ export default function DetranProcesses({
           </button>
         </div>
 
-        {/* Sub-filtros de Vistoria quando na etapa Recebido (Sem Abertura) */}
-        {stageFilter === 'ENTRADA' && (
+        {/* Seletor Mensal de Competência exclusivo para Processos Concluídos / Finalizados */}
+        {stageFilter === 'FINALIZADO' && (
+          <div className="flex flex-wrap items-center justify-between gap-3 mt-3 pt-3 border-t border-slate-800/50 bg-[#0E131F]/50 p-3 rounded-xl border border-slate-800/60">
+            <div className="flex flex-wrap items-center gap-3">
+              <div className="flex items-center gap-1.5 text-emerald-400 font-bold text-xs">
+                <Calendar size={15} />
+                <span className="uppercase tracking-wider text-[11px] text-slate-300">Competência de Conclusão:</span>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <div className="flex items-center gap-1.5">
+                  <span className="text-[11px] font-bold text-slate-400 uppercase">Mês:</span>
+                  <select
+                    value={selectedMonth}
+                    onChange={e => setSelectedMonth(e.target.value)}
+                    className="px-3 py-1.5 bg-[#161B22] border border-slate-800 rounded-lg text-xs font-bold text-slate-200 cursor-pointer focus:outline-none focus:border-emerald-500 uppercase transition-all"
+                  >
+                    {monthsOptions.map(m => (
+                      <option key={m.value} value={m.value}>{m.label}</option>
+                    ))}
+                    <option value="ALL">Todos os Meses</option>
+                  </select>
+                </div>
+
+                <div className="flex items-center gap-1.5">
+                  <span className="text-[11px] font-bold text-slate-400 uppercase">Ano:</span>
+                  <select
+                    value={selectedYear}
+                    onChange={e => setSelectedYear(e.target.value)}
+                    className="px-3 py-1.5 bg-[#161B22] border border-slate-800 rounded-lg text-xs font-bold text-slate-200 font-mono cursor-pointer focus:outline-none focus:border-emerald-500 transition-all"
+                  >
+                    {availableYears.map(y => (
+                      <option key={y} value={y}>{y}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+            </div>
+
+            <div className="text-xs text-slate-400 flex items-center gap-2">
+              <span className="inline-flex items-center px-2 py-0.5 rounded-md bg-emerald-950/70 border border-emerald-800/50 text-emerald-300 text-[11px] font-semibold">
+                {counts.finalizadoMonth} {counts.finalizadoMonth === 1 ? 'processo concluído' : 'processos concluídos'} em {selectedMonth === 'ALL' ? 'todos os meses' : `${monthsOptions.find(m => m.value === selectedMonth)?.label || selectedMonth}/${selectedYear}`}
+              </span>
+              {counts.finalizado > counts.finalizadoMonth && (
+                <span className="text-[10px] text-slate-500 font-medium">
+                  (Histórico total: {counts.finalizado})
+                </span>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Sub-filtros de Vistoria quando na etapa Pendente Abertura */}
+        {stageFilter === 'PENDENTE_ABERTURA' && (
           <div className="flex flex-wrap items-center gap-2 mt-3 pt-3 border-t border-slate-800/50">
             <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400">
               Vistoria prévia:
@@ -490,7 +729,7 @@ export default function DetranProcesses({
                   : 'bg-slate-800/80 text-slate-400 hover:text-white border border-slate-750'
               }`}
             >
-              Todos Recebidos ({counts.entrada})
+              Todos ({counts.pendenteAbertura})
             </button>
             <button
               onClick={() => setInspectionFilter('DONE')}
@@ -546,7 +785,9 @@ export default function DetranProcesses({
           <p className="text-xs text-slate-500 mt-1 max-w-md mx-auto">
             {searchTerm 
               ? 'Nenhum veículo corresponde à sua busca atual.' 
-              : 'A esteira exibe processos para serviços a partir de 01/09/2026. Assim que o operador lançar serviços com HONORÁRIO a partir desta data, eles aparecerão aqui automaticamente, ou você pode clicar no botão "+ Novo Processo".'}
+              : stageFilter === 'FINALIZADO'
+                ? `Nenhum processo concluído encontrado para ${selectedMonth === 'ALL' ? 'o período' : `${monthsOptions.find(m => m.value === selectedMonth)?.label || selectedMonth}/${selectedYear}`}. Selecione outro mês no filtro acima ou visualize todos os meses.`
+                : 'A esteira exibe processos para serviços a partir de 01/09/2026. Assim que o operador lançar serviços com HONORÁRIO a partir desta data, eles aparecerão aqui automaticamente, ou você pode clicar no botão "+ Novo Processo".'}
           </p>
           <div className="mt-5 flex justify-center gap-3">
             <button
@@ -571,11 +812,39 @@ export default function DetranProcesses({
           {filteredProcesses.map(proc => {
             const currentStage = calculateProcessStage(proc);
             const plateExpenses = getPlateExpenses(proc.plate);
+            const service = getProcessService(proc);
             const isChatExpanded = expandedChatId === proc.id;
             const messageCount = (proc.messages || []).length;
-
-            // Is First Registration?
             const isFirstReg = isFirstPlating(proc.description);
+
+            // Automatic detection:
+            // FEE: auto-detected when expense exists for plate OR proc.feePaid is true
+            const isFeePaid = Boolean(proc.feePaid || plateExpenses.fee);
+
+            // INSPECTION: auto-detected when expense exists for plate OR proc.inspectionDone is true
+            const isInspectionDone = proc.requiresInspection === false 
+              ? false 
+              : Boolean(proc.inspectionDone || plateExpenses.inspection);
+
+            // PLATE: auto-detected when expense exists for plate OR proc.plateInstalled/plateOrdered is true
+            const isPlateDone = proc.requiresPlate 
+              ? Boolean(proc.plateInstalled || proc.plateOrdered || plateExpenses.plate) 
+              : false;
+
+            // Format payment methods for clean display (DINHEIRO or PIX)
+            const rawServicePayment = (service?.paymentMethod || '').toUpperCase();
+            const servicePaymentMethodDisplay = rawServicePayment.includes('PIX') 
+              ? 'PIX' 
+              : rawServicePayment.includes('DINHEIRO') 
+                ? 'DINHEIRO' 
+                : rawServicePayment;
+
+            const rawFeePayment = (plateExpenses.fee?.paymentMethod || proc.feePaymentMethod || '').toUpperCase();
+            const feePaymentMethodDisplay = rawFeePayment.includes('PIX') 
+              ? 'PIX' 
+              : rawFeePayment.includes('DINHEIRO') 
+                ? 'DINHEIRO' 
+                : rawFeePayment;
 
             return (
               <div 
@@ -623,7 +892,7 @@ export default function DetranProcesses({
                               <span className="text-[9px] font-bold px-2 py-0.5 rounded-full bg-slate-800/80 text-slate-400 border border-slate-700/60 uppercase">
                                 Isento de Vistoria
                               </span>
-                            ) : proc.inspectionDone ? (
+                            ) : isInspectionDone ? (
                               <span className="text-[9px] font-bold px-2 py-0.5 rounded-full bg-emerald-950/80 text-emerald-300 border border-emerald-800/50 flex items-center gap-1 uppercase">
                                 <Check size={10} className="text-emerald-400" />
                                 <span>Vistoria Concluída</span>
@@ -650,6 +919,37 @@ export default function DetranProcesses({
                           <span className="text-[11px] text-slate-500">
                             Cadastrado em: {new Date(proc.createdAt).toLocaleDateString('pt-BR')}
                           </span>
+                        </div>
+
+                        {/* Formas de Recebimento do Atendimento e Pagamento da Taxa */}
+                        <div className="flex flex-wrap items-center gap-2 mt-2 pt-2 border-t border-slate-800/60 text-xs">
+                          <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-[#0B0E14] border border-slate-800">
+                            <span className="text-slate-400 text-[11px] font-medium">Recebimento:</span>
+                            {servicePaymentMethodDisplay ? (
+                              <span className={`text-[11px] font-black uppercase tracking-wider ${
+                                servicePaymentMethodDisplay === 'PIX' ? 'text-teal-400' : 'text-emerald-400'
+                              }`}>
+                                {servicePaymentMethodDisplay}
+                              </span>
+                            ) : (
+                              <span className="text-slate-500 font-mono text-[11px]">-</span>
+                            )}
+                          </div>
+
+                          <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-[#0B0E14] border border-slate-800">
+                            <span className="text-slate-400 text-[11px] font-medium">Pagamento Taxa:</span>
+                            {isFeePaid ? (
+                              <span className={`text-[11px] font-black uppercase tracking-wider ${
+                                feePaymentMethodDisplay === 'PIX' ? 'text-teal-400' : 'text-emerald-400'
+                              }`}>
+                                {feePaymentMethodDisplay || 'PAGA'}
+                              </span>
+                            ) : (
+                              <span className="text-rose-400 font-bold uppercase text-[10px]">
+                                PENDENTE
+                              </span>
+                            )}
+                          </div>
                         </div>
                       </div>
                     </div>
@@ -692,7 +992,7 @@ export default function DetranProcesses({
                   <div className={`p-3.5 rounded-xl border transition-all ${
                     proc.requiresInspection === false
                       ? 'opacity-75 bg-[#12151C] border-slate-800/60'
-                      : proc.inspectionDone 
+                      : isInspectionDone 
                         ? 'bg-emerald-950/15 border-emerald-900/50' 
                         : 'bg-[#151921] border-slate-800'
                   }`}>
@@ -701,20 +1001,13 @@ export default function DetranProcesses({
                         <span className="w-4 h-4 rounded-full bg-slate-800 text-slate-300 flex items-center justify-center text-[10px] font-bold">1</span>
                         Vistoria Veicular
                       </span>
-                      <div className="flex items-center gap-1.5">
-                        {plateExpenses.inspection && (
-                          <span className="text-[9px] font-mono bg-emerald-950/80 text-emerald-300 border border-emerald-800/40 px-1.5 py-0.5 rounded">
-                            ✓ R$ {plateExpenses.inspection.value.toFixed(2)}
-                          </span>
-                        )}
-                        <button
-                          onClick={() => handleToggleStep(proc.id, 'requiresInspection', proc.requiresInspection === false ? true : false)}
-                          className="text-[10px] font-bold text-slate-400 hover:text-white cursor-pointer underline decoration-dotted"
-                          title="Alternar se o processo exige vistoria ou se é isento"
-                        >
-                          {proc.requiresInspection === false ? 'Não Exige' : 'Exige [X]'}
-                        </button>
-                      </div>
+                      <button
+                        onClick={() => handleToggleStep(proc.id, 'requiresInspection', proc.requiresInspection === false ? true : false)}
+                        className="text-[10px] font-bold text-slate-400 hover:text-white cursor-pointer underline decoration-dotted"
+                        title="Alternar se o processo exige vistoria ou se é isento"
+                      >
+                        {proc.requiresInspection === false ? 'Não Exige' : 'Exige [X]'}
+                      </button>
                     </div>
 
                     {proc.requiresInspection === false ? (
@@ -735,21 +1028,33 @@ export default function DetranProcesses({
                       </div>
                     ) : (
                       <>
-                        <p className="text-[11px] text-slate-400 mb-3">
-                          {proc.inspectionDone ? 'Vistoria aprovada e cadastrada.' : 'Aguardando vistoria ou laudo ECV.'}
-                        </p>
+                        <div className="text-[11px] text-slate-400 mb-2">
+                          {plateExpenses.inspection ? (
+                            <span className="text-emerald-400 block font-mono text-[10px]">
+                              ✓ Saída no Caixa: R$ {plateExpenses.inspection.value.toFixed(2)}
+                              {plateExpenses.inspection.paymentMethod ? ` • ${plateExpenses.inspection.paymentMethod}` : ''}
+                            </span>
+                          ) : (
+                            <span>{isInspectionDone ? 'Vistoria aprovada e cadastrada.' : 'Aguardando vistoria ou laudo ECV.'}</span>
+                          )}
+                        </div>
 
-                        <button
-                          onClick={() => handleToggleStep(proc.id, 'inspectionDone', !proc.inspectionDone)}
-                          className={`w-full py-1.5 px-3 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
-                            proc.inspectionDone
-                              ? 'bg-emerald-600/90 text-white shadow'
-                              : 'bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white border border-slate-700'
-                          }`}
-                        >
-                          <Check size={14} />
-                          <span>{proc.inspectionDone ? 'Vistoria Concluída' : 'Marcar Vistoria Concluída'}</span>
-                        </button>
+                        <div className="flex items-center justify-between pt-1 border-t border-slate-800/60">
+                          <span className="text-xs font-bold text-slate-300">Vistoria Feita:</span>
+                          <button
+                            type="button"
+                            onClick={() => handleToggleStep(proc.id, 'inspectionDone', !isInspectionDone)}
+                            className={`px-3 py-1 rounded-lg text-xs font-black tracking-wider transition-all cursor-pointer flex items-center gap-1.5 ${
+                              isInspectionDone
+                                ? 'bg-emerald-600 hover:bg-emerald-500 text-white shadow-sm shadow-emerald-900/40'
+                                : 'bg-rose-600 hover:bg-rose-500 text-white shadow-sm shadow-rose-900/40'
+                            }`}
+                            title={plateExpenses.inspection ? 'Identificado automaticamente pela saída no caixa' : 'Clique para alternar'}
+                          >
+                            {isInspectionDone ? <Check size={13} className="stroke-[3]" /> : <X size={13} className="stroke-[3]" />}
+                            <span>{isInspectionDone ? 'SIM' : 'NÃO'}</span>
+                          </button>
+                        </div>
                       </>
                     )}
                   </div>
@@ -823,7 +1128,7 @@ export default function DetranProcesses({
 
                   {/* Step 3: Taxa DETRAN */}
                   <div className={`p-3.5 rounded-xl border transition-all ${
-                    proc.feePaid 
+                    isFeePaid 
                       ? 'bg-emerald-950/15 border-emerald-900/50' 
                       : 'bg-[#151921] border-slate-800'
                   }`}>
@@ -841,10 +1146,11 @@ export default function DetranProcesses({
                       </span>
                     </div>
 
-                    <div className="text-[11px] text-slate-400 mb-3">
+                    <div className="text-[11px] text-slate-400 mb-2">
                       {plateExpenses.fee ? (
                         <span className="text-emerald-400 block font-mono text-[10px]">
-                          ✓ Gasto detectado: R$ {plateExpenses.fee.value.toFixed(2)}
+                          ✓ Saída no Caixa: R$ {plateExpenses.fee.value.toFixed(2)}
+                          {plateExpenses.fee.paymentMethod ? ` • ${plateExpenses.fee.paymentMethod}` : ''}
                         </span>
                       ) : proc.feePayer === 'CLIENTE' ? (
                         <span>Enviar boleto para o cliente pagar.</span>
@@ -853,24 +1159,57 @@ export default function DetranProcesses({
                       )}
                     </div>
 
-                    <button
-                      onClick={() => handleToggleStep(proc.id, 'feePaid', !proc.feePaid)}
-                      className={`w-full py-1.5 px-3 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
-                        proc.feePaid
-                          ? 'bg-emerald-600/90 text-white shadow'
-                          : 'bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white border border-slate-700'
-                      }`}
-                    >
-                      <Check size={14} />
-                      <span>{proc.feePaid ? 'Taxa Paga / Compensada' : 'Confirmar Pagamento Taxa'}</span>
-                    </button>
+                    <div className="flex items-center justify-between pt-1 border-t border-slate-800/60">
+                      <span className="text-xs font-bold text-slate-300">Taxa Paga:</span>
+                      <button
+                        type="button"
+                        onClick={() => handleToggleStep(proc.id, 'feePaid', !isFeePaid)}
+                        className={`px-3 py-1 rounded-lg text-xs font-black tracking-wider transition-all cursor-pointer flex items-center gap-1.5 ${
+                          isFeePaid
+                            ? 'bg-emerald-600 hover:bg-emerald-500 text-white shadow-sm shadow-emerald-900/40'
+                            : 'bg-rose-600 hover:bg-rose-500 text-white shadow-sm shadow-rose-900/40'
+                        }`}
+                        title={plateExpenses.fee ? 'Identificado automaticamente pela saída no caixa' : 'Clique para alternar'}
+                      >
+                        {isFeePaid ? <Check size={13} className="stroke-[3]" /> : <X size={13} className="stroke-[3]" />}
+                        <span>{isFeePaid ? 'SIM' : 'NÃO'}</span>
+                      </button>
+                    </div>
+
+                    <div className="flex items-center justify-between text-[11px] pt-2 mt-2 border-t border-slate-800/50 text-slate-400">
+                      <span>Forma Pagto Taxa:</span>
+                      <div className="flex items-center gap-1">
+                        <button
+                          type="button"
+                          onClick={() => handleToggleStep(proc.id, 'feePaymentMethod', 'DINHEIRO')}
+                          className={`px-2 py-0.5 rounded text-[10px] font-bold cursor-pointer transition-all ${
+                            feePaymentMethodDisplay === 'DINHEIRO' 
+                              ? 'bg-emerald-600 text-white' 
+                              : 'bg-slate-800 text-slate-400 hover:text-white'
+                          }`}
+                        >
+                          DINHEIRO
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleToggleStep(proc.id, 'feePaymentMethod', 'PIX')}
+                          className={`px-2 py-0.5 rounded text-[10px] font-bold cursor-pointer transition-all ${
+                            feePaymentMethodDisplay === 'PIX' 
+                              ? 'bg-teal-600 text-white' 
+                              : 'bg-slate-800 text-slate-400 hover:text-white'
+                          }`}
+                        >
+                          PIX
+                        </button>
+                      </div>
+                    </div>
                   </div>
 
                   {/* Step 4: Placa Mercosul (Conditional) */}
                   <div className={`p-3.5 rounded-xl border transition-all ${
                     !proc.requiresPlate 
                       ? 'opacity-60 bg-[#12151C] border-slate-800/60' 
-                      : proc.plateInstalled 
+                      : isPlateDone 
                         ? 'bg-emerald-950/15 border-emerald-900/50' 
                         : 'bg-[#151921] border-slate-800'
                   }`}>
@@ -890,8 +1229,36 @@ export default function DetranProcesses({
 
                     {proc.requiresPlate ? (
                       <div className="space-y-2">
-                        <div className="flex items-center justify-between text-xs">
-                          <span className="text-slate-400 text-[11px]">Pedido / Estampagem:</span>
+                        {plateExpenses.plate && (
+                          <span className="text-emerald-400 block font-mono text-[10px]">
+                            ✓ Saída no Caixa: R$ {plateExpenses.plate.value.toFixed(2)}
+                            {plateExpenses.plate.paymentMethod ? ` • ${plateExpenses.plate.paymentMethod}` : ''}
+                          </span>
+                        )}
+
+                        <div className="flex items-center justify-between pt-1 border-t border-slate-800/60">
+                          <span className="text-xs font-bold text-slate-300">Placa Feita:</span>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const nextVal = !isPlateDone;
+                              handleToggleStep(proc.id, 'plateInstalled', nextVal);
+                              if (nextVal) handleToggleStep(proc.id, 'plateOrdered', true);
+                            }}
+                            className={`px-3 py-1 rounded-lg text-xs font-black tracking-wider transition-all cursor-pointer flex items-center gap-1.5 ${
+                              isPlateDone
+                                ? 'bg-emerald-600 hover:bg-emerald-500 text-white shadow-sm shadow-emerald-900/40'
+                                : 'bg-rose-600 hover:bg-rose-500 text-white shadow-sm shadow-rose-900/40'
+                            }`}
+                            title={plateExpenses.plate ? 'Identificado automaticamente pela saída no caixa' : 'Clique para alternar'}
+                          >
+                            {isPlateDone ? <Check size={13} className="stroke-[3]" /> : <X size={13} className="stroke-[3]" />}
+                            <span>{isPlateDone ? 'SIM' : 'NÃO'}</span>
+                          </button>
+                        </div>
+
+                        <div className="flex items-center justify-between text-xs pt-1">
+                          <span className="text-slate-400 text-[11px]">Pedido / Estampa:</span>
                           <button
                             onClick={() => handleToggleStep(proc.id, 'plateOrdered', !proc.plateOrdered)}
                             className={`px-2 py-0.5 rounded text-[10px] font-bold cursor-pointer ${
