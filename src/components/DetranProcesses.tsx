@@ -23,6 +23,7 @@ import {
   DollarSign
 } from 'lucide-react';
 import { DetranProcess, Service, Expense, UserSession, ProcessMessage, ProcessStage } from '../types';
+import { plateMatchesSearch } from '../utils/plateMatcher';
 
 export type ProcessFilterTab = 
   | 'ACTIVE' 
@@ -116,35 +117,114 @@ export default function DetranProcesses({
   // Clean plate helper
   const cleanPlate = (p?: string) => (p || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
 
-  // Detect expense matches for a plate
+  // Detect expense matches for a plate - isolates specific item values when expenses are launched together
+  // and distinguishes between 2ª via / recibo and transferência when both exist for the same plate
   const getPlateExpenses = useMemo(() => {
-    return (plate: string) => {
+    return (plate: string, processDescription?: string) => {
       const cPlate = cleanPlate(plate);
       if (!cPlate) return { inspection: null, fee: null, plate: null };
+
+      const pDescUpper = (processDescription || '').toUpperCase();
+      const isProcRecibo = pDescUpper.includes('2ª VIA') || pDescUpper.includes('2 VIA') || pDescUpper.includes('SEGUNDA VIA') || pDescUpper.includes('RECIBO') || pDescUpper.includes('ATPV');
+      const isProcTransf = pDescUpper.includes('TRANSF') || pDescUpper.includes('TRANSFERENCIA') || pDescUpper.includes('TRANSFERÊNCIA');
 
       let inspectionExp: Expense | null = null;
       let feeExp: Expense | null = null;
       let plateExp: Expense | null = null;
 
       for (const exp of expenses) {
-        const expPlate = cleanPlate(exp.plate);
-        const itemsMatch = exp.items && exp.items.some(item => cleanPlate(item.plate) === cPlate);
-        // Match either plate attribute, items array, or plate substring in description
-        const descMatch = cleanPlate(exp.description).includes(cPlate);
+        let isMatch = false;
+        let plateValue = Number(exp.value) || 0;
+        let plateItems = exp.items;
 
-        if (expPlate === cPlate || itemsMatch || descMatch) {
+        if (exp.items && exp.items.length > 0) {
+          // Gasto com múltiplos veículos cadastrados juntos (Saída Caixa com itens de placa)
+          const matchingItems = exp.items.filter(item => {
+            const itemPlateClean = cleanPlate(item.plate);
+            return (
+              itemPlateClean === cPlate ||
+              plateMatchesSearch(item.plate, cPlate) ||
+              plateMatchesSearch(cPlate, item.plate)
+            );
+          });
+
+          if (matchingItems.length > 0) {
+            isMatch = true;
+            plateValue = matchingItems.reduce((sum, item) => sum + (Number(item.value) || 0), 0);
+            plateItems = matchingItems;
+          }
+        } else {
+          // Gasto individual
+          const expPlate = cleanPlate(exp.plate);
+          const descMatch = cleanPlate(exp.description).includes(cPlate);
+          const plateMatch = 
+            expPlate === cPlate || 
+            plateMatchesSearch(exp.plate, cPlate) || 
+            plateMatchesSearch(cPlate, exp.plate);
+
+          if (plateMatch || descMatch) {
+            isMatch = true;
+            plateValue = Number(exp.value) || 0;
+          }
+        }
+
+        if (isMatch) {
           const catUpper = (exp.category || '').toUpperCase();
           const descUpper = (exp.description || '').toUpperCase();
           const catAndDesc = `${catUpper} ${descUpper}`;
 
-          if ((catAndDesc.includes('VISTORIA') || catAndDesc.includes('LAUDO') || catAndDesc.includes('ECV')) && !inspectionExp) {
-            inspectionExp = exp;
+          // Se a despesa especificou explicitamente o tipo do processo, respeita o direcionamento
+          const isExpRecibo = catAndDesc.includes('2ª VIA') || catAndDesc.includes('2 VIA') || catAndDesc.includes('SEGUNDA VIA') || catAndDesc.includes('RECIBO') || catAndDesc.includes('ATPV');
+          const isExpTransf = catAndDesc.includes('TRANSF') || catAndDesc.includes('TRANSFERENCIA') || catAndDesc.includes('TRANSFERÊNCIA');
+
+          // Se a saída menciona especificamente Recibo/2ª via mas este processo é de Transferência, ignora
+          if (isExpRecibo && isProcTransf && !isProcRecibo) {
+            continue;
           }
-          if ((catAndDesc.includes('TAXA') || catAndDesc.includes('DETRAN') || catAndDesc.includes('DUDA') || catAndDesc.includes('IPVA') || catAndDesc.includes('LICENCIAMENTO')) && !feeExp) {
-            feeExp = exp;
+          // Se a saída menciona especificamente Transferência mas este processo é de Recibo/2ª via, ignora
+          if (isExpTransf && isProcRecibo && !isProcTransf) {
+            continue;
           }
-          if ((catAndDesc.includes('PLACA') || catAndDesc.includes('ESTAMPA') || catAndDesc.includes('MERCOSUL')) && !plateExp) {
-            plateExp = exp;
+
+          const specificExp: Expense = {
+            ...exp,
+            value: plateValue,
+            plate: plate,
+            items: plateItems
+          };
+
+          if (catAndDesc.includes('VISTORIA') || catAndDesc.includes('LAUDO') || catAndDesc.includes('ECV')) {
+            if (!inspectionExp) {
+              inspectionExp = specificExp;
+            } else {
+              inspectionExp = {
+                ...inspectionExp,
+                value: inspectionExp.value + specificExp.value,
+                paymentMethod: inspectionExp.paymentMethod || specificExp.paymentMethod
+              };
+            }
+          }
+          if (catAndDesc.includes('TAXA') || catAndDesc.includes('DETRAN') || catAndDesc.includes('DUDA') || catAndDesc.includes('IPVA') || catAndDesc.includes('LICENCIAMENTO')) {
+            if (!feeExp) {
+              feeExp = specificExp;
+            } else {
+              feeExp = {
+                ...feeExp,
+                value: feeExp.value + specificExp.value,
+                paymentMethod: feeExp.paymentMethod || specificExp.paymentMethod
+              };
+            }
+          }
+          if (catAndDesc.includes('PLACA') || catAndDesc.includes('ESTAMPA') || catAndDesc.includes('MERCOSUL')) {
+            if (!plateExp) {
+              plateExp = specificExp;
+            } else {
+              plateExp = {
+                ...plateExp,
+                value: plateExp.value + specificExp.value,
+                paymentMethod: plateExp.paymentMethod || specificExp.paymentMethod
+              };
+            }
           }
         }
       }
@@ -261,6 +341,7 @@ export default function DetranProcesses({
         !term ||
         p.client.toLowerCase().includes(term) ||
         p.plate.toLowerCase().includes(term) ||
+        plateMatchesSearch(p.plate, term) ||
         p.description.toLowerCase().includes(term) ||
         (p.protocolNumber && p.protocolNumber.toLowerCase().includes(term));
 
@@ -269,7 +350,7 @@ export default function DetranProcesses({
       const currentStage = calculateProcessStage(p);
       const isFinalized = currentStage === 'FINALIZADO' || currentStage === 'CONCLUIDO' || currentStage === 'PRONTO_ENTREGA';
       const isProcessOpened = p.processOpened || (!!p.protocolNumber && p.protocolNumber.trim().length > 0);
-      const pExpenses = getPlateExpenses(p.plate);
+      const pExpenses = getPlateExpenses(p.plate, p.description);
       const isFeePaid = p.feePaid || !!pExpenses.fee;
       const isPlateDone = p.plateOrdered || p.plateInstalled || !!pExpenses.plate;
       const isInspDone = p.inspectionDone || !!pExpenses.inspection;
@@ -324,7 +405,7 @@ export default function DetranProcesses({
       const currentStage = calculateProcessStage(p);
       const isFinalized = currentStage === 'FINALIZADO' || currentStage === 'CONCLUIDO' || currentStage === 'PRONTO_ENTREGA';
       const isProcessOpened = p.processOpened || (!!p.protocolNumber && p.protocolNumber.trim().length > 0);
-      const pExpenses = getPlateExpenses(p.plate);
+      const pExpenses = getPlateExpenses(p.plate, p.description);
       const isFeePaid = p.feePaid || !!pExpenses.fee;
       const isPlateDone = p.plateOrdered || p.plateInstalled || !!pExpenses.plate;
       const isInspDone = p.inspectionDone || !!pExpenses.inspection;
@@ -811,7 +892,7 @@ export default function DetranProcesses({
         <div className="space-y-4">
           {filteredProcesses.map(proc => {
             const currentStage = calculateProcessStage(proc);
-            const plateExpenses = getPlateExpenses(proc.plate);
+            const plateExpenses = getPlateExpenses(proc.plate, proc.description);
             const service = getProcessService(proc);
             const isChatExpanded = expandedChatId === proc.id;
             const messageCount = (proc.messages || []).length;

@@ -57,6 +57,7 @@ import {
 } from './lib/db';
 import AuthModal from './components/AuthModal';
 import LoginScreen from './components/LoginScreen';
+import { plateMatchesSearch } from './utils/plateMatcher';
 
 const getDbUserId = (username?: string | null): string => {
   if (!username) return 'joao.desp';
@@ -1005,8 +1006,17 @@ export default function App() {
     localStorage.setItem('dep_expenses', JSON.stringify(updated));
 
     // Automate Detran process updates if expense is VISTORIA, TAXA DETRAN, or PLACA for a plate
+    const targetPlates: string[] = [];
     const cleanP = (expense.plate || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
-    if (cleanP) {
+    if (cleanP) targetPlates.push(cleanP);
+    if (expense.items && expense.items.length > 0) {
+      expense.items.forEach(it => {
+        const cp = (it.plate || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+        if (cp && !targetPlates.includes(cp)) targetPlates.push(cp);
+      });
+    }
+
+    if (targetPlates.length > 0) {
       const catAndDesc = `${expense.category} ${expense.description}`.toUpperCase();
       const isVistoria = catAndDesc.includes('VISTORIA');
       const isTaxa = catAndDesc.includes('TAXA') || catAndDesc.includes('DETRAN');
@@ -1017,7 +1027,8 @@ export default function App() {
           let changed = false;
           const next = prev.map(proc => {
             const pPlate = (proc.plate || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
-            if (pPlate === cleanP) {
+            const matches = targetPlates.some(tp => pPlate === tp || plateMatchesSearch(pPlate, tp) || plateMatchesSearch(tp, pPlate));
+            if (matches) {
               changed = true;
               return {
                 ...proc,
@@ -1037,12 +1048,15 @@ export default function App() {
           if (changed) {
             localStorage.setItem('dep_detran_processes', JSON.stringify(next));
             if (currentSession && isCloudConnected) {
-              const target = next.find(p => (p.plate || '').toUpperCase().replace(/[^A-Z0-9]/g, '') === cleanP);
-              if (target) {
+              const matchedProcs = next.filter(p => {
+                const pPlate = (p.plate || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+                return targetPlates.some(tp => pPlate === tp || plateMatchesSearch(pPlate, tp) || plateMatchesSearch(tp, pPlate));
+              });
+              matchedProcs.forEach(target => {
                 saveDetranProcess(getDbUserId(currentSession.username), target).catch(e =>
                   console.error("Erro ao sincronizar processo com gasto na nuvem:", e)
                 );
-              }
+              });
             }
           }
           return next;
@@ -1426,11 +1440,12 @@ export default function App() {
       const descUpper = (serv.description || '').toUpperCase();
       const isFirstReg = descUpper.includes('1º EMP') || descUpper.includes('PRIMEIRO EMP') || descUpper.includes('1ºEMP') || descUpper.includes('0KM') || descUpper.includes('PRIMEIRO PLAC') || descUpper.includes('1º PLAC');
 
-      // Check if process already exists by serviceId or id or plate
+      // Check if process already exists by serviceId or id.
+      // Only fall back to plate if the existing process does NOT already belong to a different service!
       const existingIndex = updatedList.findIndex(p => 
         p.serviceId === serv.id || 
         p.id === `proc-${serv.id}` || 
-        (cleanP && (p.plate || '').toUpperCase().replace(/[^A-Z0-9]/g, '') === cleanP)
+        (!p.serviceId && cleanP && (p.plate || '').toUpperCase().replace(/[^A-Z0-9]/g, '') === cleanP)
       );
 
       if (existingIndex >= 0) {
