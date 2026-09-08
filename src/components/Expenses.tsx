@@ -505,19 +505,20 @@ export default function Expenses({
   };
 
   const startEditingExpense = (expense: Expense) => {
-    setEditingExpense(expense);
-    setDesc(expense.description);
-    setCategory(expense.category);
-    setPaymentMethod(expense.paymentMethod || 'PIX');
-    setDate(expense.date);
-    if (expense.items && expense.items.length > 0) {
-      setExpenseItems(expense.items);
+    const originalExpense = expenses.find(e => e.id === expense.id) || expense;
+    setEditingExpense(originalExpense);
+    setDesc(originalExpense.description);
+    setCategory(originalExpense.category);
+    setPaymentMethod(originalExpense.paymentMethod || 'PIX');
+    setDate(originalExpense.date);
+    if (originalExpense.items && originalExpense.items.length > 0) {
+      setExpenseItems(originalExpense.items);
       setPlate('');
       setVal('');
     } else {
       setExpenseItems([]);
-      setPlate(expense.plate || '');
-      setVal(expense.value);
+      setPlate(originalExpense.plate || '');
+      setVal(originalExpense.value);
     }
     setErrorMsg('');
     setItemError('');
@@ -651,23 +652,62 @@ export default function Expenses({
 
   // Filter accounts details
   const filteredExpenses = React.useMemo(() => {
-    const list = expenses.filter(exp => {
-      const matchesSearch = 
-        exp.description.toLowerCase().includes(search.toLowerCase()) || 
-        plateMatchesSearch(exp.plate, search) ||
-        (exp.items && exp.items.some(item => plateMatchesSearch(item.plate, search)));
-        
-      const matchesCategory = 
-        selectedCategories.includes('all') ||
-        (!selectedCategories.includes('none') &&
-          selectedCategories.some(sel => sel.toUpperCase() === exp.category.toUpperCase()));
+    const list = expenses
+      .map(e => {
+        // If there is an active search filter, and the expense has items,
+        // clone the expense keeping only the items matching the plate/search if search matches any plate,
+        // or keeping all items if search matches description/category.
+        if (search && e.items && e.items.length > 0) {
+          const sLower = search.toLowerCase();
+          const hasPlateMatch = e.items.some(it => plateMatchesSearch(it.plate, search));
+          const hasDescCategoryMatch = e.description.toLowerCase().includes(sLower) || e.category.toLowerCase().includes(sLower);
 
-      const matchesStartDate = !startDate || exp.date >= startDate;
-      const matchesEndDate = !endDate || exp.date <= endDate;
-      const matchesPaymentMethod = selectedPaymentMethod === 'all' || exp.paymentMethod === selectedPaymentMethod;
+          if (hasPlateMatch) {
+            const matchingItems = e.items.filter(it => plateMatchesSearch(it.plate, search));
+            return {
+              ...e,
+              items: matchingItems,
+              value: matchingItems.reduce((sum, item) => sum + item.value, 0)
+            };
+          } else if (hasDescCategoryMatch) {
+            return e;
+          } else {
+            return null;
+          }
+        }
+        return e;
+      })
+      .filter((e): e is Expense => e !== null)
+      .filter(exp => {
+        // 1. Date Interval
+        const matchesStartDate = !startDate || exp.date >= startDate;
+        const matchesEndDate = !endDate || exp.date <= endDate;
+        if (!matchesStartDate || !matchesEndDate) return false;
 
-      return matchesSearch && matchesCategory && matchesStartDate && matchesEndDate && matchesPaymentMethod;
-    });
+        // 2. Category
+        const matchesCategory = 
+          selectedCategories.includes('all') ||
+          (!selectedCategories.includes('none') &&
+            selectedCategories.some(sel => sel.toUpperCase() === exp.category.toUpperCase()));
+        if (!matchesCategory) return false;
+
+        // 3. Payment Method
+        const matchesPaymentMethod = selectedPaymentMethod === 'all' || exp.paymentMethod === selectedPaymentMethod;
+        if (!matchesPaymentMethod) return false;
+
+        // 4. Text Search
+        if (search) {
+          const sLower = search.toLowerCase();
+          const matchesPlate = plateMatchesSearch(exp.plate, search) ||
+            (exp.items && exp.items.some(item => plateMatchesSearch(item.plate, search)));
+          const matchesDesc = exp.description.toLowerCase().includes(sLower);
+          const matchesCategoryName = exp.category.toLowerCase().includes(sLower);
+
+          if (!matchesPlate && !matchesDesc && !matchesCategoryName) return false;
+        }
+
+        return true;
+      });
 
     return list.sort((a, b) => {
       if (sortOrder === 'oldest') {
@@ -1097,7 +1137,7 @@ export default function Expenses({
                     <Search size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
                     <input
                       type="text"
-                      placeholder="Pesquisar por descrição, placa..."
+                      placeholder="Buscar por descrição, placa..."
                       value={search}
                       onChange={e => setSearch(e.target.value)}
                       className="w-full pl-9 pr-3.5 py-2.5 bg-[#0F1115] border border-slate-850 rounded-xl text-xs placeholder-slate-650 focus:outline-none focus:border-rose-500 text-white font-medium"
@@ -1229,9 +1269,16 @@ export default function Expenses({
                               )}
 
                               {hasItems && (
-                                <span className="text-[9px] font-bold px-2 py-0.5 rounded bg-rose-955/20 text-rose-400 border border-rose-900/30 uppercase tracking-wider font-mono">
-                                  {expense.items?.length} Veículos
-                                </span>
+                                <>
+                                  {expense.items!.length === 1 && (
+                                    <span className="text-[9px] font-bold px-2 py-0.5 rounded bg-zinc-850 text-amber-400 border border-amber-900/40 uppercase tracking-wider font-mono">
+                                      {expense.items![0].plate}
+                                    </span>
+                                  )}
+                                  <span className="text-[9px] font-bold px-2 py-0.5 rounded bg-rose-955/20 text-rose-400 border border-rose-900/30 uppercase tracking-wider font-mono">
+                                    {expense.items?.length} {expense.items?.length === 1 ? 'Veículo' : 'Veículos'}
+                                  </span>
+                                </>
                               )}
 
                               {expense.operator && (

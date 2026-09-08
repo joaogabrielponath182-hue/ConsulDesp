@@ -734,28 +734,67 @@ export default function Services({
 
   // Filters logic on grouped services
   const filteredGroupedServices = React.useMemo(() => {
-    const list = groupedServices.filter(group => {
-      const matchesSearch = 
-        group.client.toLowerCase().includes(search.toLowerCase()) || 
-        group.description.toLowerCase().includes(search.toLowerCase()) ||
-        group.services.some(srv => 
-          plateMatchesSearch(srv.plate, search) ||
-          srv.items.some(item => item.name.toLowerCase().includes(search.toLowerCase()))
+    const list: typeof groupedServices = [];
+
+    groupedServices.forEach(group => {
+      // 1. Date Interval
+      if (startDate && group.date < startDate) return;
+      if (endDate && group.date > endDate) return;
+
+      // 2. Client filter
+      if (selectedClient !== 'all' && group.client.toLowerCase() !== selectedClient.toLowerCase()) return;
+
+      // 3. Filter services within group by status, payment method, category
+      let srvList = group.services;
+
+      if (selectedStatus !== 'all') {
+        srvList = srvList.filter(srv => srv.status === selectedStatus);
+      }
+
+      if (selectedPaymentMethod !== 'all') {
+        srvList = srvList.filter(srv => srv.paymentMethod === selectedPaymentMethod);
+      }
+
+      if (selectedCategory !== 'all') {
+        srvList = srvList.filter(srv => 
+          srv.items.some(item => item.subCategoryId === selectedCategory)
         );
-      
-      const matchesStatus = selectedStatus === 'all' || group.services.some(srv => srv.status === selectedStatus);
-      const matchesPayment = selectedPaymentMethod === 'all' || group.services.some(srv => srv.paymentMethod === selectedPaymentMethod);
+      }
 
-      const matchesStartDate = !startDate || group.date >= startDate;
-      const matchesEndDate = !endDate || group.date <= endDate;
+      if (srvList.length === 0) return;
 
-      const matchesCategory = selectedCategory === 'all' || group.services.some(srv => 
-        srv.items.some(item => item.subCategoryId === selectedCategory)
-      );
+      // 4. Text search filtering (Matches plate, client name, description, items)
+      if (search) {
+        const sLower = search.toLowerCase();
+        const hasPlateMatch = srvList.some(srv => plateMatchesSearch(srv.plate, search));
 
-      const matchesClient = selectedClient === 'all' || group.client.toLowerCase() === selectedClient.toLowerCase();
+        if (hasPlateMatch) {
+          // Strict plate filter: keep only the vehicles/services matching the plate
+          srvList = srvList.filter(srv => plateMatchesSearch(srv.plate, search));
+        } else {
+          // If no plate matched, check if search matches client, description, or subcategory items
+          const matchesClient = group.client.toLowerCase().includes(sLower);
+          const matchesDesc = group.description.toLowerCase().includes(sLower);
+          const hasItemMatch = srvList.some(srv => srv.items.some(it => it.name.toLowerCase().includes(sLower)));
 
-      return matchesSearch && matchesStatus && matchesPayment && matchesStartDate && matchesEndDate && matchesCategory && matchesClient;
+          if (hasItemMatch && !matchesClient && !matchesDesc) {
+            srvList = srvList.filter(srv => srv.items.some(it => it.name.toLowerCase().includes(sLower)));
+          } else if (!matchesClient && !matchesDesc && !hasItemMatch) {
+            return;
+          }
+        }
+      }
+
+      if (srvList.length === 0) return;
+
+      // Recalculate total value for the filtered services in this group
+      const newTotalValue = srvList.reduce((sum, s) => sum + s.totalValue, 0);
+
+      list.push({
+        ...group,
+        services: srvList,
+        totalValue: newTotalValue
+      });
     });
 
     return list.sort((a, b) => {
