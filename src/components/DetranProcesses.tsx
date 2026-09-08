@@ -21,7 +21,8 @@ import {
   FileCheck,
   Building2,
   DollarSign,
-  AlertTriangle
+  AlertTriangle,
+  FileText
 } from 'lucide-react';
 import { DetranProcess, Service, Expense, UserSession, ProcessMessage, ProcessStage } from '../types';
 import { plateMatchesSearch } from '../utils/plateMatcher';
@@ -32,6 +33,7 @@ export type ProcessFilterTab =
   | 'EM_ANALISE_DETRAN' 
   | 'PENDENTE_TAXA' 
   | 'PENDENTE_PLACA' 
+  | 'PENDENTE_RECOLHIMENTO_CRV'
   | 'FINALIZADO' 
   | 'ALL';
 
@@ -60,7 +62,6 @@ function DetranProcesses({
 
   const [searchTerm, setSearchTerm] = useState('');
   const [stageFilter, setStageFilter] = useState<ProcessFilterTab>('ACTIVE');
-  const [inspectionFilter, setInspectionFilter] = useState<'ALL' | 'DONE' | 'PENDING'>('ALL');
   const [expandedChatId, setExpandedChatId] = useState<string | null>(null);
   const [newMessageText, setNewMessageText] = useState<{ [processId: string]: string }>({});
   const [isNewProcessModalOpen, setIsNewProcessModalOpen] = useState(false);
@@ -448,14 +449,13 @@ function DetranProcesses({
       const isFeePaid = Boolean(p.feePaid || pExpenses.fee);
       const isPlateDone = Boolean(p.plateOrdered || p.plateInstalled || pExpenses.plate);
       const isInspDone = Boolean(p.inspectionDone || pExpenses.inspection);
+      const isFirstReg = isFirstPlating(p.description);
 
       if (stageFilter === 'ALL') return true;
       if (stageFilter === 'ACTIVE') return !isFinalized;
       if (stageFilter === 'PENDENTE_ABERTURA') {
-        if (isFinalized || isProcessOpened) return false;
-        if (inspectionFilter === 'DONE') return isInspDone;
-        if (inspectionFilter === 'PENDING') return p.requiresInspection !== false && !isInspDone;
-        return true;
+        // Vistoria marcada (ou dispensada), porém SEM protocolo e SEM marcar processo aberto
+        return !isFinalized && (isInspDone || p.requiresInspection === false) && !isProcessOpened;
       }
       if (stageFilter === 'EM_ANALISE_DETRAN') {
         return !isFinalized && isProcessOpened && !p.detranApproved;
@@ -464,7 +464,10 @@ function DetranProcesses({
         return !isFinalized && !isFeePaid;
       }
       if (stageFilter === 'PENDENTE_PLACA') {
-        return !isFinalized && p.requiresPlate && !isPlateDone;
+        return !isFinalized && Boolean(p.requiresPlate) && !isPlateDone;
+      }
+      if (stageFilter === 'PENDENTE_RECOLHIMENTO_CRV') {
+        return !isFinalized && !isFirstReg && Boolean(p.requiresReceiptCollection) && !p.receiptCollected;
       }
       if (stageFilter === 'FINALIZADO') {
         if (!isFinalized) return false;
@@ -474,7 +477,7 @@ function DetranProcesses({
       }
       return currentStage === stageFilter;
     });
-  }, [safeProcesses, searchTerm, stageFilter, inspectionFilter, getPlateExpenses, selectedMonth, selectedYear, getProcessCompletionMonthYear]);
+  }, [safeProcesses, searchTerm, stageFilter, getPlateExpenses, selectedMonth, selectedYear, getProcessCompletionMonthYear]);
 
   // Counts for tabs (only from 01/09/2026 onwards)
   const counts = useMemo(() => {
@@ -488,11 +491,10 @@ function DetranProcesses({
     let total = validProcesses.length;
     let active = 0;
     let pendenteAbertura = 0;
-    let vistoriaPendente = 0;
-    let vistoriaConcluida = 0;
     let emAnaliseDetran = 0;
     let pendenteTaxa = 0;
     let pendentePlaca = 0;
+    let pendenteRecolhimentoCrv = 0;
     let finalizado = 0;
     let finalizadoMonth = 0;
 
@@ -504,24 +506,29 @@ function DetranProcesses({
       const isFeePaid = Boolean(p.feePaid || pExpenses.fee);
       const isPlateDone = Boolean(p.plateOrdered || p.plateInstalled || pExpenses.plate);
       const isInspDone = Boolean(p.inspectionDone || pExpenses.inspection);
+      const isFirstReg = isFirstPlating(p.description);
 
       if (!isFinalized) {
         active++;
-        if (!isProcessOpened) {
+        // 1. Pendente de Abertura: vistoria marcada (ou dispensada), porém SEM protocolo e SEM processo aberto
+        if ((isInspDone || p.requiresInspection === false) && !isProcessOpened) {
           pendenteAbertura++;
-          if (p.requiresInspection !== false) {
-            if (isInspDone) vistoriaConcluida++;
-            else vistoriaPendente++;
-          }
         }
+        // 2. Em Análise DETRAN: processo aberto aguardando liberação
         if (isProcessOpened && !p.detranApproved) {
           emAnaliseDetran++;
         }
+        // 3. Pendente de Taxa: taxa não foi paga
         if (!isFeePaid) {
           pendenteTaxa++;
         }
+        // 4. Pendente de Placa: requer placa e placas NÃO foram pedidas
         if (p.requiresPlate && !isPlateDone) {
           pendentePlaca++;
+        }
+        // 5. Pendente Recolhimento de CRV: requer entrega física do recibo e ainda não foi recolhido
+        if (!isFirstReg && p.requiresReceiptCollection && !p.receiptCollected) {
+          pendenteRecolhimentoCrv++;
         }
       } else {
         finalizado++;
@@ -536,11 +543,10 @@ function DetranProcesses({
       total, 
       active, 
       pendenteAbertura, 
-      vistoriaPendente, 
-      vistoriaConcluida, 
       emAnaliseDetran, 
       pendenteTaxa, 
       pendentePlaca, 
+      pendenteRecolhimentoCrv,
       finalizado,
       finalizadoMonth
     };
@@ -823,7 +829,7 @@ function DetranProcesses({
         {/* Filter Pills */}
         <div className="flex flex-wrap gap-1.5 mt-6 pt-4 border-t border-slate-800/80">
           <button
-            onClick={() => { setStageFilter('ACTIVE'); setInspectionFilter('ALL'); }}
+            onClick={() => setStageFilter('ACTIVE')}
             className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
               stageFilter === 'ACTIVE'
                 ? 'bg-emerald-600 text-white shadow-md'
@@ -835,7 +841,7 @@ function DetranProcesses({
           </button>
 
           <button
-            onClick={() => { setStageFilter('PENDENTE_ABERTURA'); setInspectionFilter('ALL'); }}
+            onClick={() => setStageFilter('PENDENTE_ABERTURA')}
             className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
               stageFilter === 'PENDENTE_ABERTURA'
                 ? 'bg-amber-600 text-white shadow-md'
@@ -848,7 +854,7 @@ function DetranProcesses({
           </button>
 
           <button
-            onClick={() => { setStageFilter('EM_ANALISE_DETRAN'); setInspectionFilter('ALL'); }}
+            onClick={() => setStageFilter('EM_ANALISE_DETRAN')}
             className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
               stageFilter === 'EM_ANALISE_DETRAN'
                 ? 'bg-indigo-600 text-white shadow-md'
@@ -861,7 +867,7 @@ function DetranProcesses({
           </button>
 
           <button
-            onClick={() => { setStageFilter('PENDENTE_TAXA'); setInspectionFilter('ALL'); }}
+            onClick={() => setStageFilter('PENDENTE_TAXA')}
             className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
               stageFilter === 'PENDENTE_TAXA'
                 ? 'bg-rose-600 text-white shadow-md'
@@ -874,7 +880,7 @@ function DetranProcesses({
           </button>
 
           <button
-            onClick={() => { setStageFilter('PENDENTE_PLACA'); setInspectionFilter('ALL'); }}
+            onClick={() => setStageFilter('PENDENTE_PLACA')}
             className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
               stageFilter === 'PENDENTE_PLACA'
                 ? 'bg-sky-600 text-white shadow-md'
@@ -887,7 +893,20 @@ function DetranProcesses({
           </button>
 
           <button
-            onClick={() => { setStageFilter('FINALIZADO'); setInspectionFilter('ALL'); }}
+            onClick={() => setStageFilter('PENDENTE_RECOLHIMENTO_CRV')}
+            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+              stageFilter === 'PENDENTE_RECOLHIMENTO_CRV'
+                ? 'bg-orange-600 text-white shadow-md'
+                : 'bg-[#161B22] text-slate-400 hover:text-white hover:bg-slate-800/60 border border-slate-800'
+            }`}
+          >
+            <span className="w-1.5 h-1.5 rounded-full bg-orange-400"></span>
+            <span>Pendente Recolhimento de CRV</span>
+            <span className="px-1.5 py-0.2 rounded-full bg-black/30 text-[10px]">{counts.pendenteRecolhimentoCrv}</span>
+          </button>
+
+          <button
+            onClick={() => setStageFilter('FINALIZADO')}
             className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
               stageFilter === 'FINALIZADO'
                 ? 'bg-emerald-600 text-white shadow-md'
@@ -901,7 +920,7 @@ function DetranProcesses({
           </button>
 
           <button
-            onClick={() => { setStageFilter('ALL'); setInspectionFilter('ALL'); }}
+            onClick={() => setStageFilter('ALL')}
             className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
               stageFilter === 'ALL'
                 ? 'bg-slate-600 text-white shadow-md'
@@ -968,44 +987,40 @@ function DetranProcesses({
           </div>
         )}
 
-        {/* Sub-filtros de Vistoria quando na etapa Pendente Abertura */}
+        {/* Banners informativos dos novos filtros */}
         {stageFilter === 'PENDENTE_ABERTURA' && (
-          <div className="flex flex-wrap items-center gap-2 mt-3 pt-3 border-t border-slate-800/50">
-            <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400">
-              Vistoria prévia:
+          <div className="flex items-center gap-2 mt-3 pt-3 border-t border-slate-800/60 text-xs text-amber-300 bg-amber-950/20 px-3.5 py-2.5 rounded-xl border border-amber-800/40 shadow-xs">
+            <Check size={15} className="shrink-0 text-amber-400" />
+            <span>
+              Exibindo processos com <strong>vistoria marcada</strong> que ainda <strong>não possuem número de processo</strong> e <strong>não estão marcados como processo aberto</strong> no DETRAN.
             </span>
-            <button
-              onClick={() => setInspectionFilter('ALL')}
-              className={`px-2.5 py-1 rounded-md text-[11px] font-bold transition-all cursor-pointer ${
-                inspectionFilter === 'ALL'
-                  ? 'bg-amber-600 text-white shadow-sm'
-                  : 'bg-slate-800/80 text-slate-400 hover:text-white border border-slate-750'
-              }`}
-            >
-              Todos ({counts.pendenteAbertura})
-            </button>
-            <button
-              onClick={() => setInspectionFilter('DONE')}
-              className={`px-2.5 py-1 rounded-md text-[11px] font-bold transition-all cursor-pointer flex items-center gap-1 ${
-                inspectionFilter === 'DONE'
-                  ? 'bg-emerald-600 text-white shadow-sm'
-                  : 'bg-slate-800/80 text-slate-400 hover:text-white border border-slate-750'
-              }`}
-            >
-              <Check size={12} />
-              <span>Vistoria Concluída ({counts.vistoriaConcluida})</span>
-            </button>
-            <button
-              onClick={() => setInspectionFilter('PENDING')}
-              className={`px-2.5 py-1 rounded-md text-[11px] font-bold transition-all cursor-pointer flex items-center gap-1 ${
-                inspectionFilter === 'PENDING'
-                  ? 'bg-sky-600 text-white shadow-sm'
-                  : 'bg-slate-800/80 text-slate-400 hover:text-white border border-slate-750'
-              }`}
-            >
-              <Clock size={12} />
-              <span>Aguardando Vistoria ({counts.vistoriaPendente})</span>
-            </button>
+          </div>
+        )}
+
+        {stageFilter === 'PENDENTE_TAXA' && (
+          <div className="flex items-center gap-2 mt-3 pt-3 border-t border-slate-800/60 text-xs text-rose-300 bg-rose-950/20 px-3.5 py-2.5 rounded-xl border border-rose-800/40 shadow-xs">
+            <AlertCircle size={15} className="shrink-0 text-rose-400" />
+            <span>
+              Exibindo processos ativos onde o <strong>pagamento da taxa DETRAN</strong> ainda não foi confirmado.
+            </span>
+          </div>
+        )}
+
+        {stageFilter === 'PENDENTE_PLACA' && (
+          <div className="flex items-center gap-2 mt-3 pt-3 border-t border-slate-800/60 text-xs text-sky-300 bg-sky-950/20 px-3.5 py-2.5 rounded-xl border border-sky-800/40 shadow-xs">
+            <AlertCircle size={15} className="shrink-0 text-sky-400" />
+            <span>
+              Exibindo processos que necessitam de placas onde o <strong>pedido / estampa das placas ainda não foi solicitado</strong>.
+            </span>
+          </div>
+        )}
+
+        {stageFilter === 'PENDENTE_RECOLHIMENTO_CRV' && (
+          <div className="flex items-center gap-2 mt-3 pt-3 border-t border-slate-800/60 text-xs text-orange-300 bg-orange-950/20 px-3.5 py-2.5 rounded-xl border border-orange-800/40 shadow-xs">
+            <FileText size={15} className="shrink-0 text-orange-400" />
+            <span>
+              Exibindo processos ativos onde o DETRAN exige a <strong>entrega física do recibo antigo (CRV)</strong> e o recolhimento ainda está pendente.
+            </span>
           </div>
         )}
 
@@ -1040,7 +1055,15 @@ function DetranProcesses({
               ? 'Nenhum veículo corresponde à sua busca atual.' 
               : stageFilter === 'FINALIZADO'
                 ? `Nenhum processo concluído encontrado para ${selectedMonth === 'ALL' ? 'o período' : `${monthsOptions.find(m => m.value === selectedMonth)?.label || selectedMonth}/${selectedYear}`}. Selecione outro mês no filtro acima ou visualize todos os meses.`
-                : 'A esteira exibe processos para serviços a partir de 01/09/2026. Assim que o operador lançar serviços com HONORÁRIO a partir desta data, eles aparecerão aqui automaticamente, ou você pode clicar no botão "+ Novo Processo".'}
+                : stageFilter === 'PENDENTE_ABERTURA'
+                  ? 'Nenhum processo pendente de abertura. Todos os processos com vistoria concluída já possuem protocolo ou processo aberto cadastrado.'
+                  : stageFilter === 'PENDENTE_TAXA'
+                    ? 'Nenhum processo com taxa DETRAN pendente de pagamento.'
+                    : stageFilter === 'PENDENTE_PLACA'
+                      ? 'Nenhum processo com placas pendentes de pedido.'
+                      : stageFilter === 'PENDENTE_RECOLHIMENTO_CRV'
+                        ? 'Nenhum processo pendente de recolhimento de recibo (CRV).'
+                        : 'A esteira exibe processos para serviços a partir de 01/09/2026. Assim que o operador lançar serviços com HONORÁRIO a partir desta data, eles aparecerão aqui automaticamente, ou você pode clicar no botão "+ Novo Processo".'}
           </p>
           <div className="mt-5 flex justify-center gap-3">
             <button

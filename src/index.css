@@ -180,6 +180,7 @@ html.light,
 }
 
 .light .bg-amber-950\/15,
+.light .bg-amber-950\/20,
 .light .bg-amber-950\/30,
 .light .bg-amber-950\/40,
 .light .bg-amber-950\/80,
@@ -188,6 +189,30 @@ html.light,
   background-color: #FFFBEB !important;
   border-color: #FDE68A !important;
   color: #92400E !important;
+}
+
+.light .bg-orange-950\/15,
+.light .bg-orange-950\/20,
+.light .bg-orange-950\/30,
+.light .bg-orange-950\/40,
+.light .bg-orange-950\/80,
+.light .bg-orange-950,
+.light .bg-orange-500\/10 {
+  background-color: #FFF7ED !important;
+  border-color: #FED7AA !important;
+  color: #C2410C !important;
+}
+
+.light .bg-sky-950\/15,
+.light .bg-sky-950\/20,
+.light .bg-sky-950\/30,
+.light .bg-sky-950\/40,
+.light .bg-sky-950\/80,
+.light .bg-sky-950,
+.light .bg-sky-500\/10 {
+  background-color: #F0F9FF !important;
+  border-color: #BAE6FD !important;
+  color: #0369A1 !important;
 }
 
 .light .bg-blue-950\/15,
@@ -203,6 +228,7 @@ html.light,
 }
 
 .light .bg-rose-950\/15,
+.light .bg-rose-950\/20,
 .light .bg-rose-950\/30,
 .light .bg-rose-950\/40,
 .light .bg-rose-950\/80,
