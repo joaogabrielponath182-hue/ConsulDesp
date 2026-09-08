@@ -45,14 +45,18 @@ interface DetranProcessesProps {
 }
 
 export default function DetranProcesses({
-  processes,
-  services,
-  expenses,
+  processes = [],
+  services = [],
+  expenses = [],
   currentSession,
   onSaveProcess,
   onDeleteProcess,
   onSyncWithServices
 }: DetranProcessesProps) {
+  const safeProcesses = useMemo(() => Array.isArray(processes) ? processes.filter(Boolean) : [], [processes]);
+  const safeServices = useMemo(() => Array.isArray(services) ? services.filter(Boolean) : [], [services]);
+  const safeExpenses = useMemo(() => Array.isArray(expenses) ? expenses.filter(Boolean) : [], [expenses]);
+
   const [searchTerm, setSearchTerm] = useState('');
   const [stageFilter, setStageFilter] = useState<ProcessFilterTab>('ACTIVE');
   const [inspectionFilter, setInspectionFilter] = useState<'ALL' | 'DONE' | 'PENDING'>('ALL');
@@ -117,6 +121,18 @@ export default function DetranProcesses({
   // Clean plate helper
   const cleanPlate = (p?: string) => (p || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
 
+  // Safe date formatter helper
+  const formatSafeDate = (d?: any) => {
+    if (!d) return '-';
+    try {
+      const dt = new Date(d);
+      if (isNaN(dt.getTime())) return String(d);
+      return dt.toLocaleDateString('pt-BR');
+    } catch {
+      return String(d);
+    }
+  };
+
   // Detect expense matches for a plate - isolates specific item values when expenses are launched together
   // and distinguishes between 2ª via / recibo and transferência when both exist for the same plate
   const getPlateExpenses = useMemo(() => {
@@ -132,14 +148,16 @@ export default function DetranProcesses({
       let feeExp: Expense | null = null;
       let plateExp: Expense | null = null;
 
-      for (const exp of expenses) {
+      for (const exp of safeExpenses) {
+        if (!exp) continue;
         let isMatch = false;
         let plateValue = Number(exp.value) || 0;
-        let plateItems = exp.items;
+        let plateItems = Array.isArray(exp.items) ? exp.items : undefined;
 
-        if (exp.items && exp.items.length > 0) {
+        if (plateItems && plateItems.length > 0) {
           // Gasto com múltiplos veículos cadastrados juntos (Saída Caixa com itens de placa)
-          const matchingItems = exp.items.filter(item => {
+          const matchingItems = plateItems.filter(item => {
+            if (!item) return false;
             const itemPlateClean = cleanPlate(item.plate);
             return (
               itemPlateClean === cPlate ||
@@ -150,7 +168,7 @@ export default function DetranProcesses({
 
           if (matchingItems.length > 0) {
             isMatch = true;
-            plateValue = matchingItems.reduce((sum, item) => sum + (Number(item.value) || 0), 0);
+            plateValue = matchingItems.reduce((sum, item) => sum + (Number(item?.value) || 0), 0);
             plateItems = matchingItems;
           }
         } else {
@@ -169,8 +187,8 @@ export default function DetranProcesses({
         }
 
         if (isMatch) {
-          const catUpper = (exp.category || '').toUpperCase();
-          const descUpper = (exp.description || '').toUpperCase();
+          const catUpper = String(exp.category || '').toUpperCase();
+          const descUpper = String(exp.description || '').toUpperCase();
           const catAndDesc = `${catUpper} ${descUpper}`;
 
           // Se a despesa especificou explicitamente o tipo do processo, respeita o direcionamento
@@ -199,7 +217,7 @@ export default function DetranProcesses({
             } else {
               inspectionExp = {
                 ...inspectionExp,
-                value: inspectionExp.value + specificExp.value,
+                value: (Number(inspectionExp.value) || 0) + (Number(specificExp.value) || 0),
                 paymentMethod: inspectionExp.paymentMethod || specificExp.paymentMethod
               };
             }
@@ -210,7 +228,7 @@ export default function DetranProcesses({
             } else {
               feeExp = {
                 ...feeExp,
-                value: feeExp.value + specificExp.value,
+                value: (Number(feeExp.value) || 0) + (Number(specificExp.value) || 0),
                 paymentMethod: feeExp.paymentMethod || specificExp.paymentMethod
               };
             }
@@ -221,7 +239,7 @@ export default function DetranProcesses({
             } else {
               plateExp = {
                 ...plateExp,
-                value: plateExp.value + specificExp.value,
+                value: (Number(plateExp.value) || 0) + (Number(specificExp.value) || 0),
                 paymentMethod: plateExp.paymentMethod || specificExp.paymentMethod
               };
             }
@@ -235,30 +253,45 @@ export default function DetranProcesses({
         plate: plateExp
       };
     };
-  }, [expenses]);
+  }, [safeExpenses]);
 
   // Helper to retrieve corresponding service to determine revenue payment method
   const getProcessService = useMemo(() => {
     return (p: DetranProcess) => {
+      if (!p) return null;
       if (p.serviceId) {
-        const found = services.find(s => s.id === p.serviceId);
+        const found = safeServices.find(s => s && s.id === p.serviceId);
         if (found) return found;
       }
       const cPlate = cleanPlate(p.plate);
       if (!cPlate) return null;
-      return services.find(s => cleanPlate(s.plate) === cPlate) || null;
+      return safeServices.find(s => s && cleanPlate(s.plate) === cPlate) || null;
     };
-  }, [services]);
+  }, [safeServices]);
 
-  // Helper to extract YYYY-MM from diverse date formats (ISO, DD/MM/YYYY, etc.)
-  const extractYearMonth = (dateStr?: string): string | null => {
-    if (!dateStr || typeof dateStr !== 'string') return null;
-    const trimmed = dateStr.trim();
-    if (/^\d{4}-\d{2}/.test(trimmed)) {
-      return trimmed.substring(0, 7);
+  // Helper to extract YYYY-MM from diverse date formats (ISO, DD/MM/YYYY, Timestamp, etc.)
+  const extractYearMonth = (dateStr?: any): string | null => {
+    if (!dateStr) return null;
+    let str = '';
+    if (typeof dateStr === 'string') {
+      str = dateStr.trim();
+    } else if (dateStr.seconds && typeof dateStr.seconds === 'number') {
+      str = new Date(dateStr.seconds * 1000).toISOString();
+    } else {
+      try {
+        const dt = new Date(dateStr);
+        if (!isNaN(dt.getTime())) str = dt.toISOString();
+        else str = String(dateStr);
+      } catch {
+        return null;
+      }
     }
-    if (trimmed.includes('/')) {
-      const parts = trimmed.split('/');
+
+    if (/^\d{4}-\d{2}/.test(str)) {
+      return str.substring(0, 7);
+    }
+    if (str.includes('/')) {
+      const parts = str.split('/');
       if (parts.length === 3 && parts[2]?.length >= 4) {
         const year = parts[2].substring(0, 4);
         const month = parts[1].padStart(2, '0');
@@ -271,6 +304,7 @@ export default function DetranProcesses({
   // Helper to identify the month/year of completion for a finalized process
   const getProcessCompletionMonthYear = useMemo(() => {
     return (p: DetranProcess): string => {
+      if (!p) return '';
       const crlvYm = extractYearMonth(p.crlvIssuedDate);
       if (crlvYm) return crlvYm;
 
@@ -300,7 +334,8 @@ export default function DetranProcesses({
     const currentYear = new Date().getFullYear().toString();
     yearsSet.add(currentYear);
 
-    processes.forEach(p => {
+    safeProcesses.forEach(p => {
+      if (!p) return;
       const dates = [p.crlvIssuedDate, p.deliveredDate, p.detranApprovedDate, p.updatedAt, p.createdAt];
       dates.forEach(d => {
         const ym = extractYearMonth(d);
@@ -311,15 +346,16 @@ export default function DetranProcesses({
     });
 
     return Array.from(yearsSet).sort();
-  }, [processes]);
+  }, [safeProcesses]);
 
   // Compute active stage dynamically or update
-  const calculateProcessStage = (p: DetranProcess): ProcessStage => {
+  const calculateProcessStage = (p?: DetranProcess | null): ProcessStage => {
+    if (!p) return 'ENTRADA';
     if (p.crlvIssued || p.deliveredToClient || p.stage === 'FINALIZADO' || p.stage === 'CONCLUIDO') {
       return 'FINALIZADO';
     }
     if (p.detranApproved) return 'LIBERADO';
-    const isOpened = p.processOpened || (!!p.protocolNumber && p.protocolNumber.trim().length > 0);
+    const isOpened = Boolean(p.processOpened || (p.protocolNumber && String(p.protocolNumber).trim().length > 0));
     if (isOpened) return 'AGUARDANDO_DETRAN';
     // Vistoria é feita antes do processo aberto; status permanece Recebido (Sem Abertura)
     return 'ENTRADA';
@@ -331,29 +367,35 @@ export default function DetranProcesses({
   const filteredProcesses = useMemo(() => {
     const selectedTargetYm = `${selectedYear}-${selectedMonth}`;
 
-    return processes.filter(p => {
+    return safeProcesses.filter(p => {
+      if (!p) return false;
       // Must only start on services from 01/09/2026 onwards
-      const dateStr = p.createdAt ? p.createdAt.substring(0, 10) : '';
+      const dateStr = p.createdAt && typeof p.createdAt === 'string' ? p.createdAt.substring(0, 10) : '';
       if (dateStr && dateStr < '2026-09-01') return false;
 
-      const term = searchTerm.toLowerCase().trim();
+      const term = (searchTerm || '').toLowerCase().trim();
+      const clientStr = String(p.client || '').toLowerCase();
+      const plateStr = String(p.plate || '').toLowerCase();
+      const descStr = String(p.description || '').toLowerCase();
+      const protStr = String(p.protocolNumber || '').toLowerCase();
+
       const matchSearch = 
         !term ||
-        p.client.toLowerCase().includes(term) ||
-        p.plate.toLowerCase().includes(term) ||
+        clientStr.includes(term) ||
+        plateStr.includes(term) ||
         plateMatchesSearch(p.plate, term) ||
-        p.description.toLowerCase().includes(term) ||
-        (p.protocolNumber && p.protocolNumber.toLowerCase().includes(term));
+        descStr.includes(term) ||
+        protStr.includes(term);
 
       if (!matchSearch) return false;
 
       const currentStage = calculateProcessStage(p);
       const isFinalized = currentStage === 'FINALIZADO' || currentStage === 'CONCLUIDO' || currentStage === 'PRONTO_ENTREGA';
-      const isProcessOpened = p.processOpened || (!!p.protocolNumber && p.protocolNumber.trim().length > 0);
+      const isProcessOpened = Boolean(p.processOpened || (p.protocolNumber && String(p.protocolNumber).trim().length > 0));
       const pExpenses = getPlateExpenses(p.plate, p.description);
-      const isFeePaid = p.feePaid || !!pExpenses.fee;
-      const isPlateDone = p.plateOrdered || p.plateInstalled || !!pExpenses.plate;
-      const isInspDone = p.inspectionDone || !!pExpenses.inspection;
+      const isFeePaid = Boolean(p.feePaid || pExpenses.fee);
+      const isPlateDone = Boolean(p.plateOrdered || p.plateInstalled || pExpenses.plate);
+      const isInspDone = Boolean(p.inspectionDone || pExpenses.inspection);
 
       if (stageFilter === 'ALL') return true;
       if (stageFilter === 'ACTIVE') return !isFinalized;
@@ -380,13 +422,14 @@ export default function DetranProcesses({
       }
       return currentStage === stageFilter;
     });
-  }, [processes, searchTerm, stageFilter, inspectionFilter, getPlateExpenses, selectedMonth, selectedYear, getProcessCompletionMonthYear]);
+  }, [safeProcesses, searchTerm, stageFilter, inspectionFilter, getPlateExpenses, selectedMonth, selectedYear, getProcessCompletionMonthYear]);
 
   // Counts for tabs (only from 01/09/2026 onwards)
   const counts = useMemo(() => {
     const selectedTargetYm = `${selectedYear}-${selectedMonth}`;
-    const validProcesses = processes.filter(p => {
-      const dateStr = p.createdAt ? p.createdAt.substring(0, 10) : '';
+    const validProcesses = safeProcesses.filter(p => {
+      if (!p) return false;
+      const dateStr = p.createdAt && typeof p.createdAt === 'string' ? p.createdAt.substring(0, 10) : '';
       return !dateStr || dateStr >= '2026-09-01';
     });
 
@@ -404,11 +447,11 @@ export default function DetranProcesses({
     validProcesses.forEach(p => {
       const currentStage = calculateProcessStage(p);
       const isFinalized = currentStage === 'FINALIZADO' || currentStage === 'CONCLUIDO' || currentStage === 'PRONTO_ENTREGA';
-      const isProcessOpened = p.processOpened || (!!p.protocolNumber && p.protocolNumber.trim().length > 0);
+      const isProcessOpened = Boolean(p.processOpened || (p.protocolNumber && String(p.protocolNumber).trim().length > 0));
       const pExpenses = getPlateExpenses(p.plate, p.description);
-      const isFeePaid = p.feePaid || !!pExpenses.fee;
-      const isPlateDone = p.plateOrdered || p.plateInstalled || !!pExpenses.plate;
-      const isInspDone = p.inspectionDone || !!pExpenses.inspection;
+      const isFeePaid = Boolean(p.feePaid || pExpenses.fee);
+      const isPlateDone = Boolean(p.plateOrdered || p.plateInstalled || pExpenses.plate);
+      const isInspDone = Boolean(p.inspectionDone || pExpenses.inspection);
 
       if (!isFinalized) {
         active++;
@@ -449,7 +492,7 @@ export default function DetranProcesses({
       finalizado,
       finalizadoMonth
     };
-  }, [processes, getPlateExpenses, selectedMonth, selectedYear, getProcessCompletionMonthYear]);
+  }, [safeProcesses, getPlateExpenses, selectedMonth, selectedYear, getProcessCompletionMonthYear]);
 
   // Send new message in chat
   const handleSendMessage = (processId: string) => {
@@ -998,7 +1041,7 @@ export default function DetranProcesses({
                             </span>
                           )}
                           <span className="text-[11px] text-slate-500">
-                            Cadastrado em: {new Date(proc.createdAt).toLocaleDateString('pt-BR')}
+                            Cadastrado em: {formatSafeDate(proc.createdAt)}
                           </span>
                         </div>
 
@@ -1112,7 +1155,7 @@ export default function DetranProcesses({
                         <div className="text-[11px] text-slate-400 mb-2">
                           {plateExpenses.inspection ? (
                             <span className="text-emerald-400 block font-mono text-[10px]">
-                              ✓ Saída no Caixa: R$ {plateExpenses.inspection.value.toFixed(2)}
+                              ✓ Saída no Caixa: R$ {(Number(plateExpenses.inspection.value) || 0).toFixed(2)}
                               {plateExpenses.inspection.paymentMethod ? ` • ${plateExpenses.inspection.paymentMethod}` : ''}
                             </span>
                           ) : (
@@ -1230,7 +1273,7 @@ export default function DetranProcesses({
                     <div className="text-[11px] text-slate-400 mb-2">
                       {plateExpenses.fee ? (
                         <span className="text-emerald-400 block font-mono text-[10px]">
-                          ✓ Saída no Caixa: R$ {plateExpenses.fee.value.toFixed(2)}
+                          ✓ Saída no Caixa: R$ {(Number(plateExpenses.fee.value) || 0).toFixed(2)}
                           {plateExpenses.fee.paymentMethod ? ` • ${plateExpenses.fee.paymentMethod}` : ''}
                         </span>
                       ) : proc.feePayer === 'CLIENTE' ? (
@@ -1312,7 +1355,7 @@ export default function DetranProcesses({
                       <div className="space-y-2">
                         {plateExpenses.plate && (
                           <span className="text-emerald-400 block font-mono text-[10px]">
-                            ✓ Saída no Caixa: R$ {plateExpenses.plate.value.toFixed(2)}
+                            ✓ Saída no Caixa: R$ {(Number(plateExpenses.plate.value) || 0).toFixed(2)}
                             {plateExpenses.plate.paymentMethod ? ` • ${plateExpenses.plate.paymentMethod}` : ''}
                           </span>
                         )}

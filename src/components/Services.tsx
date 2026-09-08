@@ -115,7 +115,7 @@ export default function Services({
 
   // Current subcategory item state (for building items array)
   const [currentSubId, setCurrentSubId] = useState<string>('');
-  const [currentSubVal, setCurrentSubVal] = useState<number>('');
+  const [currentSubVal, setCurrentSubVal] = useState<number | ''>('');
   const [serviceItems, setServiceItems] = useState<ServiceItem[]>([]);
 
   // State to hold multiple vehicles under the same customer service setup

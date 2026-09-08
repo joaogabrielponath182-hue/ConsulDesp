@@ -19,6 +19,7 @@ import ReportsComparative from './components/ReportsComparative';
 import Clients from './components/Clients';
 import Operators from './components/Operators';
 import DetranProcesses from './components/DetranProcesses';
+import { ErrorBoundary } from './components/ErrorBoundary';
 import SystemLogo from './components/SystemLogo';
 
 import { SubCategory, Service, Expense, ExpenseCategory, PersonalExpense, Client, InternalUser, UserSession, DetranProcess } from './types';
@@ -95,12 +96,65 @@ export default function App() {
   const [expenses, setExpenses] = useState<Expense[]>([]);
   const [personalExpenses, setPersonalExpenses] = useState<PersonalExpense[]>([]);
   const [clients, setClients] = useState<Client[]>([]);
+
+  // Safe date helper for ISO conversion and YYYY-MM-DD prefix matching
+  const safeDatePrefix = (d?: any): string => {
+    if (!d) return '';
+    if (typeof d === 'string') {
+      const trimmed = d.trim();
+      if (trimmed.includes('/')) {
+        const parts = trimmed.split('/');
+        if (parts.length === 3 && parts[2]?.length >= 4) {
+          return `${parts[2].substring(0, 4)}-${parts[1].padStart(2, '0')}-${parts[0].padStart(2, '0')}`;
+        }
+      }
+      return trimmed.substring(0, 10);
+    }
+    if (typeof d === 'number') {
+      try { return new Date(d).toISOString().substring(0, 10); } catch { return ''; }
+    }
+    if (d && typeof d.seconds === 'number') {
+      try { return new Date(d.seconds * 1000).toISOString().substring(0, 10); } catch { return ''; }
+    }
+    return '';
+  };
+
+  const safeIsoDate = (d?: any): string => {
+    if (!d) return new Date().toISOString();
+    if (typeof d === 'string') {
+      const trimmed = d.trim();
+      if (trimmed.includes('/')) {
+        const parts = trimmed.split('/');
+        if (parts.length === 3 && parts[2]?.length >= 4) {
+          const iso = `${parts[2].substring(0, 4)}-${parts[1].padStart(2, '0')}-${parts[0].padStart(2, '0')}T12:00:00.000Z`;
+          const dt = new Date(iso);
+          if (!isNaN(dt.getTime())) return dt.toISOString();
+        }
+      }
+      const dt = new Date(trimmed);
+      if (!isNaN(dt.getTime())) return dt.toISOString();
+    }
+    if (typeof d === 'number') {
+      const dt = new Date(d);
+      if (!isNaN(dt.getTime())) return dt.toISOString();
+    }
+    if (d && typeof d.seconds === 'number') {
+      return new Date(d.seconds * 1000).toISOString();
+    }
+    return new Date().toISOString();
+  };
+
   const [detranProcesses, setDetranProcesses] = useState<DetranProcess[]>(() => {
     try {
       const stored = localStorage.getItem('dep_detran_processes');
       const parsed: DetranProcess[] = stored ? JSON.parse(stored) : [];
+      if (!Array.isArray(parsed)) return [];
       // Clean and start only on services from 01/09/2026 onwards
-      const filtered = parsed.filter(p => !p.createdAt || p.createdAt.substring(0, 10) >= '2026-09-01');
+      const filtered = parsed.filter(p => {
+        if (!p) return false;
+        const prefix = safeDatePrefix(p.createdAt);
+        return !prefix || prefix >= '2026-09-01';
+      });
       if (filtered.length !== parsed.length) {
         localStorage.setItem('dep_detran_processes', JSON.stringify(filtered));
       }
@@ -199,8 +253,12 @@ export default function App() {
       // Fetch Detran processes (starting from 01/09/2026 onwards)
       try {
         const cloudProcesses = await fetchDetranProcesses(dbUserId);
-        if (cloudProcesses && cloudProcesses.length > 0) {
-          const validProcs = cloudProcesses.filter(p => !p.createdAt || p.createdAt.substring(0, 10) >= '2026-09-01');
+        if (cloudProcesses && Array.isArray(cloudProcesses)) {
+          const validProcs = cloudProcesses.filter(p => {
+            if (!p) return false;
+            const prefix = safeDatePrefix(p.createdAt);
+            return !prefix || prefix >= '2026-09-01';
+          });
           setDetranProcesses(validProcs);
           localStorage.setItem('dep_detran_processes', JSON.stringify(validProcs));
         }
@@ -1403,13 +1461,18 @@ export default function App() {
 
     // Purge any older processes prior to 01/09/2026
     const validExisting = existingProcesses.filter(p => {
+      if (!p) return false;
       if (p.serviceId) {
-        const matchingServ = servicesList.find(s => s.id === p.serviceId);
-        if (matchingServ && matchingServ.date && matchingServ.date.substring(0, 10) < '2026-09-01') {
-          return false;
+        const matchingServ = servicesList.find(s => s && s.id === p.serviceId);
+        if (matchingServ) {
+          const servPrefix = safeDatePrefix(matchingServ.date);
+          if (servPrefix && servPrefix < '2026-09-01') {
+            return false;
+          }
         }
       }
-      if (p.createdAt && p.createdAt.substring(0, 10) < '2026-09-01') {
+      const procPrefix = safeDatePrefix(p.createdAt);
+      if (procPrefix && procPrefix < '2026-09-01') {
         return false;
       }
       return true;
@@ -1421,9 +1484,10 @@ export default function App() {
     let listModified = validExisting.length !== existingProcesses.length;
 
     servicesList.forEach(serv => {
+      if (!serv) return;
       // Must only process services from 01/09/2026 onwards
-      const servDate = serv.date ? serv.date.substring(0, 10) : '';
-      if (servDate < '2026-09-01') return;
+      const servDate = safeDatePrefix(serv.date);
+      if (servDate && servDate < '2026-09-01') return;
 
       const hasHonorario = (serv.items || []).some(item => {
         const nm = (item.name || '').toUpperCase();
@@ -1583,7 +1647,7 @@ export default function App() {
             timestamp: `${new Date().toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })} às ${new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}`
           }
         ],
-        createdAt: serv.date ? new Date(serv.date).toISOString() : new Date().toISOString(),
+        createdAt: safeIsoDate(serv.date),
         updatedAt: new Date().toISOString(),
         operator: serv.operator || 'admin',
         userId: getDbUserId(currentSession?.username)
@@ -2041,15 +2105,17 @@ export default function App() {
           </div>
 
           {currentTab === 'processes' && (
-            <DetranProcesses
-              processes={detranProcesses}
-              services={filteredServices}
-              expenses={filteredExpenses}
-              currentSession={currentSession}
-              onSaveProcess={handleSaveProcess}
-              onDeleteProcess={handleDeleteProcess}
-              onSyncWithServices={() => syncProcessesWithServices(filteredServices, detranProcesses, true)}
-            />
+            <ErrorBoundary fallbackTitle="Falha ao carregar os Processos Detran">
+              <DetranProcesses
+                processes={detranProcesses}
+                services={filteredServices}
+                expenses={filteredExpenses}
+                currentSession={currentSession}
+                onSaveProcess={handleSaveProcess}
+                onDeleteProcess={handleDeleteProcess}
+                onSyncWithServices={() => syncProcessesWithServices(filteredServices, detranProcesses, true)}
+              />
+            </ErrorBoundary>
           )}
 
           {currentTab === 'clients' && (

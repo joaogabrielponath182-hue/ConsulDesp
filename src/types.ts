@@ -45,6 +45,7 @@ export interface ExpenseItem {
   id: string;
   plate: string;
   value: number;
+  name?: string;
 }
 
 export interface Expense {

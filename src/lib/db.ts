@@ -977,6 +977,18 @@ export async function fetchDetranProcesses(userId: string): Promise<DetranProces
     } else {
       q = query(collection(db, DETRAN_PROCESSES_COLL));
     }
+    const toIsoString = (val: any): string => {
+      if (!val) return new Date().toISOString();
+      if (typeof val === 'string') return val;
+      if (val.toDate && typeof val.toDate === 'function') {
+        try { return val.toDate().toISOString(); } catch { return new Date().toISOString(); }
+      }
+      if (typeof val.seconds === 'number') {
+        return new Date(val.seconds * 1000).toISOString();
+      }
+      return new Date().toISOString();
+    };
+
     const snap = await getDocs(q);
     trackFirestoreOp('read', snap.size);
 
@@ -1014,14 +1026,18 @@ export async function fetchDetranProcesses(userId: string): Promise<DetranProces
         deliveredToClient: !!data.deliveredToClient,
         deliveredDate: data.deliveredDate,
         messages: Array.isArray(data.messages) ? data.messages : [],
-        createdAt: data.createdAt || new Date().toISOString(),
-        updatedAt: data.updatedAt || new Date().toISOString(),
+        createdAt: toIsoString(data.createdAt),
+        updatedAt: toIsoString(data.updatedAt),
         operator: data.operator || data.userId || 'admin',
         userId: data.userId
       });
     });
 
-    processes.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+    processes.sort((a, b) => {
+      const timeA = new Date(a.createdAt).getTime();
+      const timeB = new Date(b.createdAt).getTime();
+      return (isNaN(timeB) ? 0 : timeB) - (isNaN(timeA) ? 0 : timeA);
+    });
     return processes;
   } catch (err) {
     console.error("Error fetching Detran processes from Firestore: ", err);

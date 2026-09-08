@@ -6,7 +6,8 @@
 /**
  * Normalizes a plate string by removing non-alphanumeric characters and converting to uppercase.
  */
-export function normalizePlate(plate: string): string {
+export function normalizePlate(plate?: string | null): string {
+  if (!plate || typeof plate !== 'string') return '';
   return plate.replace(/[^A-Z0-9]/gi, '').toUpperCase();
 }
 
@@ -14,10 +15,10 @@ export function normalizePlate(plate: string): string {
  * Returns the Mercosul and Old variants of a plate if it's exactly 7 characters long.
  * Otherwise, returns the normalized plate as the single variant.
  */
-export function getPlateVariants(plate: string): string[] {
+export function getPlateVariants(plate?: string | null): string[] {
   const clean = normalizePlate(plate);
-  if (clean.length !== 7) {
-    return [clean];
+  if (!clean || clean.length !== 7) {
+    return clean ? [clean] : [];
   }
 
   const char4 = clean[4];
@@ -44,8 +45,9 @@ export function getPlateVariants(plate: string): string[] {
 /**
  * Checks if a target plate (or any of its variants) matches a search query.
  */
-export function plateMatchesSearch(targetPlate: string | undefined, searchQuery: string): boolean {
-  if (!targetPlate) return false;
+export function plateMatchesSearch(targetPlate?: string | null, searchQuery?: string | null): boolean {
+  if (!targetPlate || typeof targetPlate !== 'string') return false;
+  if (!searchQuery || typeof searchQuery !== 'string') return false;
   const cleanQuery = normalizePlate(searchQuery);
   if (!cleanQuery) return true; // Empty search matches everything
 
