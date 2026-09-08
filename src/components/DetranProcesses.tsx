@@ -44,7 +44,7 @@ interface DetranProcessesProps {
   onSyncWithServices: () => void;
 }
 
-export default function DetranProcesses({
+function DetranProcesses({
   processes = [],
   services = [],
   expenses = [],
@@ -136,9 +136,16 @@ export default function DetranProcesses({
   // Detect expense matches for a plate - isolates specific item values when expenses are launched together
   // and distinguishes between 2ª via / recibo and transferência when both exist for the same plate
   const getPlateExpenses = useMemo(() => {
+    const cache = new Map<string, { inspection: Expense | null; fee: Expense | null; plate: Expense | null }>();
+
     return (plate: string, processDescription?: string) => {
       const cPlate = cleanPlate(plate);
       if (!cPlate) return { inspection: null, fee: null, plate: null };
+
+      const cacheKey = `${cPlate}__${(processDescription || '').toUpperCase()}`;
+      if (cache.has(cacheKey)) {
+        return cache.get(cacheKey)!;
+      }
 
       const pDescUpper = (processDescription || '').toUpperCase();
       const isProcRecibo = pDescUpper.includes('2ª VIA') || pDescUpper.includes('2 VIA') || pDescUpper.includes('SEGUNDA VIA') || pDescUpper.includes('RECIBO') || pDescUpper.includes('ATPV');
@@ -247,25 +254,40 @@ export default function DetranProcesses({
         }
       }
 
-      return {
+      const res = {
         inspection: inspectionExp,
         fee: feeExp,
         plate: plateExp
       };
+      cache.set(cacheKey, res);
+      return res;
     };
   }, [safeExpenses]);
 
   // Helper to retrieve corresponding service to determine revenue payment method
   const getProcessService = useMemo(() => {
+    const serviceById = new Map<string, Service>();
+    const serviceByPlate = new Map<string, Service>();
+
+    for (const s of safeServices) {
+      if (!s) continue;
+      if (s.id) serviceById.set(s.id, s);
+      const cp = cleanPlate(s.plate);
+      if (cp && !serviceByPlate.has(cp)) {
+        serviceByPlate.set(cp, s);
+      }
+    }
+
     return (p: DetranProcess) => {
       if (!p) return null;
-      if (p.serviceId) {
-        const found = safeServices.find(s => s && s.id === p.serviceId);
-        if (found) return found;
+      if (p.serviceId && serviceById.has(p.serviceId)) {
+        return serviceById.get(p.serviceId)!;
       }
       const cPlate = cleanPlate(p.plate);
-      if (!cPlate) return null;
-      return safeServices.find(s => s && cleanPlate(s.plate) === cPlate) || null;
+      if (cPlate && serviceByPlate.has(cPlate)) {
+        return serviceByPlate.get(cPlate)!;
+      }
+      return null;
     };
   }, [safeServices]);
 
@@ -1769,3 +1791,6 @@ export default function DetranProcesses({
     </div>
   );
 }
+
+const MemoizedDetranProcesses = React.memo(DetranProcesses);
+export default MemoizedDetranProcesses;

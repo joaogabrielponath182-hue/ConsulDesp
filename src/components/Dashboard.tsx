@@ -41,7 +41,7 @@ const currencyFormatter = new Intl.NumberFormat('pt-BR', {
   currency: 'BRL'
 });
 
-export default function Dashboard({
+function Dashboard({
   services,
   expenses,
   subCategories,
@@ -1778,3 +1778,6 @@ export default function Dashboard({
     </div>
   );
 }
+
+const MemoizedDashboard = React.memo(Dashboard);
+export default MemoizedDashboard;

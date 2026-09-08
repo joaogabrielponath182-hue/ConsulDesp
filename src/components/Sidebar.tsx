@@ -64,7 +64,7 @@ interface SidebarProps {
   onForceRefreshCloud?: () => Promise<void>;
 }
 
-export default function Sidebar({
+function Sidebar({
   currentTab,
   onNavigate,
   services,
@@ -229,7 +229,7 @@ export default function Sidebar({
                       onNavigate(item.id);
                     }
                   }}
-                  className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-xs font-semibold tracking-wide transition-all duration-200 cursor-pointer ${
+                  className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-xs font-semibold tracking-wide transition-colors duration-100 cursor-pointer ${
                     isParentActive 
                       ? 'bg-emerald-600/10 text-emerald-400 border border-emerald-600/20 shadow-inner' 
                       : 'text-slate-400 hover:text-white hover:bg-slate-800/50 border border-transparent'
@@ -243,7 +243,7 @@ export default function Sidebar({
                   {hasChildren && (
                     <ChevronDown 
                       size={12} 
-                      className={`text-slate-500 transition-transform duration-200 ${isChildOpen ? 'rotate-180 text-emerald-400' : ''}`} 
+                      className={`text-slate-500 transition-transform duration-150 ${isChildOpen ? 'rotate-180 text-emerald-400' : ''}`} 
                     />
                   )}
                 </button>
@@ -257,7 +257,7 @@ export default function Sidebar({
                         <button
                           key={child.id}
                           onClick={() => onNavigate(child.id)}
-                          className={`w-full flex items-center justify-between px-3 py-2 rounded-lg text-[11px] font-medium tracking-wide transition-all duration-150 cursor-pointer ${
+                          className={`w-full flex items-center justify-between px-3 py-2 rounded-lg text-[11px] font-medium tracking-wide transition-colors duration-100 cursor-pointer ${
                             isChildActive
                               ? 'bg-emerald-600/10 text-emerald-300 border border-emerald-600/10'
                               : 'text-slate-400 hover:text-white hover:bg-slate-800/30'
@@ -401,3 +401,6 @@ export default function Sidebar({
     </div>
   );
 }
+
+const MemoizedSidebar = React.memo(Sidebar);
+export default MemoizedSidebar;

@@ -74,6 +74,11 @@ html.light,
 .light .bg-\[\#0D1015\],
 .light .bg-\[\#0d0e12\],
 .light .bg-\[\#141820\],
+.light .bg-\[\#0E131F\],
+.light .bg-\[\#0e131f\],
+.light .bg-\[\#0E131F\]\/50,
+.light .bg-\[\#0e131f\]\/50,
+.light .bg-\[\#2a303c\],
 .light .bg-zinc-950,
 .light .bg-slate-950,
 .light .bg-slate-900\/40,
@@ -89,6 +94,33 @@ html.light,
 .light .bg-slate-950\/70 {
   background-color: #F8FAFC !important;
   border-color: #E2E8F0 !important;
+}
+
+/* Badges & Cards for Recebimento / Pagamento Taxa inside Detran process cards */
+.light .bg-\[\#0B0E14\],
+.light .bg-\[\#0b0e14\] {
+  background-color: #F1F5F9 !important;
+  border-color: #CBD5E1 !important;
+  box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.04) !important;
+}
+
+.light .bg-\[\#0B0E14\] .text-slate-400,
+.light .bg-\[\#0b0e14\] .text-slate-400 {
+  color: #334155 !important;
+}
+
+.light .bg-\[\#0B0E14\] .text-slate-500,
+.light .bg-\[\#0b0e14\] .text-slate-500 {
+  color: #64748B !important;
+}
+
+/* Card Header Gradients */
+.light .from-slate-900\/50 {
+  --tw-gradient-from: rgba(241, 245, 249, 0.8) var(--tw-gradient-from-position) !important;
+  --tw-gradient-to: rgba(241, 245, 249, 0) var(--tw-gradient-to-position) !important;
+}
+.light .via-slate-900\/20 {
+  --tw-gradient-stops: var(--tw-gradient-from), rgba(248, 250, 252, 0.4) var(--tw-gradient-via-position), var(--tw-gradient-to) !important;
 }
 
 /* Mercosul Vehicle Plate Box */

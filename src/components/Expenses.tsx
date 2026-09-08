@@ -352,7 +352,7 @@ const currencyFormatter = new Intl.NumberFormat('pt-BR', {
   currency: 'BRL'
 });
 
-export default function Expenses({
+function Expenses({
   expenses,
   subCategories,
   onAddSubCategory,
@@ -1374,3 +1374,6 @@ export default function Expenses({
     </div>
   );
 }
+
+const MemoizedExpenses = React.memo(Expenses);
+export default MemoizedExpenses;

@@ -52,7 +52,7 @@ const currencyFormatter = new Intl.NumberFormat('pt-BR', {
   currency: 'BRL'
 });
 
-export default function Services({
+function Services({
   services,
   subCategories,
   clients = [],
@@ -2137,3 +2137,6 @@ export default function Services({
     </div>
   );
 }
+
+const MemoizedServices = React.memo(Services);
+export default MemoizedServices;

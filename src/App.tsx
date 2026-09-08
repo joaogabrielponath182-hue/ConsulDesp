@@ -8,7 +8,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import Sidebar from './components/Sidebar';
 import Dashboard from './components/Dashboard';
 import Services from './components/Services';
@@ -1754,21 +1754,22 @@ export default function App() {
   };
 
   // Switch tab and close drawer helper
-  const handleNavigate = (tab: string, initialStatus?: string) => {
+  const handleNavigate = useCallback((tab: string, initialStatus?: string) => {
+    let targetTab = tab;
     // Restrict comparative report and operators tab for non-admin operators
-    if (!currentSession?.isAdmin && (tab === 'reports-comparative' || tab === 'operators')) {
-      tab = 'reports-general';
+    if (!currentSession?.isAdmin && (targetTab === 'reports-comparative' || targetTab === 'operators')) {
+      targetTab = 'reports-general';
     }
-    setCurrentTab(tab);
+    setCurrentTab(targetTab);
     setIsMobileSidebarOpen(false);
-    if (tab === 'reports-pending') {
+    if (targetTab === 'reports-pending') {
       setInitialStatusFilter('PENDENTE');
     } else if (initialStatus) {
       setInitialStatusFilter(initialStatus);
     } else {
       setInitialStatusFilter('all');
     }
-  };
+  }, [currentSession?.isAdmin]);
 
   // Safety redirect: ensure non-admin operator cannot access restricted tabs
   useEffect(() => {
@@ -2087,7 +2088,7 @@ export default function App() {
             />
           </div>
 
-          <div className={(currentTab === 'reports-services' || currentTab === 'reports-pending') ? '' : 'hidden'}>
+          {(currentTab === 'reports-services' || currentTab === 'reports-pending') && (
             <Services
               services={filteredServices}
               subCategories={filteredSubCategories}
@@ -2102,7 +2103,7 @@ export default function App() {
               isPendingReport={currentTab === 'reports-pending'}
               onRedirectToForm={() => handleNavigate('services')}
             />
-          </div>
+          )}
 
           {currentTab === 'processes' && (
             <ErrorBoundary fallbackTitle="Falha ao carregar os Processos Detran">
@@ -2148,7 +2149,7 @@ export default function App() {
             />
           </div>
 
-          <div className={currentTab === 'reports-expenses' ? '' : 'hidden'}>
+          {currentTab === 'reports-expenses' && (
             <Expenses
               expenses={filteredExpenses}
               subCategories={filteredSubCategories}
@@ -2159,7 +2160,7 @@ export default function App() {
               viewMode="list"
               onRedirectToForm={() => setCurrentTab('expenses')}
             />
-          </div>
+          )}
 
           {currentTab === 'reports-general' && (
             <Reports
