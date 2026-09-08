@@ -491,10 +491,10 @@ export default function App() {
   }, []);
 
   // Manter referência atualizada para os dados do backup
-  const backupDataRef = useRef({ services, expenses, subCategories, clients, internalUsers, personalExpenses });
+  const backupDataRef = useRef({ services, expenses, subCategories, clients, internalUsers, personalExpenses, detranProcesses });
   useEffect(() => {
-    backupDataRef.current = { services, expenses, subCategories, clients, internalUsers, personalExpenses };
-  }, [services, expenses, subCategories, clients, internalUsers, personalExpenses]);
+    backupDataRef.current = { services, expenses, subCategories, clients, internalUsers, personalExpenses, detranProcesses };
+  }, [services, expenses, subCategories, clients, internalUsers, personalExpenses, detranProcesses]);
 
   // Agendador de Auto-Backup às 16:35 todos os dias
   useEffect(() => {
@@ -534,6 +534,7 @@ export default function App() {
         clients: backupDataRef.current.clients,
         internalUsers: backupDataRef.current.internalUsers,
         personalExpenses: backupDataRef.current.personalExpenses,
+        detranProcesses: backupDataRef.current.detranProcesses,
         version: '1.0.0',
         timestamp: new Date().toISOString()
       };
@@ -664,19 +665,22 @@ export default function App() {
         const storedExpenses = localStorage.getItem('dep_expenses');
         const storedPersonalExpenses = localStorage.getItem('dep_personal_expenses');
         const storedClients = localStorage.getItem('dep_clients');
+        const storedProcesses = localStorage.getItem('dep_detran_processes');
 
         const currentSubs = cleanAndDeduplicateSubcategories(storedSubs ? JSON.parse(storedSubs) : DEFAULT_SUBCATEGORIES, dbUserId);
         const currentSrvs = storedServices ? JSON.parse(storedServices) : DEFAULT_SERVICES;
         const currentExps = storedExpenses ? JSON.parse(storedExpenses) : DEFAULT_EXPENSES;
         const currentPes = storedPersonalExpenses ? JSON.parse(storedPersonalExpenses) : [];
         const currentClients = storedClients ? JSON.parse(storedClients) : [];
+        const currentProcesses = storedProcesses ? JSON.parse(storedProcesses) : [];
 
         await syncLocalDataToFirestore(dbUserId, {
           services: currentSrvs,
           expenses: currentExps,
           subCategories: currentSubs,
           personalExpenses: currentPes,
-          clients: currentClients
+          clients: currentClients,
+          detranProcesses: currentProcesses
         });
 
         localStorage.setItem('dep_subcategories', JSON.stringify(currentSubs));
@@ -686,6 +690,9 @@ export default function App() {
         setSubCategories(currentSubs);
         setPersonalExpenses(currentPes);
         setClients(currentClients);
+        if (currentProcesses.length > 0) {
+          setDetranProcesses(currentProcesses);
+        }
       }
     } catch (err) {
       console.error("Erro ao sincronizar dados locais com a nuvem:", err);
@@ -1703,6 +1710,7 @@ export default function App() {
     clients?: Client[];
     internalUsers?: InternalUser[];
     personalExpenses?: PersonalExpense[];
+    detranProcesses?: DetranProcess[];
   }) => {
     setServices(parsedData.services);
     setExpenses(parsedData.expenses);
@@ -1723,6 +1731,10 @@ export default function App() {
     if (parsedData.personalExpenses) {
       setPersonalExpenses(parsedData.personalExpenses);
       localStorage.setItem('dep_personal_expenses', JSON.stringify(parsedData.personalExpenses));
+    }
+    if (parsedData.detranProcesses) {
+      setDetranProcesses(parsedData.detranProcesses);
+      localStorage.setItem('dep_detran_processes', JSON.stringify(parsedData.detranProcesses));
     }
 
     if (currentSession && isCloudConnected) {
@@ -1852,6 +1864,7 @@ export default function App() {
           clients={filteredClients}
           internalUsers={internalUsers}
           personalExpenses={filteredPersonalExpenses}
+          detranProcesses={detranProcesses}
           onImportData={handleImportBackup}
           currentUser={currentUser}
           onOpenAuthModal={() => setIsAuthModalOpen(true)}
@@ -1888,6 +1901,7 @@ export default function App() {
               clients={filteredClients}
               internalUsers={internalUsers}
               personalExpenses={filteredPersonalExpenses}
+              detranProcesses={detranProcesses}
               onImportData={handleImportBackup}
               currentUser={currentUser}
               onOpenAuthModal={() => setIsAuthModalOpen(true)}

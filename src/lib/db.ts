@@ -240,7 +240,14 @@ export async function fetchUserData(userId: string, isAdmin: boolean = false) {
  */
 export async function syncLocalDataToFirestore(
   userId: string, 
-  data: { services: Service[]; expenses: Expense[]; subCategories: SubCategory[]; personalExpenses?: PersonalExpense[]; clients?: Client[] }
+  data: { 
+    services: Service[]; 
+    expenses: Expense[]; 
+    subCategories: SubCategory[]; 
+    personalExpenses?: PersonalExpense[]; 
+    clients?: Client[];
+    detranProcesses?: DetranProcess[];
+  }
 ) {
   try {
     let batch = writeBatch(db);
@@ -320,6 +327,19 @@ export async function syncLocalDataToFirestore(
       }
     }
 
+    // Add detran processes if present
+    if (data.detranProcesses) {
+      for (const proc of data.detranProcesses) {
+        if (!proc || !proc.id) continue;
+        const docRef = doc(db, DETRAN_PROCESSES_COLL, proc.id);
+        batch.set(docRef, cleanObject({
+          ...proc,
+          userId
+        }));
+        await commitIfNeeded();
+      }
+    }
+
     // Commit any remaining operations
     if (count > 0) {
       await batch.commit();
@@ -332,6 +352,7 @@ export async function syncLocalDataToFirestore(
     if (data.expenses) totalWrites += data.expenses.length;
     if (data.personalExpenses) totalWrites += data.personalExpenses.length;
     if (data.clients) totalWrites += data.clients.length;
+    if (data.detranProcesses) totalWrites += data.detranProcesses.length;
     if (totalWrites > 0) {
       trackFirestoreOp('write', totalWrites);
     }
@@ -481,7 +502,16 @@ const BACKUPS_COLL = 'backups';
  */
 export async function saveBackupToFirestore(
   userId: string,
-  backupData: { date: string; timestamp: number; services: Service[]; expenses: Expense[]; subCategories: SubCategory[] }
+  backupData: { 
+    date: string; 
+    timestamp: number; 
+    services: Service[]; 
+    expenses: Expense[]; 
+    subCategories: SubCategory[];
+    clients?: Client[];
+    detranProcesses?: DetranProcess[];
+    personalExpenses?: PersonalExpense[];
+  }
 ) {
   try {
     const backupId = `backup_${userId}_${backupData.date}`;

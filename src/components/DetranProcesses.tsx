@@ -20,7 +20,8 @@ import {
   Calendar,
   FileCheck,
   Building2,
-  DollarSign
+  DollarSign,
+  AlertTriangle
 } from 'lucide-react';
 import { DetranProcess, Service, Expense, UserSession, ProcessMessage, ProcessStage } from '../types';
 import { plateMatchesSearch } from '../utils/plateMatcher';
@@ -74,6 +75,35 @@ function DetranProcesses({
   const [selectedYear, setSelectedYear] = useState(() => {
     return new Date().getFullYear().toString(); // e.g. "2026"
   });
+
+  // Current year for protocol suggestions and auto-formatting
+  const currentYear = new Date().getFullYear().toString();
+
+  // Collapsed state for process cards ("setinha pra esconder as informações")
+  const [collapsedCards, setCollapsedCards] = useState<Record<string, boolean>>({});
+
+  const toggleCardCollapse = (processId: string, currentStage?: string) => {
+    setCollapsedCards(prev => {
+      // If not yet explicitly set, evaluate current state based on stage (finalized starts collapsed)
+      const currentVal = prev[processId] ?? (currentStage === 'FINALIZADO' || currentStage === 'CONCLUIDO');
+      return {
+        ...prev,
+        [processId]: !currentVal
+      };
+    });
+  };
+
+  // State for step revert confirmation modal ("não permita VOLTAR... faça perguntar na tela")
+  interface PendingStepRevert {
+    processId: string;
+    stepKey: keyof DetranProcess;
+    targetValue: any;
+    title: string;
+    question: string;
+    plate: string;
+    description: string;
+  }
+  const [pendingRevert, setPendingRevert] = useState<PendingStepRevert | null>(null);
 
   const monthsOptions = useMemo(() => [
     { value: '01', label: 'Janeiro' },
@@ -545,11 +575,12 @@ function DetranProcesses({
     setNewMessageText(prev => ({ ...prev, [processId]: '' }));
   };
 
-  // Toggle stage step
-  const handleToggleStep = (processId: string, stepKey: keyof DetranProcess, value: any) => {
+  // Execute stage step modification after confirmation or directly if moving forward
+  const executeToggleStep = (processId: string, stepKey: keyof DetranProcess, value: any) => {
     const targetProcess = processes.find(p => p.id === processId);
     if (!targetProcess) return;
 
+    const curYear = new Date().getFullYear().toString();
     const updated: DetranProcess = {
       ...targetProcess,
       [stepKey]: value,
@@ -565,6 +596,10 @@ function DetranProcesses({
         }
         if (!updated.protocolDate) {
           updated.protocolDate = new Date().toLocaleDateString('pt-BR');
+        }
+        // If protocol was typed without a slash/year, append current year e.g. 36325736/2026
+        if (updated.protocolNumber && !updated.protocolNumber.includes('/')) {
+          updated.protocolNumber = `${updated.protocolNumber.trim()}/${curYear}`;
         }
       } else {
         updated.processOpenedDate = undefined;
@@ -604,6 +639,65 @@ function DetranProcesses({
     onSaveProcess(updated);
   };
 
+  // Toggle stage step with safety check on revert
+  const handleToggleStep = (processId: string, stepKey: keyof DetranProcess, value: any) => {
+    const targetProcess = processes.find(p => p.id === processId);
+    if (!targetProcess) return;
+
+    // Check if this action is an attempt to revert / unmark an already completed state
+    const isReverting = 
+      (stepKey === 'processOpened' && !value) ||
+      (stepKey === 'detranApproved' && !value) ||
+      (stepKey === 'feePaid' && !value) ||
+      (stepKey === 'inspectionDone' && !value) ||
+      (stepKey === 'plateInstalled' && !value) ||
+      (stepKey === 'plateOrdered' && !value) ||
+      (stepKey === 'receiptCollected' && !value) ||
+      (stepKey === 'crlvIssued' && !value);
+
+    if (isReverting) {
+      let question = 'Tem certeza que deseja desmarcar esta etapa?';
+      let title = 'Confirmar alteração de etapa';
+
+      if (stepKey === 'processOpened') {
+        title = 'Desmarcar Processo Aberto';
+        question = 'Tem certeza que deseja marcar o processo como não aberto?';
+      } else if (stepKey === 'feePaid') {
+        title = 'Desmarcar Taxa Paga';
+        question = 'Tem certeza que deseja marcar a taxa como não paga?';
+      } else if (stepKey === 'inspectionDone') {
+        title = 'Desmarcar Vistoria Feita';
+        question = 'Tem certeza que deseja marcar a vistoria como não feita?';
+      } else if (stepKey === 'detranApproved') {
+        title = 'Desmarcar Liberação DETRAN';
+        question = 'Tem certeza que deseja marcar o processo como não liberado pelo DETRAN?';
+      } else if (stepKey === 'plateInstalled' || stepKey === 'plateOrdered') {
+        title = 'Desmarcar Placa Mercosul';
+        question = 'Tem certeza que deseja desmarcar a placa como não feita?';
+      } else if (stepKey === 'receiptCollected') {
+        title = 'Desmarcar Recolhimento Recibo';
+        question = 'Tem certeza que deseja desmarcar o recolhimento do recibo?';
+      } else if (stepKey === 'crlvIssued') {
+        title = 'Reabrir Processo';
+        question = 'Tem certeza que deseja desmarcar o CRVe emitido e reabrir o processo?';
+      }
+
+      setPendingRevert({
+        processId,
+        stepKey,
+        targetValue: value,
+        title,
+        question,
+        plate: targetProcess.plate || 'SEM PLACA',
+        description: targetProcess.description || 'Processo'
+      });
+      return;
+    }
+
+    // Direct transition for setting to true or switching payment options
+    executeToggleStep(processId, stepKey, value);
+  };
+
   // Quick protocol update
   const handleUpdateProtocol = (processId: string, protocolVal: string) => {
     const targetProcess = processes.find(p => p.id === processId);
@@ -618,6 +712,16 @@ function DetranProcesses({
     };
     updated.stage = calculateProcessStage(updated);
     onSaveProcess(updated);
+  };
+
+  // Protocol blur handler to automatically append current year if user typed raw digits without year
+  const handleBlurProtocol = (processId: string, protocolVal: string) => {
+    const clean = (protocolVal || '').trim();
+    if (!clean) return;
+    const curYear = new Date().getFullYear().toString();
+    if (!clean.includes('/')) {
+      handleUpdateProtocol(processId, `${clean}/${curYear}`);
+    }
   };
 
   // Handle Manual Process Creation
@@ -811,20 +915,20 @@ function DetranProcesses({
 
         {/* Seletor Mensal de Competência exclusivo para Processos Concluídos / Finalizados */}
         {stageFilter === 'FINALIZADO' && (
-          <div className="flex flex-wrap items-center justify-between gap-3 mt-3 pt-3 border-t border-slate-800/50 bg-[#0E131F]/50 p-3 rounded-xl border border-slate-800/60">
+          <div className="flex flex-wrap items-center justify-between gap-3 mt-3 pt-3 border-t border-slate-750 bg-slate-800/80 p-3.5 rounded-xl border border-slate-700/80 shadow-sm text-slate-200">
             <div className="flex flex-wrap items-center gap-3">
               <div className="flex items-center gap-1.5 text-emerald-400 font-bold text-xs">
                 <Calendar size={15} />
-                <span className="uppercase tracking-wider text-[11px] text-slate-300">Competência de Conclusão:</span>
+                <span className="uppercase tracking-wider text-[11px] text-slate-200">Competência de Conclusão:</span>
               </div>
 
               <div className="flex items-center gap-2">
                 <div className="flex items-center gap-1.5">
-                  <span className="text-[11px] font-bold text-slate-400 uppercase">Mês:</span>
+                  <span className="text-[11px] font-bold text-slate-300 uppercase">Mês:</span>
                   <select
                     value={selectedMonth}
                     onChange={e => setSelectedMonth(e.target.value)}
-                    className="px-3 py-1.5 bg-[#161B22] border border-slate-800 rounded-lg text-xs font-bold text-slate-200 cursor-pointer focus:outline-none focus:border-emerald-500 uppercase transition-all"
+                    className="px-3 py-1.5 bg-[#161B22] border border-slate-700 rounded-lg text-xs font-bold text-slate-100 cursor-pointer focus:outline-none focus:border-emerald-500 uppercase transition-all"
                   >
                     {monthsOptions.map(m => (
                       <option key={m.value} value={m.value}>{m.label}</option>
@@ -834,11 +938,11 @@ function DetranProcesses({
                 </div>
 
                 <div className="flex items-center gap-1.5">
-                  <span className="text-[11px] font-bold text-slate-400 uppercase">Ano:</span>
+                  <span className="text-[11px] font-bold text-slate-300 uppercase">Ano:</span>
                   <select
                     value={selectedYear}
                     onChange={e => setSelectedYear(e.target.value)}
-                    className="px-3 py-1.5 bg-[#161B22] border border-slate-800 rounded-lg text-xs font-bold text-slate-200 font-mono cursor-pointer focus:outline-none focus:border-emerald-500 transition-all"
+                    className="px-3 py-1.5 bg-[#161B22] border border-slate-700 rounded-lg text-xs font-bold text-slate-100 font-mono cursor-pointer focus:outline-none focus:border-emerald-500 transition-all"
                   >
                     {availableYears.map(y => (
                       <option key={y} value={y}>{y}</option>
@@ -848,12 +952,15 @@ function DetranProcesses({
               </div>
             </div>
 
-            <div className="text-xs text-slate-400 flex items-center gap-2">
-              <span className="inline-flex items-center px-2 py-0.5 rounded-md bg-emerald-950/70 border border-emerald-800/50 text-emerald-300 text-[11px] font-semibold">
-                {counts.finalizadoMonth} {counts.finalizadoMonth === 1 ? 'processo concluído' : 'processos concluídos'} em {selectedMonth === 'ALL' ? 'todos os meses' : `${monthsOptions.find(m => m.value === selectedMonth)?.label || selectedMonth}/${selectedYear}`}
-              </span>
+            <div className="flex flex-wrap items-center gap-2">
+              <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-emerald-500/20 border border-emerald-500/40 text-emerald-300 font-bold text-xs shadow-xs">
+                <Check size={14} className="text-emerald-400" />
+                <span>
+                  {counts.finalizadoMonth} {counts.finalizadoMonth === 1 ? 'processo concluído' : 'processos concluídos'} em {selectedMonth === 'ALL' ? 'todos os meses' : `${monthsOptions.find(m => m.value === selectedMonth)?.label || selectedMonth}/${selectedYear}`}
+                </span>
+              </div>
               {counts.finalizado > counts.finalizadoMonth && (
-                <span className="text-[10px] text-slate-500 font-medium">
+                <span className="text-[11px] text-slate-300 font-medium px-2.5 py-1 rounded-lg bg-slate-700/80 border border-slate-600/70">
                   (Histórico total: {counts.finalizado})
                 </span>
               )}
@@ -992,6 +1099,8 @@ function DetranProcesses({
                 ? 'DINHEIRO' 
                 : rawFeePayment;
 
+            const isCardCollapsed = collapsedCards[proc.id] ?? (currentStage === 'FINALIZADO' || currentStage === 'CONCLUIDO');
+
             return (
               <div 
                 key={proc.id}
@@ -1100,8 +1209,22 @@ function DetranProcesses({
                       </div>
                     </div>
 
-                    {/* Right: Quick Chat Toggle and Delete */}
+                    {/* Right: Setinha to Collapse/Expand, Quick Chat Toggle and Delete */}
                     <div className="flex items-center gap-2 self-end lg:self-center">
+                      <button
+                        type="button"
+                        onClick={() => toggleCardCollapse(proc.id, currentStage)}
+                        className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 border ${
+                          isCardCollapsed
+                            ? 'bg-indigo-950/40 text-indigo-300 border-indigo-800/50 hover:bg-indigo-900/40'
+                            : 'bg-slate-900/60 text-slate-300 border-slate-800 hover:text-white hover:bg-slate-800'
+                        }`}
+                        title={isCardCollapsed ? "Exibir informações detalhadas do processo" : "Esconder informações do processo"}
+                      >
+                        <span className="text-[11px] font-semibold">{isCardCollapsed ? 'Ver Informações' : 'Esconder'}</span>
+                        {isCardCollapsed ? <ChevronDown size={14} /> : <ChevronUp size={14} />}
+                      </button>
+
                       <button
                         onClick={() => setExpandedChatId(isChatExpanded ? null : proc.id)}
                         className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 border ${
@@ -1132,7 +1255,8 @@ function DetranProcesses({
                   </div>
                 </div>
 
-                {/* Workflow Checklist Grid */}
+                {/* Workflow Checklist Grid (collapsible with setinha) */}
+                {!isCardCollapsed && (
                 <div className="p-4 sm:p-5 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                   {/* Step 1: Vistoria (Nem sempre exigida) */}
                   <div className={`p-3.5 rounded-xl border transition-all ${
@@ -1230,16 +1354,29 @@ function DetranProcesses({
 
                         <div className="space-y-2 mb-3">
                           <div className="flex items-center gap-1.5">
-                            <input
-                              type="text"
-                              value={proc.protocolNumber || ''}
-                              onChange={(e) => handleUpdateProtocol(proc.id, e.target.value)}
-                              placeholder="Inserir número do processo..."
-                              className="w-full px-2.5 py-1.5 bg-[#0D1015] border border-slate-750 rounded-lg text-xs font-mono text-white placeholder-slate-600 focus:outline-none focus:border-indigo-500"
-                            />
+                            <div className="relative flex items-center flex-1">
+                              <input
+                                type="text"
+                                value={proc.protocolNumber || ''}
+                                onChange={(e) => handleUpdateProtocol(proc.id, e.target.value)}
+                                onBlur={(e) => handleBlurProtocol(proc.id, e.target.value)}
+                                onKeyDown={(e) => {
+                                  if (e.key === 'Enter') {
+                                    handleBlurProtocol(proc.id, proc.protocolNumber || '');
+                                  }
+                                }}
+                                placeholder={`Ex: 36325736/${currentYear}`}
+                                className="w-full px-2.5 py-1.5 bg-[#0D1015] border border-slate-750 rounded-lg text-xs font-mono text-white placeholder-slate-600 focus:outline-none focus:border-indigo-500"
+                              />
+                            </div>
                             <button
                               type="button"
-                              onClick={() => handleToggleStep(proc.id, 'processOpened', !isProcessOpened)}
+                              onClick={() => {
+                                if (!isProcessOpened && proc.protocolNumber && !proc.protocolNumber.includes('/')) {
+                                  handleUpdateProtocol(proc.id, `${proc.protocolNumber.trim()}/${currentYear}`);
+                                }
+                                handleToggleStep(proc.id, 'processOpened', !isProcessOpened);
+                              }}
                               className={`px-2.5 py-1.5 rounded-lg text-[11px] font-bold transition-all cursor-pointer flex items-center gap-1 shrink-0 ${
                                 isProcessOpened
                                   ? 'bg-emerald-600 hover:bg-emerald-500 text-white shadow-sm'
@@ -1533,6 +1670,7 @@ function DetranProcesses({
                     </button>
                   </div>
                 </div>
+                )}
 
                 {/* Internal Chat / Recados Drawer (Expandable) */}
                 {isChatExpanded && (
@@ -1785,6 +1923,65 @@ function DetranProcesses({
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Modal de Confirmação para Voltar/Desmarcar Etapa */}
+      {pendingRevert && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-sm animate-fadeIn">
+          <div className="bg-[#161B22] border border-amber-500/50 rounded-2xl max-w-md w-full p-6 shadow-2xl animate-scaleUp text-slate-200">
+            <div className="flex items-start gap-3.5 mb-4">
+              <div className="w-10 h-10 rounded-xl bg-amber-500/20 border border-amber-500/40 text-amber-400 flex items-center justify-center shrink-0">
+                <AlertTriangle size={22} />
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2 mb-1">
+                  <span className="px-2 py-0.5 rounded bg-slate-800 text-white font-mono font-bold text-xs border border-slate-700">
+                    {pendingRevert.plate}
+                  </span>
+                  <span className="text-xs text-slate-400 truncate">
+                    {pendingRevert.description}
+                  </span>
+                </div>
+                <h3 className="text-base font-bold text-white">
+                  {pendingRevert.title}
+                </h3>
+              </div>
+            </div>
+
+            <div className="bg-slate-900/80 border border-slate-800 rounded-xl p-3.5 mb-5 text-sm text-slate-300 leading-relaxed">
+              <p className="font-semibold text-amber-200 mb-1">
+                {pendingRevert.question}
+              </p>
+              <p className="text-xs text-slate-400">
+                Esta ação desmarcará a etapa na esteira de processos. Tem certeza que deseja prosseguir?
+              </p>
+            </div>
+
+            <div className="flex items-center justify-end gap-2.5">
+              <button
+                type="button"
+                onClick={() => setPendingRevert(null)}
+                className="px-4 py-2 rounded-xl text-xs font-bold text-slate-300 bg-slate-800 hover:bg-slate-700 border border-slate-700 transition-all cursor-pointer"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  const toExec = pendingRevert;
+                  setPendingRevert(null);
+                  if (toExec) {
+                    executeToggleStep(toExec.processId, toExec.stepKey, toExec.targetValue);
+                  }
+                }}
+                className="px-4 py-2 rounded-xl text-xs font-bold text-white bg-rose-600 hover:bg-rose-500 shadow-md shadow-rose-950/50 transition-all cursor-pointer flex items-center gap-1.5"
+              >
+                <Check size={14} />
+                <span>Sim, Desmarcar</span>
+              </button>
+            </div>
           </div>
         </div>
       )}
