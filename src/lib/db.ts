@@ -15,7 +15,7 @@ import {
   where,
   writeBatch 
 } from 'firebase/firestore';
-import { Service, Expense, SubCategory, PersonalExpense, Client, InternalUser, Lead, DetranProcess } from '../types';
+import { Service, Expense, SubCategory, PersonalExpense, Client, InternalUser, Lead } from '../types';
 
 
 export enum OperationType {
@@ -72,7 +72,6 @@ const SUBCATEGORIES_COLL = 'subcategories';
 const PERSONAL_EXPENSES_COLL = 'personal_expenses';
 const CLIENTS_COLL = 'clients';
 const LEADS_COLL = 'leads';
-const DETRAN_PROCESSES_COLL = 'detran_processes';
 
 /**
  * Removes all properties with value of `undefined` recursively to prevent Firestore errors
@@ -246,7 +245,6 @@ export async function syncLocalDataToFirestore(
     subCategories: SubCategory[]; 
     personalExpenses?: PersonalExpense[]; 
     clients?: Client[];
-    detranProcesses?: DetranProcess[];
   }
 ) {
   try {
@@ -327,19 +325,6 @@ export async function syncLocalDataToFirestore(
       }
     }
 
-    // Add detran processes if present
-    if (data.detranProcesses) {
-      for (const proc of data.detranProcesses) {
-        if (!proc || !proc.id) continue;
-        const docRef = doc(db, DETRAN_PROCESSES_COLL, proc.id);
-        batch.set(docRef, cleanObject({
-          ...proc,
-          userId
-        }));
-        await commitIfNeeded();
-      }
-    }
-
     // Commit any remaining operations
     if (count > 0) {
       await batch.commit();
@@ -352,7 +337,6 @@ export async function syncLocalDataToFirestore(
     if (data.expenses) totalWrites += data.expenses.length;
     if (data.personalExpenses) totalWrites += data.personalExpenses.length;
     if (data.clients) totalWrites += data.clients.length;
-    if (data.detranProcesses) totalWrites += data.detranProcesses.length;
     if (totalWrites > 0) {
       trackFirestoreOp('write', totalWrites);
     }
@@ -509,7 +493,6 @@ export async function saveBackupToFirestore(
     expenses: Expense[]; 
     subCategories: SubCategory[];
     clients?: Client[];
-    detranProcesses?: DetranProcess[];
     personalExpenses?: PersonalExpense[];
   }
 ) {
@@ -957,121 +940,6 @@ export async function fetchLeads() {
   } catch (err) {
     console.error("Error fetching leads from Firestore: ", err);
     handleFirestoreError(err, OperationType.GET, LEADS_COLL);
-    throw err;
-  }
-}
-
-/**
- * Save or update a single DetranProcess document
- */
-export async function saveDetranProcess(userId: string, process: DetranProcess) {
-  try {
-    const docRef = doc(db, DETRAN_PROCESSES_COLL, process.id);
-    await setDoc(docRef, cleanObject({
-      ...process,
-      userId
-    }));
-    trackFirestoreOp('write', 1);
-  } catch (err) {
-    console.error("Error saving Detran process to Firestore: ", err);
-    handleFirestoreError(err, OperationType.WRITE, `${DETRAN_PROCESSES_COLL}/${process.id}`);
-    throw err;
-  }
-}
-
-/**
- * Delete a single DetranProcess document
- */
-export async function deleteDetranProcess(processId: string) {
-  try {
-    const docRef = doc(db, DETRAN_PROCESSES_COLL, processId);
-    await deleteDoc(docRef);
-    trackFirestoreOp('delete', 1);
-  } catch (err) {
-    console.error("Error deleting Detran process from Firestore: ", err);
-    handleFirestoreError(err, OperationType.DELETE, `${DETRAN_PROCESSES_COLL}/${processId}`);
-    throw err;
-  }
-}
-
-/**
- * Fetch all Detran processes
- */
-export async function fetchDetranProcesses(userId: string): Promise<DetranProcess[]> {
-  try {
-    const isDemo = userId.toLowerCase() === 'user' || userId === 'user-demo-default' || userId === 'user-demo';
-    let q;
-    if (isDemo) {
-      const demoUserIds = ['user', 'user-demo-default', 'user-demo'];
-      q = query(collection(db, DETRAN_PROCESSES_COLL), where('userId', 'in', demoUserIds));
-    } else {
-      q = query(collection(db, DETRAN_PROCESSES_COLL));
-    }
-    const toIsoString = (val: any): string => {
-      if (!val) return new Date().toISOString();
-      if (typeof val === 'string') return val;
-      if (val.toDate && typeof val.toDate === 'function') {
-        try { return val.toDate().toISOString(); } catch { return new Date().toISOString(); }
-      }
-      if (typeof val.seconds === 'number') {
-        return new Date(val.seconds * 1000).toISOString();
-      }
-      return new Date().toISOString();
-    };
-
-    const snap = await getDocs(q);
-    trackFirestoreOp('read', snap.size);
-
-    const processes: DetranProcess[] = [];
-    snap.forEach((docSnap) => {
-      const data = docSnap.data() as any;
-      processes.push({
-        id: docSnap.id,
-        serviceId: data.serviceId,
-        client: data.client || '',
-        plate: data.plate || '',
-        description: data.description || '',
-        stage: data.stage || 'ENTRADA',
-        protocolNumber: data.protocolNumber,
-        protocolDate: data.protocolDate,
-        processOpened: !!data.processOpened,
-        processOpenedDate: data.processOpenedDate,
-        requiresInspection: data.requiresInspection !== undefined ? !!data.requiresInspection : true,
-        inspectionDone: !!data.inspectionDone,
-        inspectionDate: data.inspectionDate,
-        detranApproved: !!data.detranApproved,
-        detranApprovedDate: data.detranApprovedDate,
-        feePayer: data.feePayer || 'ESCRITORIO',
-        feePaid: !!data.feePaid,
-        feePaidDate: data.feePaidDate,
-        feeExpenseId: data.feeExpenseId,
-        requiresPlate: !!data.requiresPlate,
-        plateOrdered: !!data.plateOrdered,
-        plateInstalled: !!data.plateInstalled,
-        plateExpenseId: data.plateExpenseId,
-        requiresReceiptCollection: !!data.requiresReceiptCollection,
-        receiptCollected: !!data.receiptCollected,
-        crlvIssued: !!data.crlvIssued,
-        crlvIssuedDate: data.crlvIssuedDate,
-        deliveredToClient: !!data.deliveredToClient,
-        deliveredDate: data.deliveredDate,
-        messages: Array.isArray(data.messages) ? data.messages : [],
-        createdAt: toIsoString(data.createdAt),
-        updatedAt: toIsoString(data.updatedAt),
-        operator: data.operator || data.userId || 'admin',
-        userId: data.userId
-      });
-    });
-
-    processes.sort((a, b) => {
-      const timeA = new Date(a.createdAt).getTime();
-      const timeB = new Date(b.createdAt).getTime();
-      return (isNaN(timeB) ? 0 : timeB) - (isNaN(timeA) ? 0 : timeA);
-    });
-    return processes;
-  } catch (err) {
-    console.error("Error fetching Detran processes from Firestore: ", err);
-    handleFirestoreError(err, OperationType.GET, DETRAN_PROCESSES_COLL);
     throw err;
   }
 }

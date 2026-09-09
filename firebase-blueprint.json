@@ -108,43 +108,6 @@
         "userId": { "type": "string" }
       },
       "required": ["id", "fullName", "username", "password", "userId"]
-    },
-    "DetranProcess": {
-      "title": "DetranProcess",
-      "description": "Detran transfer or service process track with stages and internal messages",
-      "type": "object",
-      "properties": {
-        "id": { "type": "string" },
-        "serviceId": { "type": "string" },
-        "client": { "type": "string" },
-        "plate": { "type": "string" },
-        "description": { "type": "string" },
-        "stage": { "type": "string" },
-        "protocolNumber": { "type": "string" },
-        "protocolDate": { "type": "string" },
-        "inspectionDone": { "type": "boolean" },
-        "inspectionDate": { "type": "string" },
-        "detranApproved": { "type": "boolean" },
-        "detranApprovedDate": { "type": "string" },
-        "feePayer": { "type": "string" },
-        "feePaid": { "type": "boolean" },
-        "feePaidDate": { "type": "string" },
-        "requiresPlate": { "type": "boolean" },
-        "plateOrdered": { "type": "boolean" },
-        "plateInstalled": { "type": "boolean" },
-        "requiresReceiptCollection": { "type": "boolean" },
-        "receiptCollected": { "type": "boolean" },
-        "crlvIssued": { "type": "boolean" },
-        "crlvIssuedDate": { "type": "string" },
-        "deliveredToClient": { "type": "boolean" },
-        "deliveredDate": { "type": "string" },
-        "messages": { "type": "array" },
-        "createdAt": { "type": "string" },
-        "updatedAt": { "type": "string" },
-        "operator": { "type": "string" },
-        "userId": { "type": "string" }
-      },
-      "required": ["id", "client", "plate", "description", "stage", "userId"]
     }
   },
   "firestore": {
@@ -175,10 +138,6 @@
     "internal_users/{id}": {
       "schema": "InternalUser",
       "description": "Internal custom users / operators"
-    },
-    "detran_processes/{id}": {
-      "schema": "DetranProcess",
-      "description": "User Detran processes"
     }
   }
 }

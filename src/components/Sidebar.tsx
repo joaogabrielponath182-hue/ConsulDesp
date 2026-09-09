@@ -25,12 +25,11 @@ import {
   HelpCircle,
   Database,
   RefreshCw,
-  MessageSquare,
-  FolderKanban
+  MessageSquare
 } from 'lucide-react';
 import { motion } from 'motion/react';
 import { User } from 'firebase/auth';
-import { Service, Expense, SubCategory, UserSession, Client, InternalUser, PersonalExpense, Lead, DetranProcess } from '../types';
+import { Service, Expense, SubCategory, UserSession, Client, InternalUser, PersonalExpense, Lead } from '../types';
 import { getFirestoreUsageMetrics, UsageMetrics } from '../lib/db';
 
 
@@ -44,7 +43,6 @@ interface SidebarProps {
   clients: Client[];
   internalUsers: InternalUser[];
   personalExpenses: PersonalExpense[];
-  detranProcesses?: DetranProcess[];
   onImportData: (data: { 
     services: Service[]; 
     expenses: Expense[]; 
@@ -52,7 +50,6 @@ interface SidebarProps {
     clients?: Client[];
     internalUsers?: InternalUser[];
     personalExpenses?: PersonalExpense[];
-    detranProcesses?: DetranProcess[];
   }) => void;
   currentUser: User | null;
   onOpenAuthModal: () => void;
@@ -75,7 +72,6 @@ function Sidebar({
   clients,
   internalUsers,
   personalExpenses,
-  detranProcesses = [],
   onImportData,
   currentUser,
   onOpenAuthModal,
@@ -105,7 +101,6 @@ function Sidebar({
   const menuItems = isAdmin ? [
     { id: 'dashboard', name: 'Painel Geral', icon: LayoutDashboard },
     { id: 'services', name: 'Serviços (Receitas)', icon: FileCheck },
-    { id: 'processes', name: 'Processos DETRAN', icon: FolderKanban },
     { id: 'expenses', name: 'Registro de Gastos', icon: DollarSign },
     { 
       id: 'reports', 
@@ -125,7 +120,6 @@ function Sidebar({
   ] : [
     { id: 'dashboard', name: 'Painel Geral', icon: LayoutDashboard },
     { id: 'services', name: 'Serviços', icon: FileCheck },
-    { id: 'processes', name: 'Processos DETRAN', icon: FolderKanban },
     { id: 'expenses', name: 'Registro de Gastos', icon: DollarSign },
     { 
       id: 'reports', 
@@ -148,8 +142,7 @@ function Sidebar({
       subCategories,
       clients,
       internalUsers,
-      personalExpenses,
-      detranProcesses
+      personalExpenses
     }, null, 2);
     const dataUri = 'data:application/json;charset=utf-8,'+ encodeURIComponent(dataStr);
     
@@ -170,15 +163,14 @@ function Sidebar({
     fileReader.onload = (event) => {
       try {
         const parsed = JSON.parse(event.target?.result as string);
-        if (parsed && (parsed.services || parsed.expenses || parsed.subCategories || parsed.detranProcesses)) {
+        if (parsed && (parsed.services || parsed.expenses || parsed.subCategories)) {
           onImportData({
             services: parsed.services || [],
             expenses: parsed.expenses || [],
             subCategories: parsed.subCategories || [],
             clients: parsed.clients || [],
             internalUsers: parsed.internalUsers || [],
-            personalExpenses: parsed.personalExpenses || [],
-            detranProcesses: parsed.detranProcesses || []
+            personalExpenses: parsed.personalExpenses || []
           });
           alert('Backup importado com sucesso!');
         } else {
