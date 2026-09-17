@@ -186,6 +186,36 @@ export default function ReportsComparative({ services, expenses, subCategories, 
     return Array.from(set).sort();
   }, [subCategories, expenses, subCategoryGroupMap]);
 
+  const outrosRevenueCats = useMemo(() => {
+    const set = new Set<string>();
+    subCategories
+      .filter(s => (s.categoryGroup || 'SERVIÇOS') === 'OUTROS' && (s.type || 'RECEITA') === 'RECEITA')
+      .forEach(s => set.add(s.name.toUpperCase().trim()));
+    services.forEach(srv => {
+      srv.items?.forEach(it => {
+        const name = it.name.toUpperCase().trim();
+        if ((subCategoryGroupMap[`${name}_RECEITA`] || subCategoryGroupMap[name] || 'SERVIÇOS') === 'OUTROS') {
+          set.add(name);
+        }
+      });
+    });
+    return Array.from(set).sort();
+  }, [subCategories, services, subCategoryGroupMap]);
+
+  const outrosExpenseCats = useMemo(() => {
+    const set = new Set<string>();
+    subCategories
+      .filter(s => (s.categoryGroup || 'SERVIÇOS') === 'OUTROS' && (s.type || 'RECEITA') === 'GASTO')
+      .forEach(s => set.add(s.name.toUpperCase().trim()));
+    expenses.forEach(exp => {
+      const name = exp.category.toUpperCase().trim();
+      if ((subCategoryGroupMap[`${name}_GASTO`] || subCategoryGroupMap[name] || 'SERVIÇOS') === 'OUTROS') {
+        set.add(name);
+      }
+    });
+    return Array.from(set).sort();
+  }, [subCategories, expenses, subCategoryGroupMap]);
+
   // Helper to compute metrics for a single period (strictly PAID services as per user request)
   const computePeriodMetrics = (start: string, end: string) => {
     const filteredServices = services.filter(s => s.date >= start && s.date <= end && s.status === 'PAGO');
@@ -207,6 +237,8 @@ export default function ReportsComparative({ services, expenses, subCategories, 
     const selectedRevenueCatsPaidBreakdown: Record<string, number> = {};
     const selectedExpenseCatsBreakdown: Record<string, number> = {};
     const personalExpensesByCategory: Record<string, number> = {};
+    const outrosRevenueCatsBreakdown: Record<string, number> = {};
+    const outrosExpenseCatsBreakdown: Record<string, number> = {};
 
     filteredServices.forEach(srv => {
       if (srv.items) {
@@ -219,6 +251,7 @@ export default function ReportsComparative({ services, expenses, subCategories, 
             selectedRevenueCatsPaidBreakdown[catName] = (selectedRevenueCatsPaidBreakdown[catName] || 0) + item.value;
           } else if (group === 'OUTROS') {
             outrosRevenuesTotal += item.value;
+            outrosRevenueCatsBreakdown[catName] = (outrosRevenueCatsBreakdown[catName] || 0) + item.value;
           }
         });
       }
@@ -237,6 +270,7 @@ export default function ReportsComparative({ services, expenses, subCategories, 
             personalExpensesByCategory[catName] = (personalExpensesByCategory[catName] || 0) + exp.value;
           } else if (group === 'OUTROS') {
             outrosExpensesTotal += exp.value;
+            outrosExpenseCatsBreakdown[catName] = (outrosExpenseCatsBreakdown[catName] || 0) + exp.value;
           }
       }
     });
@@ -331,7 +365,9 @@ export default function ReportsComparative({ services, expenses, subCategories, 
       selectedExpenses,
       outrosRevenuesTotal,
       outrosExpensesTotal,
-      outrosBalance: outrosRevenuesTotal - outrosExpensesTotal
+      outrosBalance: outrosRevenuesTotal - outrosExpensesTotal,
+      outrosRevenueCatsBreakdown,
+      outrosExpenseCatsBreakdown
     };
   };
 
@@ -379,6 +415,26 @@ export default function ReportsComparative({ services, expenses, subCategories, 
       return { category: cat, valA, valB, diff, pct };
     }).sort((a, b) => b.valA - a.valA);
   }, [metricsA, metricsB, pessoaisExpenseCats]);
+
+  const outrosRevenuesComparison = useMemo(() => {
+    const allCats = new Set([...outrosRevenueCats, ...Object.keys(metricsA.outrosRevenueCatsBreakdown), ...Object.keys(metricsB.outrosRevenueCatsBreakdown)]);
+    return Array.from(allCats).map(cat => {
+      const valA = metricsA.outrosRevenueCatsBreakdown[cat] || 0;
+      const valB = metricsB.outrosRevenueCatsBreakdown[cat] || 0;
+      const { diff, pct } = getVariance(valA, valB);
+      return { category: cat, valA, valB, diff, pct };
+    }).sort((a, b) => b.valA - a.valA);
+  }, [metricsA, metricsB, outrosRevenueCats]);
+
+  const outrosExpensesComparison = useMemo(() => {
+    const allCats = new Set([...outrosExpenseCats, ...Object.keys(metricsA.outrosExpenseCatsBreakdown), ...Object.keys(metricsB.outrosExpenseCatsBreakdown)]);
+    return Array.from(allCats).map(cat => {
+      const valA = metricsA.outrosExpenseCatsBreakdown[cat] || 0;
+      const valB = metricsB.outrosExpenseCatsBreakdown[cat] || 0;
+      const { diff, pct } = getVariance(valA, valB);
+      return { category: cat, valA, valB, diff, pct };
+    }).sort((a, b) => b.valA - a.valA);
+  }, [metricsA, metricsB, outrosExpenseCats]);
 
   const lucroLivreRevenuesComparison = useMemo(() => {
     const allCats = new Set([...servicosRevenueCats, ...Object.keys(metricsA.selectedRevenueCatsPaidBreakdown), ...Object.keys(metricsB.selectedRevenueCatsPaidBreakdown)]);
@@ -470,6 +526,22 @@ export default function ReportsComparative({ services, expenses, subCategories, 
       }
     }
 
+    // Movimentações Outros insight
+    if (outrosRevenueCats.length > 0 || outrosExpenseCats.length > 0 || metricsA.outrosRevenuesTotal > 0 || metricsA.outrosExpensesTotal > 0 || metricsB.outrosRevenuesTotal > 0 || metricsB.outrosExpensesTotal > 0) {
+      const saldoOutrosA = metricsA.outrosBalance;
+      const saldoOutrosB = metricsB.outrosBalance;
+      const outrosVar = getVariance(saldoOutrosA, saldoOutrosB);
+      summaryText += `\n\n**Análise de Movimentações Outros**: `;
+      summaryText += `Nas categorias cadastradas como "Outros", o período "${labelMonthA}" registrou ${formatCurrency(metricsA.outrosRevenuesTotal)} em entradas e ${formatCurrency(metricsA.outrosExpensesTotal)} em saídas (saldo líquido de ${formatCurrency(saldoOutrosA)}). Já no período "${labelMonthB}", foram ${formatCurrency(metricsB.outrosRevenuesTotal)} em entradas e ${formatCurrency(metricsB.outrosExpensesTotal)} em saídas (saldo líquido de ${formatCurrency(saldoOutrosB)}). `;
+      if (outrosVar.diff > 0) {
+        summaryText += `O saldo líquido da categoria Outros foi ${formatCurrency(outrosVar.diff)} maior (+${outrosVar.pct.toFixed(1)}%) em "${labelMonthA}" na comparação com "${labelMonthB}".`;
+      } else if (outrosVar.diff < 0) {
+        summaryText += `O saldo líquido da categoria Outros foi ${formatCurrency(Math.abs(outrosVar.diff))} menor (${outrosVar.pct.toFixed(1)}%) em "${labelMonthA}" na comparação com "${labelMonthB}".`;
+      } else {
+        summaryText += `O saldo líquido da categoria Outros foi equivalente em ambos os períodos.`;
+      }
+    }
+
     // Sobra insight (Lucro Livre - Gastos Pessoais)
     const sobraA = lucroLivreA - metricsA.personalExpensesTotal;
     const sobraB = lucroLivreB - metricsB.personalExpensesTotal;
@@ -485,7 +557,7 @@ export default function ReportsComparative({ services, expenses, subCategories, 
     }
 
     return summaryText;
-  }, [metricsA, metricsB, revenueCategoriesComparison, expenseCategoriesComparison, startDateA, endDateA, startDateB, endDateB, pessoaisExpenseCats, servicosRevenueCats, servicosExpenseCats, labelMonthA, labelMonthB]);
+  }, [metricsA, metricsB, revenueCategoriesComparison, expenseCategoriesComparison, startDateA, endDateA, startDateB, endDateB, pessoaisExpenseCats, outrosRevenueCats, outrosExpenseCats, servicosRevenueCats, servicosExpenseCats, labelMonthA, labelMonthB]);
 
   // Handle printing
   const handlePrint = () => {
@@ -798,6 +870,184 @@ export default function ReportsComparative({ services, expenses, subCategories, 
                         </div>
                       );
                     })}
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* Movimentações Outros Comparativo Card */}
+          <div className="bg-[#161B22] border border-slate-800 rounded-2xl p-6 relative overflow-hidden">
+            <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-amber-500 to-orange-500"></div>
+            <div className="flex justify-between items-start mb-3">
+              <div>
+                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Movimentações Outros Comparativo</span>
+                <span className="text-[9px] text-amber-400 font-bold uppercase tracking-wider block mt-0.5">Categorias: OUTROS</span>
+              </div>
+              <div className="p-2 rounded-lg bg-amber-500/10 text-amber-400">
+                <Layers size={16} />
+              </div>
+            </div>
+            
+            <div className="space-y-3">
+              {/* Saldo Líquido Outros */}
+              <div className="flex justify-between items-baseline">
+                <span className="text-xs text-slate-450">Saldo Líquido "{labelMonthA}":</span>
+                <span className={`text-lg font-black font-mono ${metricsA.outrosBalance >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+                  {formatCurrency(metricsA.outrosBalance)}
+                </span>
+              </div>
+              <div className="flex justify-between items-baseline border-b border-slate-850 pb-2.5">
+                <span className="text-xs text-slate-450">Saldo Líquido "{labelMonthB}":</span>
+                <span className={`text-sm font-bold font-mono ${metricsB.outrosBalance >= 0 ? 'text-slate-300' : 'text-rose-400'}`}>
+                  {formatCurrency(metricsB.outrosBalance)}
+                </span>
+              </div>
+              
+              {/* Variance */}
+              {(() => {
+                const { diff, pct } = getVariance(metricsA.outrosBalance, metricsB.outrosBalance);
+                return (
+                  <div className="flex justify-between items-center text-xs pt-1 border-b border-slate-850 pb-2.5">
+                    <span className="text-slate-400">Variação do Saldo:</span>
+                    <span className={`font-bold font-mono flex items-center gap-1 ${diff >= 0 ? 'text-emerald-400' : 'text-rose-455'}`}>
+                      {diff >= 0 ? '+' : ''}{formatCurrency(diff)} ({diff >= 0 ? '+' : ''}{pct.toFixed(1)}%)
+                    </span>
+                  </div>
+                );
+              })()}
+
+              {/* Totais por Período */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 pt-1">
+                {/* Period A Box */}
+                <div className="p-2.5 bg-[#0F1115] rounded-xl border border-slate-850 text-[11px] space-y-1.5">
+                  <span className="text-[10px] font-bold text-amber-400 uppercase tracking-wider block">
+                    Período "{labelMonthA}"
+                  </span>
+                  <div className="flex justify-between text-[10px] text-slate-300 font-mono">
+                    <span className="text-slate-400">Entradas:</span>
+                    <span className="text-emerald-400 font-bold">{formatCurrency(metricsA.outrosRevenuesTotal)}</span>
+                  </div>
+                  <div className="flex justify-between text-[10px] text-slate-300 font-mono">
+                    <span className="text-slate-400">Saídas:</span>
+                    <span className="text-rose-400 font-bold">{formatCurrency(metricsA.outrosExpensesTotal)}</span>
+                  </div>
+                  <div className="pt-1 border-t border-slate-800/60 flex justify-between text-[10px] font-mono font-bold">
+                    <span className="text-slate-400 uppercase text-[9px]">Saldo:</span>
+                    <span className={metricsA.outrosBalance >= 0 ? 'text-emerald-400' : 'text-rose-400'}>
+                      {formatCurrency(metricsA.outrosBalance)}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Period B Box */}
+                <div className="p-2.5 bg-[#0F1115] rounded-xl border border-slate-850 text-[11px] space-y-1.5">
+                  <span className="text-[10px] font-bold text-blue-400 uppercase tracking-wider block">
+                    Período "{labelMonthB}"
+                  </span>
+                  <div className="flex justify-between text-[10px] text-slate-300 font-mono">
+                    <span className="text-slate-400">Entradas:</span>
+                    <span className="text-slate-300 font-bold">{formatCurrency(metricsB.outrosRevenuesTotal)}</span>
+                  </div>
+                  <div className="flex justify-between text-[10px] text-slate-300 font-mono">
+                    <span className="text-slate-400">Saídas:</span>
+                    <span className="text-slate-300 font-bold">{formatCurrency(metricsB.outrosExpensesTotal)}</span>
+                  </div>
+                  <div className="pt-1 border-t border-slate-800/60 flex justify-between text-[10px] font-mono font-bold">
+                    <span className="text-slate-400 uppercase text-[9px]">Saldo:</span>
+                    <span className={metricsB.outrosBalance >= 0 ? 'text-slate-200' : 'text-rose-400'}>
+                      {formatCurrency(metricsB.outrosBalance)}
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Category-by-category considerations */}
+              <div className="space-y-3 pt-2 animate-fadeIn">
+                <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider block border-b border-slate-850/40 pb-1">
+                  Considerações por Categoria (Outros)
+                </span>
+
+                {outrosRevenuesComparison.filter(i => i.valA > 0 || i.valB > 0).length === 0 &&
+                 outrosExpensesComparison.filter(i => i.valA > 0 || i.valB > 0).length === 0 ? (
+                  <p className="text-[10px] text-slate-500 italic">Nenhuma movimentação da categoria Outros registrada nos períodos selecionados.</p>
+                ) : (
+                  <div className="space-y-3">
+                    {/* Entradas (Outros) */}
+                    {outrosRevenuesComparison.some(i => i.valA > 0 || i.valB > 0) && (
+                      <div className="space-y-2">
+                        <span className="text-[9px] font-extrabold text-emerald-400 uppercase tracking-widest block">
+                          Entradas (Outros)
+                        </span>
+                        <div className="space-y-2 select-none">
+                          {outrosRevenuesComparison.map(item => {
+                            if (item.valA === 0 && item.valB === 0) return null;
+                            const diffVal = item.valA - item.valB;
+                            const trendColor = diffVal >= 0 ? 'text-emerald-400' : 'text-rose-455';
+                            const trendIcon = diffVal > 0 ? '🔺' : diffVal < 0 ? '🔻' : '➖';
+                            const trendText = diffVal > 0 ? 'Aumentou' : diffVal < 0 ? 'Diminuiu' : 'Estável';
+
+                            return (
+                              <div key={`rec-${item.category}`} className="p-2 bg-[#0F1115] rounded-xl border border-slate-850 text-[11px] space-y-1">
+                                <div className="flex justify-between font-bold text-slate-200 uppercase tracking-wide">
+                                  <span className="truncate max-w-[140px]" title={item.category}>{item.category}</span>
+                                  <span className={`${trendColor} flex items-center gap-0.5 text-[10px]`}>
+                                    {trendText} {trendIcon}
+                                  </span>
+                                </div>
+                                <div className="flex justify-between text-[10px] text-slate-450 font-medium font-mono">
+                                  <span>{labelMonthA}: {formatCurrency(item.valA)}</span>
+                                  <span>{labelMonthB}: {formatCurrency(item.valB)}</span>
+                                </div>
+                                {diffVal !== 0 && (
+                                  <div className={`text-[9px] font-mono font-bold ${trendColor} text-right`}>
+                                    Var: {diffVal > 0 ? '+' : ''}{formatCurrency(diffVal)} ({diffVal > 0 ? '+' : ''}{item.pct.toFixed(1)}%)
+                                  </div>
+                                )}
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Saídas (Outros) */}
+                    {outrosExpensesComparison.some(i => i.valA > 0 || i.valB > 0) && (
+                      <div className="space-y-2">
+                        <span className="text-[9px] font-extrabold text-rose-400 uppercase tracking-widest block">
+                          Saídas (Outros)
+                        </span>
+                        <div className="space-y-2 select-none">
+                          {outrosExpensesComparison.map(item => {
+                            if (item.valA === 0 && item.valB === 0) return null;
+                            const diffVal = item.valA - item.valB;
+                            const trendColor = diffVal <= 0 ? 'text-emerald-400' : 'text-rose-455';
+                            const trendIcon = diffVal > 0 ? '🔺' : diffVal < 0 ? '🔻' : '➖';
+                            const trendText = diffVal > 0 ? 'Aumentou' : diffVal < 0 ? 'Diminuiu' : 'Estável';
+
+                            return (
+                              <div key={`exp-${item.category}`} className="p-2 bg-[#0F1115] rounded-xl border border-slate-850 text-[11px] space-y-1">
+                                <div className="flex justify-between font-bold text-slate-200 uppercase tracking-wide">
+                                  <span className="truncate max-w-[140px]" title={item.category}>{item.category}</span>
+                                  <span className={`${trendColor} flex items-center gap-0.5 text-[10px]`}>
+                                    {trendText} {trendIcon}
+                                  </span>
+                                </div>
+                                <div className="flex justify-between text-[10px] text-slate-450 font-medium font-mono">
+                                  <span>{labelMonthA}: {formatCurrency(item.valA)}</span>
+                                  <span>{labelMonthB}: {formatCurrency(item.valB)}</span>
+                                </div>
+                                {diffVal !== 0 && (
+                                  <div className={`text-[9px] font-mono font-bold ${trendColor} text-right`}>
+                                    Var: {diffVal > 0 ? '+' : ''}{formatCurrency(diffVal)} ({diffVal > 0 ? '+' : ''}{item.pct.toFixed(1)}%)
+                                  </div>
+                                )}
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
