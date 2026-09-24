@@ -652,6 +652,74 @@ function Dashboard({
   // Set selected hover data state for interactive chart tooltip
   const [hoveredBarIndex, setHoveredBarIndex] = useState<number | null>(null);
 
+  // Monthly stats for Lucro Livre (Serviços) vs Gastos Pessoais and Sobra
+  const lucroPessoaisChartData = React.useMemo(() => {
+    return monthsList.map(month => {
+      const monthServices = services.filter(s => s.date.startsWith(month.key) && s.status === 'PAGO');
+      const monthExpenses = expenses.filter(e => e.date.startsWith(month.key));
+
+      let servicosRevenues = 0;
+      monthServices.forEach(srv => {
+        if (srv.items) {
+          srv.items.forEach(item => {
+            const catName = (item.name || '').trim().toUpperCase();
+            const group = subCategoryGroupMap[`${catName}_RECEITA`] || subCategoryGroupMap[catName] || 'SERVIÇOS';
+            if (group === 'SERVIÇOS') {
+              servicosRevenues += item.value;
+            }
+          });
+        }
+      });
+
+      let servicosExpenses = 0;
+      let personalExpenses = 0;
+      monthExpenses.forEach(exp => {
+        if (exp.category) {
+          const catName = exp.category.trim().toUpperCase();
+          const group = subCategoryGroupMap[`${catName}_GASTO`] || subCategoryGroupMap[catName] || 'SERVIÇOS';
+          if (group === 'SERVIÇOS') {
+            servicosExpenses += exp.value;
+          } else if (group === 'PESSOAIS') {
+            personalExpenses += exp.value;
+          }
+        }
+      });
+
+      const lucroLivre = servicosRevenues - servicosExpenses;
+      const sobra = lucroLivre - personalExpenses;
+
+      return {
+        name: month.name,
+        label: month.label,
+        servicosRevenues,
+        servicosExpenses,
+        lucroLivre,
+        gastosPessoais: personalExpenses,
+        sobra
+      };
+    });
+  }, [services, expenses, monthsList, subCategoryGroupMap]);
+
+  const maxLucroChartValue = React.useMemo(() => {
+    return Math.max(
+      ...lucroPessoaisChartData.map(d => Math.max(Math.max(0, d.lucroLivre), d.gastosPessoais, Math.max(0, d.sobra), 1000))
+    ) * 1.15; // 15% padding top
+  }, [lucroPessoaisChartData]);
+
+  const [hoveredLucroBarIndex, setHoveredLucroBarIndex] = useState<number | null>(null);
+
+  // Annual cumulative totals for Lucro Livre, Gastos Pessoais and Sobra
+  const annualLucroStats = React.useMemo(() => {
+    const totalLucro = lucroPessoaisChartData.reduce((acc, d) => acc + d.lucroLivre, 0);
+    const totalGastos = lucroPessoaisChartData.reduce((acc, d) => acc + d.gastosPessoais, 0);
+    const totalSobra = totalLucro - totalGastos;
+    return {
+      totalLucro,
+      totalGastos,
+      totalSobra
+    };
+  }, [lucroPessoaisChartData]);
+
   const isAdmin = currentSession?.isAdmin === true;
 
   // Reusable Card: Serviços Prestados
@@ -1662,6 +1730,225 @@ function Dashboard({
           </div>
           <div className="mt-3 text-center">
             <p className="text-[11px] text-slate-400 font-medium">Passe o mouse por cima das colunas dos meses para ver os dados detalhados em tempo real.</p>
+          </div>
+        </div>
+      </div>
+
+      {/* Lucro Livre vs Gastos Pessoais com Sobra Graph */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div className="lg:col-span-3 bg-[#161B22] border border-slate-800 rounded-2xl p-6 shadow-sm">
+          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 mb-6">
+            <div>
+              <h3 className="text-lg font-bold text-white">Evolução: Lucro Livre vs Gastos Pessoais {selectedYear}</h3>
+              <p className="text-xs text-slate-400">Comparação anual entre o Lucro Livre (Serviços) e os Gastos Pessoais com a Sobra de {selectedYear}</p>
+            </div>
+            {/* Chart Legend */}
+            <div className="flex flex-wrap items-center gap-4 text-xs font-medium">
+              <div className="flex items-center gap-1.5">
+                <span className="w-3 h-3 rounded bg-indigo-500 inline-block"></span>
+                <span className="text-slate-300">Lucro Livre</span>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <span className="w-3 h-3 rounded bg-violet-500 inline-block"></span>
+                <span className="text-slate-300">Gastos Pessoais</span>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <span className="w-2.5 h-2.5 rounded-full bg-teal-400 inline-block"></span>
+                <span className="text-slate-300">Sobra</span>
+              </div>
+            </div>
+          </div>
+
+          {/* KPI Summary Cards */}
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-6">
+            <div className="p-3.5 bg-[#0F1115] border border-slate-850 rounded-xl">
+              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Total Lucro Livre ({selectedYear})</span>
+              <span className={`text-base font-black font-mono mt-1 block ${annualLucroStats.totalLucro >= 0 ? 'text-indigo-400' : 'text-rose-400'}`}>
+                {formatCurrency(annualLucroStats.totalLucro)}
+              </span>
+            </div>
+            <div className="p-3.5 bg-[#0F1115] border border-slate-850 rounded-xl">
+              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Total Gastos Pessoais ({selectedYear})</span>
+              <span className="text-base font-black font-mono text-violet-400 mt-1 block">
+                {formatCurrency(annualLucroStats.totalGastos)}
+              </span>
+            </div>
+            <div className="p-3.5 bg-[#0F1115] border border-slate-850 rounded-xl">
+              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Sobra Acumulada ({selectedYear})</span>
+              <span className={`text-base font-black font-mono mt-1 block ${annualLucroStats.totalSobra >= 0 ? 'text-teal-400' : 'text-rose-400'}`}>
+                {formatCurrency(annualLucroStats.totalSobra)}
+              </span>
+            </div>
+          </div>
+
+          {/* Interactive Responsive SVG Bar Chart */}
+          <div className="relative h-64 w-full">
+            <svg viewBox="0 0 600 240" className="w-full h-full" preserveAspectRatio="none">
+              {/* Grid Lines */}
+              {[0, 0.25, 0.5, 0.75, 1].map((ratio, i) => {
+                const y = 20 + ratio * 180;
+                const valueLine = maxLucroChartValue * (1 - ratio);
+                return (
+                  <g key={i}>
+                    <line x1="45" y1={y} x2="580" y2={y} stroke="#1e293b" strokeWidth="1" strokeDasharray="3,3" />
+                    <text x="5" y={y + 4} fill="#64748b" className="text-[10px] font-mono font-medium">
+                      {Math.round(valueLine)}
+                    </text>
+                  </g>
+                );
+              })}
+
+              {/* Connecting Sobra Line */}
+              {(() => {
+                const pathD = lucroPessoaisChartData.map((d, index) => {
+                  const groupWidth = 44;
+                  const gap = 3;
+                  const barWidth = 8;
+                  const startX = 50 + index * groupWidth + 6;
+                  const midX = startX + barWidth + gap / 2;
+                  const sobraHeight = (Math.max(0, d.sobra) / maxLucroChartValue) * 180;
+                  const sobraY = d.sobra >= 0 ? 200 - sobraHeight : 202;
+                  return `${index === 0 ? 'M' : 'L'} ${midX} ${sobraY}`;
+                }).join(' ');
+
+                return (
+                  <path
+                    d={pathD}
+                    fill="none"
+                    stroke="#14b8a6"
+                    strokeWidth="1.5"
+                    strokeDasharray="4,4"
+                    opacity="0.65"
+                  />
+                );
+              })()}
+
+              {/* Draw Bars & Sobra Points */}
+              {lucroPessoaisChartData.map((data, index) => {
+                const groupWidth = 44;
+                const gap = 3;
+                const barWidth = 8;
+                const startX = 50 + index * groupWidth + 6;
+
+                // Compute heights based on ratio
+                const lHeight = (Math.max(0, data.lucroLivre) / maxLucroChartValue) * 180;
+                const gHeight = (Math.max(0, data.gastosPessoais) / maxLucroChartValue) * 180;
+
+                const lY = 200 - lHeight;
+                const gY = 200 - gHeight;
+
+                const sobraHeight = (Math.max(0, data.sobra) / maxLucroChartValue) * 180;
+                const sobraY = data.sobra >= 0 ? 200 - sobraHeight : 202;
+
+                const isHovered = hoveredLucroBarIndex === index;
+
+                return (
+                  <g 
+                    key={index} 
+                    onMouseEnter={() => setHoveredLucroBarIndex(index)}
+                    onMouseLeave={() => setHoveredLucroBarIndex(null)}
+                    className="cursor-pointer"
+                  >
+                    {/* Hover highlights background column zone */}
+                    {isHovered && (
+                      <rect 
+                        x={startX - 4} 
+                        y="10" 
+                        width={barWidth * 2 + gap + 8} 
+                        height="200" 
+                        fill="#1e293b" 
+                        rx="4" 
+                        opacity="0.6" 
+                      />
+                    )}
+
+                    {/* Lucro Livre Bar (Indigo) */}
+                    <rect
+                      x={startX}
+                      y={lY}
+                      width={barWidth}
+                      height={Math.max(lHeight, 4)}
+                      rx="1.5"
+                      fill={isHovered ? '#818cf8' : '#6366f1'}
+                      className="transition-all duration-300"
+                    />
+
+                    {/* Gastos Pessoais Bar (Violet) */}
+                    <rect
+                      x={startX + barWidth + gap}
+                      y={gY}
+                      width={barWidth}
+                      height={Math.max(gHeight, 4)}
+                      rx="1.5"
+                      fill={isHovered ? '#c084fc' : '#8b5cf6'}
+                      className="transition-all duration-300"
+                    />
+
+                    {/* Sobra Point (Teal or Red) */}
+                    <circle
+                      cx={startX + barWidth + gap / 2}
+                      cy={sobraY}
+                      r={isHovered ? 5 : 3.5}
+                      fill={data.sobra >= 0 ? '#14b8a6' : '#f43f5e'}
+                      stroke="#0f172a"
+                      strokeWidth="1.5"
+                      className="transition-all duration-200"
+                    />
+
+                    {/* Month Text Anchor */}
+                    <text
+                      x={startX + barWidth / 2 + gap / 2}
+                      y="218"
+                      textAnchor="middle"
+                      fill={isHovered ? '#ffffff' : '#94a3b8'}
+                      className="text-[9px] font-bold tracking-wide"
+                    >
+                      {data.name}
+                    </text>
+                  </g>
+                );
+              })}
+
+              {/* Bottom solid line */}
+              <line x1="45" y1="200" x2="580" y2="200" stroke="#334155" strokeWidth="1.5" />
+            </svg>
+
+            {/* Interactive Float Tooltip overlay */}
+            {hoveredLucroBarIndex !== null && (
+              <div 
+                className="absolute z-10 p-3 bg-slate-900/95 text-white rounded-xl shadow-xl border border-slate-700 text-xs flex flex-col gap-1 w-48"
+                style={{
+                  left: `${Math.min(70, Math.max(5, 5 + hoveredLucroBarIndex * 7.5))}%`,
+                  top: '15px',
+                  pointerEvents: 'none'
+                }}
+              >
+                <div className="font-bold border-b border-slate-800 pb-1 text-indigo-400">
+                  {lucroPessoaisChartData[hoveredLucroBarIndex].label} de {selectedYear}
+                </div>
+                <div className="flex justify-between items-center mt-1">
+                  <span className="text-slate-400">Lucro Livre:</span>
+                  <span className={`font-semibold font-mono ${lucroPessoaisChartData[hoveredLucroBarIndex].lucroLivre >= 0 ? 'text-indigo-400' : 'text-rose-400'}`}>
+                    {formatCurrency(lucroPessoaisChartData[hoveredLucroBarIndex].lucroLivre)}
+                  </span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-slate-400">Gastos Pessoais:</span>
+                  <span className="font-semibold text-violet-400 font-mono">
+                    {formatCurrency(lucroPessoaisChartData[hoveredLucroBarIndex].gastosPessoais)}
+                  </span>
+                </div>
+                <div className="flex justify-between items-center border-t border-slate-800 pt-1 mt-0.5 font-bold animate-fadeIn">
+                  <span className="text-slate-300">Sobra:</span>
+                  <span className={`font-mono ${lucroPessoaisChartData[hoveredLucroBarIndex].sobra >= 0 ? 'text-teal-400' : 'text-red-400'}`}>
+                    {formatCurrency(lucroPessoaisChartData[hoveredLucroBarIndex].sobra)}
+                  </span>
+                </div>
+              </div>
+            )}
+          </div>
+          <div className="mt-3 text-center">
+            <p className="text-[11px] text-slate-400 font-medium">Passe o mouse por cima das colunas dos meses para ver os dados do Lucro Livre, Gastos Pessoais e Sobra em tempo real.</p>
           </div>
         </div>
       </div>
