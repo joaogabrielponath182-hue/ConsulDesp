@@ -721,9 +721,15 @@ function Dashboard({
     };
   }, [lucroPessoaisChartData]);
 
-  // Monthly stats for Comissão Dinho across the 12 months of selectedYear
+  // Monthly stats for Comissão Dinho starting from September (month >= 9) as requested
   const dinhoChartData = React.useMemo(() => {
-    return monthsList.map(month => {
+    // Dinho iniciou o trabalho no mês de Setembro; descartar os meses anteriores (Jan a Ago)
+    const dinhoMonths = monthsList.filter(month => {
+      const monthNum = parseInt(month.key.split('-')[1], 10);
+      return monthNum >= 9;
+    });
+
+    return dinhoMonths.map(month => {
       const monthServices = services.filter(s => s.date.startsWith(month.key) && s.status === 'PAGO');
 
       let honorariosCount = 0;
@@ -787,7 +793,7 @@ function Dashboard({
     const totalRetCrlve = dinhoChartData.reduce((acc, d) => acc + d.comissaoRetCrlve, 0);
     const countHonorarios = dinhoChartData.reduce((acc, d) => acc + d.honorariosCount, 0);
     const countRetCrlve = dinhoChartData.reduce((acc, d) => acc + d.retCrlveCount, 0);
-    const mediaMensal = totalComissao / 12;
+    const mediaMensal = dinhoChartData.length > 0 ? totalComissao / dinhoChartData.length : 0;
 
     return {
       totalComissao,
@@ -796,7 +802,8 @@ function Dashboard({
       countHonorarios,
       countRetCrlve,
       totalProcessos: countHonorarios + countRetCrlve,
-      mediaMensal
+      mediaMensal,
+      monthsCount: dinhoChartData.length
     };
   }, [dinhoChartData]);
 
@@ -817,7 +824,7 @@ function Dashboard({
               <h3 className="text-lg font-bold text-white">Comissão Dinho {selectedYear}</h3>
             </div>
             <p className="text-xs text-slate-400 mt-1">
-              Evolução da comissão total no decorrer dos meses ({selectedYear}) — 2,5% sobre Honorários (líquido de termos) e Ret. CRLV-E
+              Evolução da comissão total a partir de Setembro ({selectedYear}) — 2,5% sobre Honorários (líquido de termos) e Ret. CRLV-E
             </p>
           </div>
           {/* Legend */}
@@ -859,7 +866,7 @@ function Dashboard({
               {formatCurrency(annualDinhoStats.totalHonorarios)}
             </span>
             <span className="text-[10px] text-slate-500 font-mono block mt-0.5">
-              {annualDinhoStats.countHonorarios} honorários no ano
+              {annualDinhoStats.countHonorarios} honorários no período
             </span>
           </div>
 
@@ -871,7 +878,7 @@ function Dashboard({
               {formatCurrency(annualDinhoStats.totalRetCrlve)}
             </span>
             <span className="text-[10px] text-slate-500 font-mono block mt-0.5">
-              {annualDinhoStats.countRetCrlve} retornos no ano
+              {annualDinhoStats.countRetCrlve} retornos no período
             </span>
           </div>
 
@@ -883,7 +890,7 @@ function Dashboard({
               {formatCurrency(annualDinhoStats.mediaMensal)}
             </span>
             <span className="text-[10px] text-slate-500 font-mono block mt-0.5">
-              Base de 12 meses
+              Base de {annualDinhoStats.monthsCount} {annualDinhoStats.monthsCount === 1 ? 'mês' : 'meses'} (Set–Dez)
             </span>
           </div>
         </div>
@@ -907,10 +914,13 @@ function Dashboard({
 
             {/* Connecting Trend Line for Total Comissão */}
             {(() => {
+              const numPoints = dinhoChartData.length;
+              if (numPoints === 0) return null;
+              const groupWidth = 520 / Math.max(numPoints, 1);
+              const barWidth = Math.min(32, groupWidth * 0.35);
+
               const pathD = dinhoChartData.map((d, index) => {
-                const groupWidth = 44;
-                const barWidth = 14;
-                const startX = 50 + index * groupWidth + 6;
+                const startX = 50 + index * groupWidth + (groupWidth - barWidth) / 2;
                 const midX = startX + barWidth / 2;
                 const totalHeight = (d.totalComissao / maxDinhoChartValue) * 180;
                 const totalY = 200 - totalHeight;
@@ -922,7 +932,7 @@ function Dashboard({
                   d={pathD}
                   fill="none"
                   stroke="#f59e0b"
-                  strokeWidth="2"
+                  strokeWidth="2.5"
                   strokeDasharray="4,3"
                   className="transition-all duration-300"
                 />
@@ -931,9 +941,10 @@ function Dashboard({
 
             {/* Draw Bars & Markers */}
             {dinhoChartData.map((data, index) => {
-              const groupWidth = 44;
-              const barWidth = 14;
-              const startX = 50 + index * groupWidth + 6;
+              const numPoints = dinhoChartData.length;
+              const groupWidth = 520 / Math.max(numPoints, 1);
+              const barWidth = Math.min(32, groupWidth * 0.35);
+              const startX = 50 + index * groupWidth + (groupWidth - barWidth) / 2;
               const midX = startX + barWidth / 2;
 
               const totalHeight = (data.totalComissao / maxDinhoChartValue) * 180;
@@ -956,12 +967,12 @@ function Dashboard({
                   {/* Hover background column */}
                   {isHovered && (
                     <rect 
-                      x={startX - 6} 
+                      x={startX - 10} 
                       y="10" 
-                      width={barWidth + 12} 
+                      width={barWidth + 20} 
                       height="200" 
                       fill="#1e293b" 
-                      rx="4" 
+                      rx="6" 
                       opacity="0.6" 
                     />
                   )}
@@ -973,7 +984,7 @@ function Dashboard({
                       y={honorariosY}
                       width={barWidth}
                       height={Math.max(honorariosHeight, 3)}
-                      rx={retCrlveHeight <= 0 ? 3 : 0}
+                      rx={retCrlveHeight <= 0 ? 4 : 0}
                       fill={isHovered ? '#34d399' : '#10b981'}
                       className="transition-all duration-300"
                     />
@@ -986,7 +997,7 @@ function Dashboard({
                       y={retCrlveY}
                       width={barWidth}
                       height={Math.max(retCrlveHeight, 3)}
-                      rx="3"
+                      rx="4"
                       fill={isHovered ? '#60a5fa' : '#3b82f6'}
                       className="transition-all duration-300"
                     />
@@ -1008,20 +1019,20 @@ function Dashboard({
                   <circle
                     cx={midX}
                     cy={totalY}
-                    r={isHovered ? 5.5 : 3.5}
+                    r={isHovered ? 6 : 4}
                     fill={isHovered ? '#fbbf24' : '#f59e0b'}
                     stroke="#0F1115"
-                    strokeWidth="1.5"
+                    strokeWidth="2"
                     className="transition-all duration-200"
                   />
 
                   {/* Month text label */}
                   <text
                     x={midX}
-                    y="218"
+                    y={218}
                     textAnchor="middle"
                     fill={isHovered ? '#ffffff' : '#94a3b8'}
-                    className="text-[9px] font-bold tracking-wide"
+                    className="text-[10px] font-bold tracking-wide"
                   >
                     {data.name}
                   </text>
@@ -1038,7 +1049,7 @@ function Dashboard({
             <div 
               className="absolute z-10 p-3 bg-slate-900/95 text-white rounded-xl shadow-xl border border-slate-700 text-xs flex flex-col gap-1 w-56 pointer-events-none"
               style={{
-                left: `${Math.min(65, Math.max(5, 5 + hoveredDinhoBarIndex * 7.5))}%`,
+                left: `${Math.min(65, Math.max(8, 12 + hoveredDinhoBarIndex * 18))}%`,
                 top: '15px'
               }}
             >
