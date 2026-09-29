@@ -22,7 +22,8 @@ import {
   X,
   Search,
   ChevronDown,
-  ChevronUp
+  ChevronUp,
+  Award
 } from 'lucide-react';
 import { motion } from 'motion/react';
 
@@ -720,7 +721,380 @@ function Dashboard({
     };
   }, [lucroPessoaisChartData]);
 
+  // Monthly stats for Comissão Dinho across the 12 months of selectedYear
+  const dinhoChartData = React.useMemo(() => {
+    return monthsList.map(month => {
+      const monthServices = services.filter(s => s.date.startsWith(month.key) && s.status === 'PAGO');
+
+      let honorariosCount = 0;
+      let honorariosTotal = 0;
+      let retCrlveCount = 0;
+      let retCrlveTotal = 0;
+
+      monthServices.forEach(srv => {
+        if (srv.items && srv.items.length > 0) {
+          srv.items.forEach(item => {
+            const name = (item.name || '').trim().toUpperCase();
+            const normalized = name.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+            const val = Number(item.value) || 0;
+
+            if (normalized === "HONORARIO REVENDA" || normalized.startsWith("HONORARIO REVENDA") || normalized.includes("REVENDA")) {
+              // Excluded from standard honorario
+            } else if (normalized === "HONORARIO" || normalized === "HONORARIOS" || normalized.startsWith("HONORARIO")) {
+              honorariosCount++;
+              honorariosTotal += val;
+            } else if (normalized.includes("CRLV")) {
+              retCrlveCount++;
+              retCrlveTotal += val;
+            }
+          });
+        }
+      });
+
+      const termosCost = honorariosCount * 10;
+      const honorariosBase = Math.max(0, honorariosTotal - termosCost);
+      const comissaoHonorarios = honorariosCount > 0 ? honorariosBase * 0.025 : 0;
+      const comissaoRetCrlve = retCrlveCount > 0 ? retCrlveTotal * 0.025 : 0;
+      const totalComissao = comissaoHonorarios + comissaoRetCrlve;
+
+      return {
+        name: month.name,
+        key: month.key,
+        label: month.label,
+        honorariosCount,
+        honorariosTotal,
+        comissaoHonorarios,
+        retCrlveCount,
+        retCrlveTotal,
+        comissaoRetCrlve,
+        totalComissao,
+        totalProcessos: honorariosCount + retCrlveCount
+      };
+    });
+  }, [services, monthsList]);
+
+  const maxDinhoChartValue = React.useMemo(() => {
+    return Math.max(
+      ...dinhoChartData.map(d => Math.max(d.totalComissao, 300))
+    ) * 1.25; // 25% padding top
+  }, [dinhoChartData]);
+
+  const [hoveredDinhoBarIndex, setHoveredDinhoBarIndex] = useState<number | null>(null);
+
+  const annualDinhoStats = React.useMemo(() => {
+    const totalComissao = dinhoChartData.reduce((acc, d) => acc + d.totalComissao, 0);
+    const totalHonorarios = dinhoChartData.reduce((acc, d) => acc + d.comissaoHonorarios, 0);
+    const totalRetCrlve = dinhoChartData.reduce((acc, d) => acc + d.comissaoRetCrlve, 0);
+    const countHonorarios = dinhoChartData.reduce((acc, d) => acc + d.honorariosCount, 0);
+    const countRetCrlve = dinhoChartData.reduce((acc, d) => acc + d.retCrlveCount, 0);
+    const mediaMensal = totalComissao / 12;
+
+    return {
+      totalComissao,
+      totalHonorarios,
+      totalRetCrlve,
+      countHonorarios,
+      countRetCrlve,
+      totalProcessos: countHonorarios + countRetCrlve,
+      mediaMensal
+    };
+  }, [dinhoChartData]);
+
   const isAdmin = currentSession?.isAdmin === true;
+
+  // Reusable Chart: Comissão Dinho (Exibido no Admin e no Operador)
+  const renderComissaoDinhoChart = () => (
+    <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <div className="lg:col-span-3 bg-[#161B22] border border-slate-800 rounded-2xl p-6 shadow-sm relative overflow-hidden">
+        <div className="absolute top-0 left-0 w-1.5 h-full bg-amber-500"></div>
+
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 mb-6">
+          <div>
+            <div className="flex items-center gap-2">
+              <div className="p-2 rounded-xl bg-amber-500/10 text-amber-400">
+                <Award size={20} />
+              </div>
+              <h3 className="text-lg font-bold text-white">Comissão Dinho {selectedYear}</h3>
+            </div>
+            <p className="text-xs text-slate-400 mt-1">
+              Evolução da comissão total no decorrer dos meses ({selectedYear}) — 2,5% sobre Honorários (líquido de termos) e Ret. CRLV-E
+            </p>
+          </div>
+          {/* Legend */}
+          <div className="flex flex-wrap items-center gap-4 text-xs font-medium">
+            <div className="flex items-center gap-1.5">
+              <span className="w-3 h-3 rounded bg-amber-500 inline-block"></span>
+              <span className="text-slate-300">Total Comissão</span>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <span className="w-3 h-3 rounded bg-emerald-500 inline-block"></span>
+              <span className="text-slate-300">Honorários (2,5%)</span>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <span className="w-3 h-3 rounded bg-blue-500 inline-block"></span>
+              <span className="text-slate-300">Ret. CRLV-E (2,5%)</span>
+            </div>
+          </div>
+        </div>
+
+        {/* KPI Summary Cards */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 mb-6">
+          <div className="p-3.5 bg-[#0F1115] border border-slate-850 rounded-xl">
+            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
+              Total Comissão ({selectedYear})
+            </span>
+            <span className="text-base font-black font-mono text-amber-400 mt-1 block">
+              {formatCurrency(annualDinhoStats.totalComissao)}
+            </span>
+            <span className="text-[10px] text-slate-500 font-mono block mt-0.5">
+              {annualDinhoStats.totalProcessos} processos comissionados
+            </span>
+          </div>
+
+          <div className="p-3.5 bg-[#0F1115] border border-slate-850 rounded-xl">
+            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
+              Comissão Honorários ({selectedYear})
+            </span>
+            <span className="text-base font-black font-mono text-emerald-400 mt-1 block">
+              {formatCurrency(annualDinhoStats.totalHonorarios)}
+            </span>
+            <span className="text-[10px] text-slate-500 font-mono block mt-0.5">
+              {annualDinhoStats.countHonorarios} honorários no ano
+            </span>
+          </div>
+
+          <div className="p-3.5 bg-[#0F1115] border border-slate-850 rounded-xl">
+            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
+              Comissão Ret. CRLV-E ({selectedYear})
+            </span>
+            <span className="text-base font-black font-mono text-blue-400 mt-1 block">
+              {formatCurrency(annualDinhoStats.totalRetCrlve)}
+            </span>
+            <span className="text-[10px] text-slate-500 font-mono block mt-0.5">
+              {annualDinhoStats.countRetCrlve} retornos no ano
+            </span>
+          </div>
+
+          <div className="p-3.5 bg-[#0F1115] border border-slate-850 rounded-xl">
+            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
+              Média Mensal ({selectedYear})
+            </span>
+            <span className="text-base font-black font-mono text-amber-300 mt-1 block">
+              {formatCurrency(annualDinhoStats.mediaMensal)}
+            </span>
+            <span className="text-[10px] text-slate-500 font-mono block mt-0.5">
+              Base de 12 meses
+            </span>
+          </div>
+        </div>
+
+        {/* Interactive Responsive SVG Bar + Line Chart */}
+        <div className="relative h-64 w-full">
+          <svg viewBox="0 0 600 240" className="w-full h-full" preserveAspectRatio="none">
+            {/* Grid Lines */}
+            {[0, 0.25, 0.5, 0.75, 1].map((ratio, i) => {
+              const y = 20 + ratio * 180;
+              const valueLine = maxDinhoChartValue * (1 - ratio);
+              return (
+                <g key={i}>
+                  <line x1="45" y1={y} x2="580" y2={y} stroke="#1e293b" strokeWidth="1" strokeDasharray="3,3" />
+                  <text x="5" y={y + 4} fill="#64748b" className="text-[10px] font-mono font-medium">
+                    {Math.round(valueLine)}
+                  </text>
+                </g>
+              );
+            })}
+
+            {/* Connecting Trend Line for Total Comissão */}
+            {(() => {
+              const pathD = dinhoChartData.map((d, index) => {
+                const groupWidth = 44;
+                const barWidth = 14;
+                const startX = 50 + index * groupWidth + 6;
+                const midX = startX + barWidth / 2;
+                const totalHeight = (d.totalComissao / maxDinhoChartValue) * 180;
+                const totalY = 200 - totalHeight;
+                return `${index === 0 ? 'M' : 'L'} ${midX} ${totalY}`;
+              }).join(' ');
+
+              return (
+                <path
+                  d={pathD}
+                  fill="none"
+                  stroke="#f59e0b"
+                  strokeWidth="2"
+                  strokeDasharray="4,3"
+                  className="transition-all duration-300"
+                />
+              );
+            })()}
+
+            {/* Draw Bars & Markers */}
+            {dinhoChartData.map((data, index) => {
+              const groupWidth = 44;
+              const barWidth = 14;
+              const startX = 50 + index * groupWidth + 6;
+              const midX = startX + barWidth / 2;
+
+              const totalHeight = (data.totalComissao / maxDinhoChartValue) * 180;
+              const honorariosHeight = (data.comissaoHonorarios / maxDinhoChartValue) * 180;
+              const retCrlveHeight = (data.comissaoRetCrlve / maxDinhoChartValue) * 180;
+
+              const totalY = 200 - totalHeight;
+              const honorariosY = 200 - honorariosHeight;
+              const retCrlveY = 200 - totalHeight;
+
+              const isHovered = hoveredDinhoBarIndex === index;
+
+              return (
+                <g 
+                  key={index} 
+                  onMouseEnter={() => setHoveredDinhoBarIndex(index)}
+                  onMouseLeave={() => setHoveredDinhoBarIndex(null)}
+                  className="cursor-pointer"
+                >
+                  {/* Hover background column */}
+                  {isHovered && (
+                    <rect 
+                      x={startX - 6} 
+                      y="10" 
+                      width={barWidth + 12} 
+                      height="200" 
+                      fill="#1e293b" 
+                      rx="4" 
+                      opacity="0.6" 
+                    />
+                  )}
+
+                  {/* Honorários bar segment (Emerald) */}
+                  {honorariosHeight > 0 && (
+                    <rect
+                      x={startX}
+                      y={honorariosY}
+                      width={barWidth}
+                      height={Math.max(honorariosHeight, 3)}
+                      rx={retCrlveHeight <= 0 ? 3 : 0}
+                      fill={isHovered ? '#34d399' : '#10b981'}
+                      className="transition-all duration-300"
+                    />
+                  )}
+
+                  {/* Ret. CRLV-E bar segment (Blue, stacked on top of Honorários) */}
+                  {retCrlveHeight > 0 && (
+                    <rect
+                      x={startX}
+                      y={retCrlveY}
+                      width={barWidth}
+                      height={Math.max(retCrlveHeight, 3)}
+                      rx="3"
+                      fill={isHovered ? '#60a5fa' : '#3b82f6'}
+                      className="transition-all duration-300"
+                    />
+                  )}
+
+                  {/* Flat baseline placeholder if 0 */}
+                  {data.totalComissao <= 0 && (
+                    <rect
+                      x={startX}
+                      y="198"
+                      width={barWidth}
+                      height="2"
+                      rx="1"
+                      fill="#334155"
+                    />
+                  )}
+
+                  {/* Total point marker */}
+                  <circle
+                    cx={midX}
+                    cy={totalY}
+                    r={isHovered ? 5.5 : 3.5}
+                    fill={isHovered ? '#fbbf24' : '#f59e0b'}
+                    stroke="#0F1115"
+                    strokeWidth="1.5"
+                    className="transition-all duration-200"
+                  />
+
+                  {/* Month text label */}
+                  <text
+                    x={midX}
+                    y="218"
+                    textAnchor="middle"
+                    fill={isHovered ? '#ffffff' : '#94a3b8'}
+                    className="text-[9px] font-bold tracking-wide"
+                  >
+                    {data.name}
+                  </text>
+                </g>
+              );
+            })}
+
+            {/* Bottom solid line */}
+            <line x1="45" y1="200" x2="580" y2="200" stroke="#334155" strokeWidth="1.5" />
+          </svg>
+
+          {/* Interactive Float Tooltip overlay */}
+          {hoveredDinhoBarIndex !== null && (
+            <div 
+              className="absolute z-10 p-3 bg-slate-900/95 text-white rounded-xl shadow-xl border border-slate-700 text-xs flex flex-col gap-1 w-56 pointer-events-none"
+              style={{
+                left: `${Math.min(65, Math.max(5, 5 + hoveredDinhoBarIndex * 7.5))}%`,
+                top: '15px'
+              }}
+            >
+              <div className="font-bold border-b border-slate-800 pb-1 text-amber-400 flex items-center justify-between">
+                <span>{dinhoChartData[hoveredDinhoBarIndex].label} de {selectedYear}</span>
+                <span className="text-[9px] text-slate-400 font-mono">
+                  {dinhoChartData[hoveredDinhoBarIndex].totalProcessos} proc.
+                </span>
+              </div>
+              <div className="flex justify-between items-center mt-1">
+                <span className="text-slate-300 font-semibold">Total Comissão:</span>
+                <span className="font-bold font-mono text-amber-400">
+                  {formatCurrency(dinhoChartData[hoveredDinhoBarIndex].totalComissao)}
+                </span>
+              </div>
+              <div className="flex justify-between items-center text-[11px]">
+                <span className="text-slate-400 flex items-center gap-1">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 inline-block"></span>
+                  Honorários (2,5%):
+                </span>
+                <span className="font-mono text-emerald-400 font-semibold">
+                  {formatCurrency(dinhoChartData[hoveredDinhoBarIndex].comissaoHonorarios)}
+                </span>
+              </div>
+              <div className="flex justify-between items-center text-[10px] text-slate-500 pl-2">
+                <span>Quantidade / Base:</span>
+                <span className="font-mono">
+                  {dinhoChartData[hoveredDinhoBarIndex].honorariosCount} un. ({formatCurrency(dinhoChartData[hoveredDinhoBarIndex].honorariosTotal)})
+                </span>
+              </div>
+              <div className="flex justify-between items-center text-[11px] mt-0.5">
+                <span className="text-slate-400 flex items-center gap-1">
+                  <span className="w-1.5 h-1.5 rounded-full bg-blue-400 inline-block"></span>
+                  Ret. CRLV-E (2,5%):
+                </span>
+                <span className="font-mono text-blue-400 font-semibold">
+                  {formatCurrency(dinhoChartData[hoveredDinhoBarIndex].comissaoRetCrlve)}
+                </span>
+              </div>
+              <div className="flex justify-between items-center text-[10px] text-slate-500 pl-2">
+                <span>Quantidade / Base:</span>
+                <span className="font-mono">
+                  {dinhoChartData[hoveredDinhoBarIndex].retCrlveCount} un. ({formatCurrency(dinhoChartData[hoveredDinhoBarIndex].retCrlveTotal)})
+                </span>
+              </div>
+            </div>
+          )}
+        </div>
+        <div className="mt-3 text-center">
+          <p className="text-[11px] text-slate-400 font-medium">
+            Passe o mouse por cima das colunas dos meses para ver os dados detalhados da comissão em tempo real.
+          </p>
+        </div>
+      </div>
+    </div>
+  );
 
   // Reusable Card: Serviços Prestados
   const renderServicosPrestadosCard = () => {
@@ -1096,6 +1470,9 @@ function Dashboard({
 
         {/* Contas a Receber */}
         {renderContasAReceberCard()}
+
+        {/* Gráfico de Evolução: Comissão Dinho (Exclusivo para Operador) */}
+        {renderComissaoDinhoChart()}
       </div>
     );
   }
@@ -1578,6 +1955,9 @@ function Dashboard({
 
       {/* Contas a Receber (Accounts Receivable) Widget */}
       {renderContasAReceberCard()}
+
+      {/* Gráfico: Comissão Dinho (posicionado acima da Evolução Financeira) */}
+      {renderComissaoDinhoChart()}
 
       {/* Main Stats Column with Custom Grouped SVG Graph */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
