@@ -4,7 +4,7 @@
  */
 
 import React, { useState, useMemo } from 'react';
-import { Service, Expense, SubCategory } from '../types';
+import { Service, Expense, SubCategory, UserSession } from '../types';
 import { 
   Calendar, 
   TrendingUp, 
@@ -26,12 +26,13 @@ interface ReportsComparativeProps {
   services: Service[];
   expenses: Expense[];
   subCategories: SubCategory[];
-  currentSession?: { username: string } | null;
+  currentSession?: UserSession | null;
 }
 
 const currencyFormatter = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' });
 
 export default function ReportsComparative({ services, expenses, subCategories, currentSession }: ReportsComparativeProps) {
+  const isAdmin = currentSession?.isAdmin === true;
   // Helper to get formatted dates
   const getLocalDateString = (offsetDays = 0) => {
     const d = new Date();
@@ -909,8 +910,10 @@ export default function ReportsComparative({ services, expenses, subCategories, 
         </div>
       </div>
 
-      {/* Narrative AI/System Executive Summary Text */}
-      <div className="bg-slate-900/50 border-2 border-emerald-500/10 rounded-2xl p-6 relative overflow-hidden">
+      {isAdmin && (
+        <>
+          {/* Narrative AI/System Executive Summary Text */}
+          <div className="bg-slate-900/50 border-2 border-emerald-500/10 rounded-2xl p-6 relative overflow-hidden">
         <div className="absolute top-0 right-0 p-4 text-emerald-500/10">
           <Sparkles size={120} />
         </div>
@@ -1663,6 +1666,8 @@ export default function ReportsComparative({ services, expenses, subCategories, 
           })}
         </div>
       </div>
+        </>
+      )}
 
       {/* Informativo: Lançamentos e Comissões do Operador Dinho */}
       <div className="bg-[#161B22] border border-slate-800 rounded-2xl p-6 shadow-sm space-y-6">
@@ -1990,79 +1995,81 @@ export default function ReportsComparative({ services, expenses, subCategories, 
           )}
         </div>
       </div>
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-        
-        {/* Revenue Categories Comparison */}
-        <div className="bg-[#161B22] border border-slate-800 rounded-2xl p-6 shadow-sm space-y-4">
-          <h3 className="text-xs font-extrabold text-emerald-400 uppercase tracking-wider pb-3 border-b border-slate-800 flex items-center justify-between">
-            <span>Comparativo de Receitas por Item</span>
-            <span className="text-[9px] text-slate-450 lowercase tracking-normal">ordenado por valor total no Período "{labelMonthA}"</span>
-          </h3>
+      {isAdmin && (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+          
+          {/* Revenue Categories Comparison */}
+          <div className="bg-[#161B22] border border-slate-800 rounded-2xl p-6 shadow-sm space-y-4">
+            <h3 className="text-xs font-extrabold text-emerald-400 uppercase tracking-wider pb-3 border-b border-slate-800 flex items-center justify-between">
+              <span>Comparativo de Receitas por Item</span>
+              <span className="text-[9px] text-slate-450 lowercase tracking-normal">ordenado por valor total no Período "{labelMonthA}"</span>
+            </h3>
 
-          <div className="space-y-3 max-h-[350px] overflow-y-auto pr-1 select-none scrollbar-thin">
-            {revenueCategoriesComparison.length === 0 ? (
-              <p className="text-xs text-slate-500 italic py-2">Nenhuma receita registrada em ambos os períodos.</p>
-            ) : (
-              revenueCategoriesComparison.map(item => (
-                <div key={item.category} className="p-3 bg-[#0F1115] rounded-xl border border-slate-850/50 space-y-2">
-                  <div className="flex justify-between items-center">
-                    <span className="text-xs font-bold text-slate-200 uppercase tracking-wide truncate max-w-[150px]">{item.category}</span>
-                    <span className={`text-[10px] font-bold font-mono ${item.diff >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
-                      {item.diff >= 0 ? '+' : ''}{item.pct.toFixed(1)}%
-                    </span>
-                  </div>
-                  <div className="grid grid-cols-2 gap-2 text-[11px] font-mono">
-                    <div>
-                      <span className="text-slate-500 block text-[9px] uppercase font-bold">{labelMonthA}:</span>
-                      <span className="text-white font-extrabold">{formatCurrency(item.valA)}</span>
+            <div className="space-y-3 max-h-[350px] overflow-y-auto pr-1 select-none scrollbar-thin">
+              {revenueCategoriesComparison.length === 0 ? (
+                <p className="text-xs text-slate-500 italic py-2">Nenhuma receita registrada em ambos os períodos.</p>
+              ) : (
+                revenueCategoriesComparison.map(item => (
+                  <div key={item.category} className="p-3 bg-[#0F1115] rounded-xl border border-slate-850/50 space-y-2">
+                    <div className="flex justify-between items-center">
+                      <span className="text-xs font-bold text-slate-200 uppercase tracking-wide truncate max-w-[150px]">{item.category}</span>
+                      <span className={`text-[10px] font-bold font-mono ${item.diff >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+                        {item.diff >= 0 ? '+' : ''}{item.pct.toFixed(1)}%
+                      </span>
                     </div>
-                    <div>
-                      <span className="text-slate-500 block text-[9px] uppercase font-bold">{labelMonthB}:</span>
-                      <span className="text-slate-400">{formatCurrency(item.valB)}</span>
+                    <div className="grid grid-cols-2 gap-2 text-[11px] font-mono">
+                      <div>
+                        <span className="text-slate-500 block text-[9px] uppercase font-bold">{labelMonthA}:</span>
+                        <span className="text-white font-extrabold">{formatCurrency(item.valA)}</span>
+                      </div>
+                      <div>
+                        <span className="text-slate-500 block text-[9px] uppercase font-bold">{labelMonthB}:</span>
+                        <span className="text-slate-400">{formatCurrency(item.valB)}</span>
+                      </div>
                     </div>
                   </div>
-                </div>
-              ))
-            )}
+                ))
+              )}
+            </div>
           </div>
-        </div>
 
-        {/* Expense Categories Comparison */}
-        <div className="bg-[#161B22] border border-slate-800 rounded-2xl p-6 shadow-sm space-y-4">
-          <h3 className="text-xs font-extrabold text-rose-455 uppercase tracking-wider pb-3 border-b border-slate-800 flex items-center justify-between">
-            <span>Comparativo de Gastos por Categoria</span>
-            <span className="text-[9px] text-slate-450 lowercase tracking-normal">ordenado por valor total no Período "{labelMonthA}"</span>
-          </h3>
+          {/* Expense Categories Comparison */}
+          <div className="bg-[#161B22] border border-slate-800 rounded-2xl p-6 shadow-sm space-y-4">
+            <h3 className="text-xs font-extrabold text-rose-455 uppercase tracking-wider pb-3 border-b border-slate-800 flex items-center justify-between">
+              <span>Comparativo de Gastos por Categoria</span>
+              <span className="text-[9px] text-slate-450 lowercase tracking-normal">ordenado por valor total no Período "{labelMonthA}"</span>
+            </h3>
 
-          <div className="space-y-3 max-h-[350px] overflow-y-auto pr-1 select-none scrollbar-thin">
-            {expenseCategoriesComparison.length === 0 ? (
-              <p className="text-xs text-slate-500 italic py-2">Nenhum gasto registrado em ambos os períodos.</p>
-            ) : (
-              expenseCategoriesComparison.map(item => (
-                <div key={item.category} className="p-3 bg-[#0F1115] rounded-xl border border-slate-850/50 space-y-2">
-                  <div className="flex justify-between items-center">
-                    <span className="text-xs font-bold text-slate-200 uppercase tracking-wide truncate max-w-[150px]">{item.category}</span>
-                    <span className={`text-[10px] font-bold font-mono ${item.diff <= 0 ? 'text-emerald-400' : 'text-rose-450'}`}>
-                      {item.diff > 0 ? '+' : ''}{item.pct.toFixed(1)}%
-                    </span>
-                  </div>
-                  <div className="grid grid-cols-2 gap-2 text-[11px] font-mono">
-                    <div>
-                      <span className="text-slate-500 block text-[9px] uppercase font-bold">{labelMonthA}:</span>
-                      <span className="text-white font-extrabold">{formatCurrency(item.valA)}</span>
+            <div className="space-y-3 max-h-[350px] overflow-y-auto pr-1 select-none scrollbar-thin">
+              {expenseCategoriesComparison.length === 0 ? (
+                <p className="text-xs text-slate-500 italic py-2">Nenhum gasto registrado em ambos os períodos.</p>
+              ) : (
+                expenseCategoriesComparison.map(item => (
+                  <div key={item.category} className="p-3 bg-[#0F1115] rounded-xl border border-slate-850/50 space-y-2">
+                    <div className="flex justify-between items-center">
+                      <span className="text-xs font-bold text-slate-200 uppercase tracking-wide truncate max-w-[150px]">{item.category}</span>
+                      <span className={`text-[10px] font-bold font-mono ${item.diff <= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+                        {item.diff > 0 ? '+' : ''}{item.pct.toFixed(1)}%
+                      </span>
                     </div>
-                    <div>
-                      <span className="text-slate-500 block text-[9px] uppercase font-bold">{labelMonthB}:</span>
-                      <span className="text-slate-400">{formatCurrency(item.valB)}</span>
+                    <div className="grid grid-cols-2 gap-2 text-[11px] font-mono">
+                      <div>
+                        <span className="text-slate-500 block text-[9px] uppercase font-bold">{labelMonthA}:</span>
+                        <span className="text-white font-extrabold">{formatCurrency(item.valA)}</span>
+                      </div>
+                      <div>
+                        <span className="text-slate-500 block text-[9px] uppercase font-bold">{labelMonthB}:</span>
+                        <span className="text-slate-400">{formatCurrency(item.valB)}</span>
+                      </div>
                     </div>
                   </div>
-                </div>
-              ))
-            )}
+                ))
+              )}
+            </div>
           </div>
-        </div>
 
-      </div>
+        </div>
+      )}
 
     </div>
   );

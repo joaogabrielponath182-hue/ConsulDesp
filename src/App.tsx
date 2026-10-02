@@ -1225,8 +1225,8 @@ export default function App() {
   // Switch tab and close drawer helper
   const handleNavigate = useCallback((tab: string, initialStatus?: string) => {
     let targetTab = tab;
-    // Restrict comparative report and operators tab for non-admin operators
-    if (!currentSession?.isAdmin && (targetTab === 'reports-comparative' || targetTab === 'operators')) {
+    // Restrict operators management tab for non-admin operators
+    if (!currentSession?.isAdmin && targetTab === 'operators') {
       targetTab = 'reports-general';
     }
     setCurrentTab(targetTab);
@@ -1242,7 +1242,7 @@ export default function App() {
 
   // Safety redirect: ensure non-admin operator cannot access restricted tabs
   useEffect(() => {
-    if (currentSession && !currentSession.isAdmin && (currentTab === 'reports-comparative' || currentTab === 'operators')) {
+    if (currentSession && !currentSession.isAdmin && currentTab === 'operators') {
       setCurrentTab('reports-general');
     }
   }, [currentSession, currentTab]);
@@ -1526,18 +1526,16 @@ export default function App() {
                 >
                   Relatório de Pendências
                 </button>
-                {currentSession?.isAdmin && (
-                  <button
-                    onClick={() => handleNavigate('reports-comparative')}
-                    className={`flex-1 sm:flex-none px-4 py-2 rounded-lg text-xs font-bold tracking-wide transition-all cursor-pointer ${
-                      currentTab === 'reports-comparative'
-                        ? 'bg-emerald-600 text-white shadow-md'
-                        : 'text-slate-400 hover:text-white hover:bg-slate-800/40'
-                    }`}
-                  >
-                    Relatório Comparativo
-                  </button>
-                )}
+                <button
+                  onClick={() => handleNavigate('reports-comparative')}
+                  className={`flex-1 sm:flex-none px-4 py-2 rounded-lg text-xs font-bold tracking-wide transition-all cursor-pointer ${
+                    currentTab === 'reports-comparative'
+                      ? 'bg-emerald-600 text-white shadow-md'
+                      : 'text-slate-400 hover:text-white hover:bg-slate-800/40'
+                  }`}
+                >
+                  Relatório Comparativo
+                </button>
               </div>
             </div>
           )}
@@ -1624,7 +1622,7 @@ export default function App() {
             />
           )}
 
-          {currentTab === 'reports-comparative' && currentSession?.isAdmin && (
+          {currentTab === 'reports-comparative' && (
             <ReportsComparative
               services={filteredServices}
               expenses={filteredExpenses}
