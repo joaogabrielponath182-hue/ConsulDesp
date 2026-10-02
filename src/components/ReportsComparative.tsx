@@ -340,6 +340,88 @@ export default function ReportsComparative({ services, expenses, subCategories, 
       expensesByCategory[catName] = (expensesByCategory[catName] || 0) + e.value;
     });
 
+    // 6. Metrics strictly aligned with Painel Geral (Dashboard.tsx) for subcategories and commission
+    const paidServices = filteredServices.filter(s => s.status === 'PAGO');
+
+    let pgHonorariosCount = 0;
+    let pgHonorariosTotal = 0;
+    let pgHonorariosBielCount = 0;
+    let pgHonorariosDinhoCount = 0;
+
+    let pgHonorariosRevendaCount = 0;
+    let pgHonorariosRevendaTotal = 0;
+
+    let pgPlacasCount = 0;
+    let pgPlacasTotal = 0;
+
+    let pgRetCrlveCount = 0;
+    let pgRetCrlveTotal = 0;
+    let pgRetCrlveBielCount = 0;
+    let pgRetCrlveDinhoCount = 0;
+
+    let pgAtpvCount = 0;
+    let pgAtpvTotal = 0;
+
+    paidServices.forEach(srv => {
+      const isDinho = (srv.operator || '').toLowerCase().includes('dinho');
+
+      if (srv.items && srv.items.length > 0) {
+        srv.items.forEach(item => {
+          const name = (item.name || '').trim().toUpperCase();
+          const normalized = name.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+          const val = Number(item.value) || 0;
+          
+          if (normalized === "HONORARIO REVENDA" || normalized.startsWith("HONORARIO REVENDA") || normalized.includes("REVENDA")) {
+            pgHonorariosRevendaCount++;
+            pgHonorariosRevendaTotal += val;
+          } else if (normalized === "HONORARIO" || normalized === "HONORARIOS" || normalized.startsWith("HONORARIO")) {
+            pgHonorariosCount++;
+            pgHonorariosTotal += val;
+            if (isDinho) {
+              pgHonorariosDinhoCount++;
+            } else {
+              pgHonorariosBielCount++;
+            }
+          } else if (normalized === "PLACA" || normalized === "PLACAS" || normalized.startsWith("PLACA")) {
+            pgPlacasCount++;
+            pgPlacasTotal += val;
+          } else if (normalized.includes("CRLV")) {
+            pgRetCrlveCount++;
+            pgRetCrlveTotal += val;
+            if (isDinho) {
+              pgRetCrlveDinhoCount++;
+            } else {
+              pgRetCrlveBielCount++;
+            }
+          } else if (normalized === "ATPV-E" || normalized === "ATPV E" || normalized === "ATPVE" || normalized.includes("ATPV")) {
+            pgAtpvCount++;
+            pgAtpvTotal += val;
+          }
+        });
+      }
+    });
+
+    // Exact Commission from Painel Geral (Dashboard.tsx):
+    // 2.5% sobre Honorários (líquido de termos R$ 10) e 2.5% sobre Ret. CRLV-E
+    const pgHonorariosTermosCost = pgHonorariosCount * 10;
+    const pgHonorariosBase = Math.max(0, pgHonorariosTotal - pgHonorariosTermosCost);
+    const pgHonorariosAvg = pgHonorariosCount > 0 ? pgHonorariosBase / pgHonorariosCount : 0;
+    const comissaoHonorarios = pgHonorariosCount > 0 ? pgHonorariosBase * 0.025 : 0;
+
+    const pgRetCrlveAvg = pgRetCrlveCount > 0 ? pgRetCrlveTotal / pgRetCrlveCount : 0;
+    const comissaoRetCrlve = pgRetCrlveCount > 0 ? pgRetCrlveTotal * 0.025 : 0;
+
+    const pgPlacasAvg = pgPlacasCount > 0 ? pgPlacasTotal / pgPlacasCount : 0;
+    const pgAtpvTermosCost = pgAtpvCount * 10;
+    const pgAtpvAvg = pgAtpvCount > 0 ? Math.max(0, pgAtpvTotal - pgAtpvTermosCost) / pgAtpvCount : 0;
+
+    const comissaoTotal = comissaoHonorarios + comissaoRetCrlve;
+
+    // Direct launches by operator Dinho (activity reference)
+    const dinhoServices = filteredServices.filter(s => (s.operator || '').toLowerCase().includes('dinho'));
+    const dinhoTotalValue = dinhoServices.reduce((sum, s) => sum + s.totalValue, 0);
+    const dinhoServicesCount = dinhoServices.length;
+
     return {
       totalRevenues,
       paidRevenues,
@@ -367,7 +449,32 @@ export default function ReportsComparative({ services, expenses, subCategories, 
       outrosExpensesTotal,
       outrosBalance: outrosRevenuesTotal - outrosExpensesTotal,
       outrosRevenueCatsBreakdown,
-      outrosExpenseCatsBreakdown
+      outrosExpenseCatsBreakdown,
+      dinho: {
+        totalValue: dinhoTotalValue,
+        servicesCount: dinhoServicesCount,
+        honorariosCount: pgHonorariosCount,
+        honorariosValue: pgHonorariosTotal,
+        honorariosBielCount: pgHonorariosBielCount,
+        honorariosDinhoCount: pgHonorariosDinhoCount,
+        honorariosTermosCost: pgHonorariosTermosCost,
+        honorariosAvg: pgHonorariosAvg,
+        comissaoHonorarios,
+        retCrlveCount: pgRetCrlveCount,
+        retCrlveValue: pgRetCrlveTotal,
+        retCrlveBielCount: pgRetCrlveBielCount,
+        retCrlveDinhoCount: pgRetCrlveDinhoCount,
+        retCrlveAvg: pgRetCrlveAvg,
+        comissaoRetCrlve,
+        placasCount: pgPlacasCount,
+        placasValue: pgPlacasTotal,
+        placasAvg: pgPlacasAvg,
+        atpvCount: pgAtpvCount,
+        atpvValue: pgAtpvTotal,
+        atpvTermosCost: pgAtpvTermosCost,
+        atpvAvg: pgAtpvAvg,
+        comissaoTotal
+      }
     };
   };
 
@@ -554,6 +661,18 @@ export default function ReportsComparative({ services, expenses, subCategories, 
       summaryText += `Houve um saldo de sobra ${formatCurrency(Math.abs(sobraVar.diff))} menor (${sobraVar.pct.toFixed(1)}%) em "${labelMonthA}" em comparação a "${labelMonthB}".`;
     } else {
       summaryText += `A sobra final foi equivalente em ambos os períodos.`;
+    }
+
+    // Comissão Dinho insight
+    const comissaoVar = getVariance(metricsA.dinho.comissaoTotal, metricsB.dinho.comissaoTotal);
+    summaryText += `\n\n**Comissão Operador Dinho**: `;
+    summaryText += `A comissão apurada no período "${labelMonthA}" foi de ${formatCurrency(metricsA.dinho.comissaoTotal)} e no período "${labelMonthB}" foi de ${formatCurrency(metricsB.dinho.comissaoTotal)}, calculada sobre a base de Honorários (líquido de termos) e Retiradas de CRLV-E (2,5%) idêntica ao painel geral. `;
+    if (comissaoVar.diff > 0) {
+      summaryText += `Houve um acréscimo de ${formatCurrency(comissaoVar.diff)} (+${comissaoVar.pct.toFixed(1)}%) na comissão em "${labelMonthA}" na comparação com "${labelMonthB}".`;
+    } else if (comissaoVar.diff < 0) {
+      summaryText += `Houve uma redução de ${formatCurrency(Math.abs(comissaoVar.diff))} (${comissaoVar.pct.toFixed(1)}%) na comissão em "${labelMonthA}" na comparação com "${labelMonthB}".`;
+    } else {
+      summaryText += `A comissão gerada foi equivalente em ambos os períodos.`;
     }
 
     return summaryText;
@@ -1397,7 +1516,229 @@ export default function ReportsComparative({ services, expenses, subCategories, 
         </div>
       </div>
 
-      {/* Categories Detailed Comparison Lists */}
+      {/* Informativo: Lançamentos e Comissão do Operador Dinho */}
+      <div className="bg-[#161B22] border border-slate-800 rounded-2xl p-6 shadow-sm space-y-6">
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 pb-3 border-b border-slate-800">
+          <div className="flex items-center gap-2">
+            <User size={16} className="text-amber-400" />
+            <h2 className="text-sm font-bold text-white uppercase tracking-wider">
+              Lançamentos e Comissão: Operador Dinho
+            </h2>
+          </div>
+          <span className="text-[10px] text-slate-400 font-mono">
+            Dados e comissão calculados com base no Painel Geral ({labelMonthA} vs {labelMonthB})
+          </span>
+        </div>
+
+        {/* Resumo Consolidado do Operador Dinho */}
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          {/* Card 1: Valor Total Lançado */}
+          {(() => {
+            const { diff, pct } = getVariance(metricsA.dinho.totalValue, metricsB.dinho.totalValue);
+            return (
+              <div className="p-4 bg-[#0F1115] border border-slate-850 rounded-xl space-y-2">
+                <span className="text-[9px] uppercase font-bold text-slate-400 tracking-wider block">Valor Total Lançado (Op. Dinho)</span>
+                <div className="flex items-baseline gap-2">
+                  <span className="text-lg font-black text-white font-mono">{formatCurrency(metricsA.dinho.totalValue)}</span>
+                  <span className="text-[10px] text-slate-500 font-mono">vs {formatCurrency(metricsB.dinho.totalValue)}</span>
+                </div>
+                <div className="flex justify-between items-center text-[10px] pt-1 border-t border-slate-800/60 font-mono">
+                  <span className="text-slate-400">Variação:</span>
+                  <span className={`font-bold flex items-center gap-0.5 ${diff >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+                    {diff >= 0 ? '+' : ''}{formatCurrency(diff)} ({diff >= 0 ? '+' : ''}{pct.toFixed(1)}%) {diff >= 0 ? '🔺' : '🔻'}
+                  </span>
+                </div>
+              </div>
+            );
+          })()}
+
+          {/* Card 2: Quantidade de Serviços/Veículos */}
+          {(() => {
+            const diff = metricsA.dinho.servicesCount - metricsB.dinho.servicesCount;
+            const pct = metricsB.dinho.servicesCount > 0 ? (diff / metricsB.dinho.servicesCount) * 100 : (metricsA.dinho.servicesCount > 0 ? 100 : 0);
+            return (
+              <div className="p-4 bg-[#0F1115] border border-slate-850 rounded-xl space-y-2">
+                <span className="text-[9px] uppercase font-bold text-slate-400 tracking-wider block">Serviços Lançados (Op. Dinho)</span>
+                <div className="flex items-baseline gap-2">
+                  <span className="text-lg font-black text-white font-mono">{metricsA.dinho.servicesCount} un</span>
+                  <span className="text-[10px] text-slate-500 font-mono">vs {metricsB.dinho.servicesCount} un</span>
+                </div>
+                <div className="flex justify-between items-center text-[10px] pt-1 border-t border-slate-800/60 font-mono">
+                  <span className="text-slate-400">Variação:</span>
+                  <span className={`font-bold flex items-center gap-0.5 ${diff >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+                    {diff >= 0 ? `+${diff}` : diff} ({diff >= 0 ? '+' : ''}{pct.toFixed(1)}%) {diff >= 0 ? '🔺' : '🔻'}
+                  </span>
+                </div>
+              </div>
+            );
+          })()}
+
+          {/* Card 3: Comissão */}
+          {(() => {
+            const { diff, pct } = getVariance(metricsA.dinho.comissaoTotal, metricsB.dinho.comissaoTotal);
+            return (
+              <div className="p-4 bg-[#0F1115] border border-slate-850 rounded-xl space-y-2">
+                <div className="flex justify-between items-center">
+                  <span className="text-[9px] uppercase font-bold text-amber-400 tracking-wider block">Comissão</span>
+                  <span className="text-[9px] text-slate-500 font-mono">2,5% (Painel Geral)</span>
+                </div>
+                <div className="flex items-baseline gap-2">
+                  <span className="text-lg font-black text-amber-300 font-mono">{formatCurrency(metricsA.dinho.comissaoTotal)}</span>
+                  <span className="text-[10px] text-slate-500 font-mono">vs {formatCurrency(metricsB.dinho.comissaoTotal)}</span>
+                </div>
+                <div className="flex justify-between items-center text-[10px] pt-1 border-t border-slate-800/60 font-mono">
+                  <span className="text-slate-400">Variação:</span>
+                  <span className={`font-bold flex items-center gap-0.5 ${diff >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+                    {diff >= 0 ? '+' : ''}{formatCurrency(diff)} ({diff >= 0 ? '+' : ''}{pct.toFixed(1)}%) {diff >= 0 ? '🔺' : '🔻'}
+                  </span>
+                </div>
+              </div>
+            );
+          })()}
+        </div>
+
+        {/* Detalhamento por Item: Quantitativo e Valor por Categoria de Serviço */}
+        <div className="space-y-3 pt-2">
+          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-1">
+            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
+              Quantitativo e Valor por Categoria de Serviço (Op. Dinho)
+            </span>
+            <span className="text-[9.5px] text-slate-500 font-mono">
+              Comissão apurada com os valores e critérios do Painel Geral
+            </span>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5">
+            {[
+              { 
+                label: 'Honorários', 
+                countA: metricsA.dinho.honorariosCount, 
+                countB: metricsB.dinho.honorariosCount, 
+                dinhoCountA: metricsA.dinho.honorariosDinhoCount,
+                dinhoCountB: metricsB.dinho.honorariosDinhoCount,
+                valA: metricsA.dinho.honorariosValue, 
+                valB: metricsB.dinho.honorariosValue, 
+                avgA: metricsA.dinho.honorariosAvg,
+                avgB: metricsB.dinho.honorariosAvg,
+                comissaoA: metricsA.dinho.comissaoHonorarios,
+                comissaoB: metricsB.dinho.comissaoHonorarios,
+                color: 'text-emerald-400'
+              },
+              { 
+                label: 'Ret. CRLV-E', 
+                countA: metricsA.dinho.retCrlveCount, 
+                countB: metricsB.dinho.retCrlveCount, 
+                dinhoCountA: metricsA.dinho.retCrlveDinhoCount,
+                dinhoCountB: metricsB.dinho.retCrlveDinhoCount,
+                valA: metricsA.dinho.retCrlveValue, 
+                valB: metricsB.dinho.retCrlveValue, 
+                avgA: metricsA.dinho.retCrlveAvg,
+                avgB: metricsB.dinho.retCrlveAvg,
+                comissaoA: metricsA.dinho.comissaoRetCrlve,
+                comissaoB: metricsB.dinho.comissaoRetCrlve,
+                color: 'text-blue-400'
+              },
+              { 
+                label: 'Placas', 
+                countA: metricsA.dinho.placasCount, 
+                countB: metricsB.dinho.placasCount, 
+                valA: metricsA.dinho.placasValue, 
+                valB: metricsB.dinho.placasValue, 
+                avgA: metricsA.dinho.placasAvg,
+                avgB: metricsB.dinho.placasAvg,
+                color: 'text-amber-400'
+              },
+              { 
+                label: 'ATPV-E', 
+                countA: metricsA.dinho.atpvCount, 
+                countB: metricsB.dinho.atpvCount, 
+                valA: metricsA.dinho.atpvValue, 
+                valB: metricsB.dinho.atpvValue, 
+                avgA: metricsA.dinho.atpvAvg,
+                avgB: metricsB.dinho.atpvAvg,
+                color: 'text-indigo-400'
+              }
+            ].map(item => {
+              const diffCount = item.countA - item.countB;
+              const { diff: diffVal, pct: pctVal } = getVariance(item.valA, item.valB);
+              const hasComissao = item.comissaoA !== undefined && item.comissaoB !== undefined;
+              const comDiff = hasComissao ? getVariance(item.comissaoA, item.comissaoB) : null;
+
+              return (
+                <div key={item.label} className="p-3.5 bg-[#0F1115] border border-slate-850 rounded-xl space-y-2.5">
+                  <div className="flex justify-between items-center">
+                    <span className="text-xs font-bold text-slate-200 uppercase tracking-wide">{item.label}</span>
+                    <span className={`text-[10px] font-mono font-bold px-1.5 py-0.5 rounded ${diffCount >= 0 ? 'bg-emerald-950/40 text-emerald-400' : 'bg-rose-955/40 text-rose-455'}`}>
+                      {diffCount >= 0 ? `+${diffCount}` : diffCount} un
+                    </span>
+                  </div>
+
+                  {/* Quantitativo */}
+                  <div className="space-y-0.5">
+                    <div className="flex justify-between items-baseline text-xs">
+                      <span className="text-[10px] text-slate-400 uppercase font-semibold">Qtd ({labelMonthA}):</span>
+                      <span className="font-mono font-black text-white">{item.countA} un <span className="text-[10px] text-slate-500 font-normal">vs {item.countB}</span></span>
+                    </div>
+                    {item.dinhoCountA !== undefined && (
+                      <div className="flex justify-between items-baseline text-[9.5px] font-mono text-slate-400">
+                        <span>Op. Dinho:</span>
+                        <span className="text-amber-300 font-semibold">{item.dinhoCountA} un <span className="text-slate-500 font-normal">vs {item.dinhoCountB}</span></span>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Valor Total */}
+                  <div className="space-y-0.5">
+                    <div className="flex justify-between items-baseline text-xs">
+                      <span className="text-[10px] text-slate-400 uppercase font-semibold">Valor ({labelMonthA}):</span>
+                      <span className={`font-mono font-bold ${item.color}`}>{formatCurrency(item.valA)}</span>
+                    </div>
+
+                    <div className="flex justify-between items-baseline text-[10px] text-slate-500 font-mono">
+                      <span>Valor ({labelMonthB}):</span>
+                      <span>{formatCurrency(item.valB)}</span>
+                    </div>
+                  </div>
+
+                  {/* Média */}
+                  <div className="flex justify-between items-baseline text-[10px] text-slate-400 font-mono">
+                    <span>Média ({labelMonthA}):</span>
+                    <span className="text-slate-200 font-semibold">{formatCurrency(item.avgA)}</span>
+                  </div>
+
+                  {/* Variance in value */}
+                  <div className="pt-1.5 border-t border-slate-850 flex justify-between items-center text-[10px] font-mono">
+                    <span className="text-slate-400">Var. Valor:</span>
+                    <span className={diffVal >= 0 ? 'text-emerald-400 font-bold' : 'text-rose-400 font-bold'}>
+                      {diffVal >= 0 ? '+' : ''}{formatCurrency(diffVal)} ({diffVal >= 0 ? '+' : ''}{pctVal.toFixed(1)}%)
+                    </span>
+                  </div>
+
+                  {/* Comissão (strictly matching painel geral) */}
+                  {hasComissao && comDiff && (
+                    <div className="pt-1.5 border-t border-slate-800/80 space-y-1">
+                      <div className="flex justify-between items-baseline text-[10px] font-mono">
+                        <span className="text-amber-400 font-semibold">Comissão ({labelMonthA}):</span>
+                        <span className="font-bold text-amber-300">{formatCurrency(item.comissaoA)}</span>
+                      </div>
+                      <div className="flex justify-between items-baseline text-[9.5px] font-mono text-slate-500">
+                        <span>Comissão ({labelMonthB}):</span>
+                        <span>{formatCurrency(item.comissaoB)}</span>
+                      </div>
+                      <div className="flex justify-between items-center text-[9px] font-mono pt-0.5">
+                        <span className="text-slate-400">Var. Comissão:</span>
+                        <span className={comDiff.diff >= 0 ? 'text-emerald-400 font-bold' : 'text-rose-400 font-bold'}>
+                          {comDiff.diff >= 0 ? '+' : ''}{formatCurrency(comDiff.diff)} ({comDiff.diff >= 0 ? '+' : ''}{comDiff.pct.toFixed(1)}%)
+                        </span>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      </div>
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
         
         {/* Revenue Categories Comparison */}

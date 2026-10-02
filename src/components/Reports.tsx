@@ -371,6 +371,7 @@ interface GeneralReportFiltersStorage {
   selectedExpenseCategories?: string[];
   paymentMethod?: string;
   sortOrder?: 'oldest' | 'newest';
+  selectedOperator?: string;
 }
 
 const loadSavedGeneralFilters = (): GeneralReportFiltersStorage => {
@@ -395,6 +396,7 @@ export default function Reports({ services, expenses, subCategories }: ReportsPr
   const [search, setSearch] = useState<string>(initialFilters.search || '');
   const [selectedExpenseCategories, setSelectedExpenseCategories] = useState<string[]>(initialFilters.selectedExpenseCategories || ['all']);
   const [paymentMethod, setPaymentMethod] = useState<string>(initialFilters.paymentMethod || 'all');
+  const [selectedOperator, setSelectedOperator] = useState<string>(initialFilters.selectedOperator || 'all');
 
   // Sort order state for general report detailed statement ('oldest' first or 'newest' first)
   const [sortOrder, setSortOrder] = useState<'oldest' | 'newest'>(initialFilters.sortOrder || 'newest');
@@ -409,16 +411,37 @@ export default function Reports({ services, expenses, subCategories }: ReportsPr
         search,
         selectedExpenseCategories,
         paymentMethod,
-        sortOrder
+        sortOrder,
+        selectedOperator
       };
       localStorage.setItem(GENERAL_REPORTS_FILTER_STORAGE_KEY, JSON.stringify(filtersToSave));
     } catch (e) {
       console.error('Erro ao persistir filtros do relatório geral:', e);
     }
-  }, [startDate, endDate, selectedSubCategories, search, selectedExpenseCategories, paymentMethod, sortOrder]);
+  }, [startDate, endDate, selectedSubCategories, search, selectedExpenseCategories, paymentMethod, sortOrder, selectedOperator]);
 
   // Format currency helper
   const formatCurrency = (val: number) => currencyFormatter.format(val);
+
+  // List of extra operators dynamically collected from transactions
+  const extraOperators = useMemo(() => {
+    const set = new Set<string>();
+    services.forEach(s => {
+      const op = (s.operator || '').trim();
+      const opLower = op.toLowerCase();
+      if (op && !opLower.includes('dinho') && !opLower.includes('biel') && !opLower.includes('joao') && opLower !== 'admin') {
+        set.add(op);
+      }
+    });
+    expenses.forEach(e => {
+      const op = (e.operator || '').trim();
+      const opLower = op.toLowerCase();
+      if (op && !opLower.includes('dinho') && !opLower.includes('biel') && !opLower.includes('joao') && opLower !== 'admin') {
+        set.add(op);
+      }
+    });
+    return Array.from(set).sort();
+  }, [services, expenses]);
 
   // Derive filter lists
   // 1. Subcategories list (of type RECEITA + used)
@@ -490,6 +513,7 @@ export default function Reports({ services, expenses, subCategories }: ReportsPr
     setSearch('');
     setSelectedExpenseCategories(['all']);
     setPaymentMethod('all');
+    setSelectedOperator('all');
     try {
       localStorage.removeItem(GENERAL_REPORTS_FILTER_STORAGE_KEY);
     } catch (e) {
@@ -548,9 +572,21 @@ export default function Reports({ services, expenses, subCategories }: ReportsPr
         // 4. Payment Method
         if (paymentMethod !== 'all' && s.paymentMethod !== paymentMethod) return false;
 
+        // 5. Operator filter (Relatório Geral exclusivo)
+        if (selectedOperator !== 'all') {
+          const op = (s.operator || '').toLowerCase();
+          if (selectedOperator === 'dinho') {
+            if (!op.includes('dinho')) return false;
+          } else if (selectedOperator === 'biel') {
+            if (op.includes('dinho')) return false;
+          } else {
+            if ((s.operator || '').trim().toLowerCase() !== selectedOperator.toLowerCase()) return false;
+          }
+        }
+
         return true;
       });
-  }, [services, startDate, endDate, search, selectedSubCategories, paymentMethod]);
+  }, [services, startDate, endDate, search, selectedSubCategories, paymentMethod, selectedOperator]);
 
   // Filter expenses based on active states
   const filteredExpenses = useMemo(() => {
@@ -614,9 +650,21 @@ export default function Reports({ services, expenses, subCategories }: ReportsPr
         const method = e.paymentMethod || 'PIX';
         if (paymentMethod !== 'all' && method !== paymentMethod) return false;
 
+        // 5. Operator filter (Relatório Geral exclusivo)
+        if (selectedOperator !== 'all') {
+          const op = (e.operator || '').toLowerCase();
+          if (selectedOperator === 'dinho') {
+            if (!op.includes('dinho')) return false;
+          } else if (selectedOperator === 'biel') {
+            if (op.includes('dinho')) return false;
+          } else {
+            if ((e.operator || '').trim().toLowerCase() !== selectedOperator.toLowerCase()) return false;
+          }
+        }
+
         return true;
       });
-  }, [expenses, startDate, endDate, search, selectedExpenseCategories, paymentMethod]);
+  }, [expenses, startDate, endDate, search, selectedExpenseCategories, paymentMethod, selectedOperator]);
 
   // Compile chronologically sorted unified transaction ledger
   const ledgerItems = useMemo(() => {
@@ -819,7 +867,7 @@ export default function Reports({ services, expenses, subCategories }: ReportsPr
 
         {/* Filters section (just like services list header) */}
         <div className="space-y-4 my-5">
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3.5">
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-7 gap-3.5">
             {/* 1. Buscar por Texto */}
             <div className="flex flex-col gap-1.5">
               <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Buscar por Texto</span>
@@ -885,6 +933,23 @@ export default function Reports({ services, expenses, subCategories }: ReportsPr
                 <option value="DINHEIRO">DINHEIRO</option>
               </select>
             </div>
+
+            {/* 7. OPERADOR Selector */}
+            <div className="flex flex-col gap-1.5">
+              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Operador</span>
+              <select
+                value={selectedOperator}
+                onChange={e => setSelectedOperator(e.target.value)}
+                className="w-full px-3 py-2.5 bg-[#0F1115] border border-slate-850 rounded-xl text-xs focus:outline-none focus:border-emerald-500 text-slate-200 font-bold uppercase cursor-pointer h-[38px]"
+              >
+                <option value="all">TODOS</option>
+                <option value="biel">OP. BIEL</option>
+                <option value="dinho">OP. DINHO</option>
+                {extraOperators.map(op => (
+                  <option key={op} value={op}>{op.toUpperCase()}</option>
+                ))}
+              </select>
+            </div>
           </div>
 
           {/* Reset Filters and Sub-summaries row inside filter box */}
@@ -894,7 +959,7 @@ export default function Reports({ services, expenses, subCategories }: ReportsPr
               <span className="bg-amber-950/40 text-amber-400 border border-amber-900/40 px-2.5 py-1 rounded-lg">Pendente: {formatCurrency(totalPendingRevenues)}</span>
             </div>
 
-            {(startDate || endDate || selectedSubCategories.length > 1 || !selectedSubCategories.includes('all') || search || selectedExpenseCategories.length > 1 || !selectedExpenseCategories.includes('all') || paymentMethod !== 'all') && (
+            {(startDate || endDate || selectedSubCategories.length > 1 || !selectedSubCategories.includes('all') || search || selectedExpenseCategories.length > 1 || !selectedExpenseCategories.includes('all') || paymentMethod !== 'all' || selectedOperator !== 'all') && (
               <button
                 type="button"
                 onClick={handleResetFilters}

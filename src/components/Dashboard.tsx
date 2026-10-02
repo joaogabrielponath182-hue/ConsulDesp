@@ -507,13 +507,15 @@ function Dashboard({
 
   // Compute counts and average values for specific subcategories for the selected month
   const subcategoryStats = React.useMemo(() => {
-    let honorarios = { count: 0, total: 0 };
+    let honorarios = { count: 0, total: 0, bielCount: 0, dinhoCount: 0 };
     let honorariosRevenda = { count: 0, total: 0 };
     let placas = { count: 0, total: 0 };
-    let retCrlve = { count: 0, total: 0 };
+    let retCrlve = { count: 0, total: 0, bielCount: 0, dinhoCount: 0 };
     let atpv = { count: 0, total: 0 };
 
     servicesThisMonth.forEach(srv => {
+      const isDinho = (srv.operator || '').toLowerCase().includes('dinho');
+
       if (srv.items && srv.items.length > 0) {
         srv.items.forEach(item => {
           const name = (item.name || '').trim().toUpperCase();
@@ -526,12 +528,22 @@ function Dashboard({
           } else if (normalized === "HONORARIO" || normalized === "HONORARIOS" || normalized.startsWith("HONORARIO")) {
             honorarios.count++;
             honorarios.total += val;
+            if (isDinho) {
+              honorarios.dinhoCount++;
+            } else {
+              honorarios.bielCount++;
+            }
           } else if (normalized === "PLACA" || normalized === "PLACAS" || normalized.startsWith("PLACA")) {
             placas.count++;
             placas.total += val;
           } else if (normalized.includes("CRLV")) {
             retCrlve.count++;
             retCrlve.total += val;
+            if (isDinho) {
+              retCrlve.dinhoCount++;
+            } else {
+              retCrlve.bielCount++;
+            }
           } else if (normalized === "ATPV-E" || normalized === "ATPV E" || normalized === "ATPVE") {
             atpv.count++;
             atpv.total += val;
@@ -1127,9 +1139,15 @@ function Dashboard({
                     Comissão Dinho: <span className="text-amber-300 font-semibold">{formatCurrency(comissaoDinhoHonorarios)}</span>
                   </span>
                 </div>
-                <span className="font-mono text-xs font-extrabold text-emerald-400">
-                  {subcategoryStats.honorarios.count}
-                </span>
+                <div className="text-right">
+                  <span className="font-mono text-xs font-extrabold text-emerald-400 block">
+                    {subcategoryStats.honorarios.count}
+                  </span>
+                  <div className="text-[10px] font-mono text-slate-400 flex items-center justify-end gap-1.5 mt-0.5 select-none">
+                    <span>Op. Biel: <strong className="text-slate-200">{subcategoryStats.honorarios.bielCount}</strong>;</span>
+                    <span>Op. Dinho: <strong className="text-amber-300">{subcategoryStats.honorarios.dinhoCount}</strong></span>
+                  </div>
+                </div>
               </div>
               <div className="flex justify-between items-center text-xs text-slate-300 pb-2 border-b border-slate-800/60">
                 <div>
@@ -1163,9 +1181,15 @@ function Dashboard({
                     Comissão Dinho: <span className="text-amber-300 font-semibold">{formatCurrency(comissaoDinhoRetCrlve)}</span>
                   </span>
                 </div>
-                <span className="font-mono text-xs font-extrabold text-blue-400">
-                  {subcategoryStats.retCrlve.count}
-                </span>
+                <div className="text-right">
+                  <span className="font-mono text-xs font-extrabold text-blue-400 block">
+                    {subcategoryStats.retCrlve.count}
+                  </span>
+                  <div className="text-[10px] font-mono text-slate-400 flex items-center justify-end gap-1.5 mt-0.5 select-none">
+                    <span>Op. Biel: <strong className="text-slate-200">{subcategoryStats.retCrlve.bielCount}</strong>;</span>
+                    <span>Op. Dinho: <strong className="text-amber-300">{subcategoryStats.retCrlve.dinhoCount}</strong></span>
+                  </div>
+                </div>
               </div>
               <div className="flex justify-between items-center text-xs text-slate-300 pb-2 border-b border-slate-800/60">
                 <div>

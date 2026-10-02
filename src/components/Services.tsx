@@ -47,6 +47,199 @@ interface ServicesProps {
   onRedirectToForm?: () => void;
 }
 
+interface MultiSelectOption {
+  id: string;
+  name: string;
+  categoryGroup?: 'SERVIÇOS' | 'PESSOAIS' | 'OUTROS';
+}
+
+interface MultiSelectProps {
+  label: string;
+  options: MultiSelectOption[];
+  selected: string[];
+  onChange: (values: string[]) => void;
+  allLabel: string;
+}
+
+function MultiSelect({ label, options, selected, onChange, allLabel }: MultiSelectProps) {
+  const [isOpen, setIsOpen] = useState(false);
+  const dropdownRef = React.useRef<HTMLDivElement>(null);
+
+  React.useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setIsOpen(false);
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  const handleToggle = (value: string) => {
+    if (value === 'all') {
+      onChange(['all']);
+    } else if (value === 'none') {
+      onChange(['none']);
+    } else {
+      let currentSelected: string[] = [];
+      if (selected.includes('all')) {
+        currentSelected = options.map(o => o.id);
+      } else if (selected.includes('none')) {
+        currentSelected = [];
+      } else {
+        currentSelected = [...selected];
+      }
+
+      if (currentSelected.includes(value)) {
+        currentSelected = currentSelected.filter(v => v !== value);
+      } else {
+        currentSelected.push(value);
+      }
+
+      if (currentSelected.length === 0) {
+        onChange(['none']);
+      } else if (currentSelected.length === options.length) {
+        onChange(['all']);
+      } else {
+        onChange(currentSelected);
+      }
+    }
+  };
+
+  const getDisplayText = () => {
+    if (selected.includes('all')) return allLabel;
+    if (selected.includes('none')) return 'NENHUM';
+
+    const selectedLabels = selected.map(val => {
+      const opt = options.find(o => o.id === val);
+      return opt ? opt.name : val;
+    });
+
+    if (selectedLabels.length === 0) return 'NENHUM';
+    if (selectedLabels.length <= 2) return selectedLabels.join(', ');
+    return `${selectedLabels.length} SELECIONADOS`;
+  };
+
+  return (
+    <div ref={dropdownRef} className="relative w-full">
+      <label className="block text-[10px] uppercase font-bold text-slate-400 tracking-wider mb-1.5">{label}</label>
+      <button
+        type="button"
+        onClick={() => setIsOpen(!isOpen)}
+        className="w-full flex items-center justify-between px-3 py-2.5 bg-[#0F1115] border border-slate-850 rounded-xl text-xs text-left focus:outline-none focus:border-emerald-500 text-slate-200 font-bold uppercase cursor-pointer select-none truncate h-[38px]"
+      >
+        <span className="truncate mr-2">{getDisplayText()}</span>
+        <svg 
+          xmlns="http://www.w3.org/2000/svg" 
+          width="12" 
+          height="12" 
+          viewBox="0 0 24 24" 
+          fill="none" 
+          stroke="currentColor" 
+          strokeWidth="2" 
+          strokeLinecap="round" 
+          strokeLinejoin="round" 
+          className={`text-slate-400 size-3 shrink-0 transition-transform duration-200 ${isOpen ? 'rotate-180' : ''}`}
+        >
+          <path d="m6 9 6 6 6-6"/>
+        </svg>
+      </button>
+
+      {isOpen && (
+        <div className="absolute left-0 mt-1.5 w-full min-w-[220px] bg-[#11141B] border border-slate-800 rounded-xl shadow-2xl z-50 max-h-72 overflow-y-auto p-2 space-y-1 scrollbar-thin">
+          <div className="text-[9px] font-black text-slate-500 uppercase tracking-wider px-2 pt-1 pb-0.5">
+            Filtros Rápidos
+          </div>
+
+          <div className="grid grid-cols-2 gap-1">
+            {/* TODAS */}
+            <div
+              onClick={() => handleToggle('all')}
+              className={`flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-[10px] font-bold uppercase cursor-pointer select-none transition-colors ${
+                selected.includes('all') 
+                  ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/30' 
+                  : 'text-slate-300 hover:bg-slate-800 border border-transparent'
+              }`}
+            >
+              <div className={`size-3 rounded border flex items-center justify-center transition-all ${
+                selected.includes('all')
+                  ? 'border-emerald-500 bg-emerald-600'
+                  : 'border-slate-700 bg-[#0F1115]'
+              }`}>
+                {selected.includes('all') && (
+                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" className="size-2 text-white">
+                    <path d="M20 6 9 17l-5-5" />
+                  </svg>
+                )}
+              </div>
+              <span>{allLabel}</span>
+            </div>
+
+            {/* NENHUM */}
+            <div
+              onClick={() => handleToggle('none')}
+              className={`flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-[10px] font-bold uppercase cursor-pointer select-none transition-colors ${
+                selected.includes('none') 
+                  ? 'bg-rose-500/10 text-rose-400 border border-rose-500/30' 
+                  : 'text-slate-300 hover:bg-slate-800 border border-transparent'
+              }`}
+            >
+              <div className={`size-3 rounded border flex items-center justify-center transition-all ${
+                selected.includes('none')
+                  ? 'border-rose-500 bg-rose-600'
+                  : 'border-slate-700 bg-[#0F1115]'
+              }`}>
+                {selected.includes('none') && (
+                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" className="size-2 text-white">
+                    <path d="M20 6 9 17l-5-5" />
+                  </svg>
+                )}
+              </div>
+              <span>NENHUM</span>
+            </div>
+          </div>
+
+          <div className="h-px bg-slate-800 my-1.5" />
+
+          <div className="text-[9px] font-black text-slate-500 uppercase tracking-wider px-2 pb-1">
+            Categorias ({options.length})
+          </div>
+
+          {options.map(opt => {
+            const isChecked = selected.includes('all') || selected.includes(opt.id);
+            return (
+              <div
+                key={opt.id}
+                onClick={() => handleToggle(opt.id)}
+                className={`flex items-center justify-between px-2.5 py-1.5 rounded-lg text-[10px] font-bold uppercase cursor-pointer select-none transition-colors ${
+                  isChecked 
+                    ? 'bg-emerald-500/10 text-emerald-400' 
+                    : 'text-slate-300 hover:bg-slate-800'
+                }`}
+              >
+                <div className="flex items-center gap-2 truncate pr-2">
+                  <div className={`size-3 rounded border flex items-center justify-center transition-all shrink-0 ${
+                    isChecked
+                      ? 'border-emerald-500 bg-emerald-600'
+                      : 'border-slate-700 bg-[#0F1115]'
+                  }`}>
+                    {isChecked && (
+                      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" className="size-2 text-white">
+                        <path d="M20 6 9 17l-5-5" />
+                      </svg>
+                    )}
+                  </div>
+                  <span className="truncate">{opt.name}</span>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
 const currencyFormatter = new Intl.NumberFormat('pt-BR', {
   style: 'currency',
   currency: 'BRL'
@@ -74,9 +267,8 @@ function Services({
   const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<string>('all');
   const [startDate, setStartDate] = useState<string>('');
   const [endDate, setEndDate] = useState<string>('');
-  const [selectedCategory, setSelectedCategory] = useState<string>('all');
+  const [selectedCategories, setSelectedCategories] = useState<string[]>(['all']);
   const [sortOrder, setSortOrder] = useState<'oldest' | 'newest'>('newest');
-  const [selectedClient, setSelectedClient] = useState<string>('all');
 
   // Sync selectedStatus with initialStatusFilter prop when it changes
   React.useEffect(() => {
@@ -732,6 +924,36 @@ function Services({
     return groups;
   }, [services]);
 
+  // Subcategories options for MultiSelect in list mode
+  const serviceCategoryOptions: MultiSelectOption[] = React.useMemo(() => {
+    const list: MultiSelectOption[] = [];
+    subCategories
+      .filter(sub => (sub.type || 'RECEITA') === 'RECEITA')
+      .forEach(sub => {
+        list.push({
+          id: sub.id,
+          name: sub.name.toUpperCase(),
+          categoryGroup: sub.categoryGroup || 'SERVIÇOS'
+        });
+      });
+
+    services.forEach(srv => {
+      srv.items.forEach(item => {
+        const itemUpper = item.name.toUpperCase();
+        if (!list.some(l => l.name === itemUpper)) {
+          const matchedSub = subCategories.find(s => s.name.toUpperCase() === itemUpper && (s.type || 'RECEITA') === 'RECEITA');
+          list.push({
+            id: item.subCategoryId || item.name,
+            name: itemUpper,
+            categoryGroup: matchedSub?.categoryGroup || 'SERVIÇOS'
+          });
+        }
+      });
+    });
+
+    return list;
+  }, [subCategories, services]);
+
   // Filters logic on grouped services
   const filteredGroupedServices = React.useMemo(() => {
     const list: typeof groupedServices = [];
@@ -741,10 +963,7 @@ function Services({
       if (startDate && group.date < startDate) return;
       if (endDate && group.date > endDate) return;
 
-      // 2. Client filter
-      if (selectedClient !== 'all' && group.client.toLowerCase() !== selectedClient.toLowerCase()) return;
-
-      // 3. Filter services within group by status, payment method, category
+      // 2. Filter services within group by status, payment method, category
       let srvList = group.services;
 
       if (selectedStatus !== 'all') {
@@ -755,15 +974,26 @@ function Services({
         srvList = srvList.filter(srv => srv.paymentMethod === selectedPaymentMethod);
       }
 
-      if (selectedCategory !== 'all') {
+      if (selectedCategories.includes('none')) {
+        return;
+      }
+
+      if (!selectedCategories.includes('all')) {
         srvList = srvList.filter(srv => 
-          srv.items.some(item => item.subCategoryId === selectedCategory)
+          srv.items.some(item => {
+            const itemUpper = item.name.toUpperCase().trim();
+            const idMatch = item.subCategoryId && selectedCategories.includes(item.subCategoryId);
+            const nameMatch = selectedCategories.includes(itemUpper);
+            const matchedSub = subCategories.find(sub => sub.id === item.subCategoryId || sub.name.toUpperCase().trim() === itemUpper);
+            const subMatch = matchedSub ? (selectedCategories.includes(matchedSub.id) || selectedCategories.includes(matchedSub.name.toUpperCase().trim())) : false;
+            return idMatch || nameMatch || subMatch;
+          })
         );
       }
 
       if (srvList.length === 0) return;
 
-      // 4. Text search filtering (Matches plate, client name, description, items)
+      // 3. Text search filtering (Matches plate, client name, description, items)
       if (search) {
         const sLower = search.toLowerCase();
         const hasPlateMatch = srvList.some(srv => plateMatchesSearch(srv.plate, search));
@@ -804,7 +1034,7 @@ function Services({
         return b.date.localeCompare(a.date);
       }
     });
-  }, [groupedServices, search, selectedStatus, selectedPaymentMethod, startDate, endDate, selectedCategory, sortOrder, selectedClient]);
+  }, [groupedServices, search, selectedStatus, selectedPaymentMethod, startDate, endDate, selectedCategories, sortOrder, subCategories]);
 
   const totalFilteredRevenues = React.useMemo(() => {
     return filteredGroupedServices.reduce((acc, curr) => {
@@ -833,12 +1063,16 @@ function Services({
     const allPendingServices = filteredGroupedServices.flatMap(g => g.services);
     if (allPendingServices.length === 0) return;
 
-    const activeCat = selectedCategory !== 'all' 
-      ? subCategories.find(s => s.id === selectedCategory)?.name 
+    const activeCat = !selectedCategories.includes('all') && !selectedCategories.includes('none')
+      ? selectedCategories
+          .map(catVal => {
+            const found = serviceCategoryOptions.find(o => o.id === catVal);
+            return found ? found.name : catVal;
+          })
+          .join(', ')
       : undefined;
 
     generatePendingReportPDF(allPendingServices, clients, {
-      clientName: selectedClient !== 'all' ? selectedClient : undefined,
       search: search.trim() || undefined,
       startDate: startDate || undefined,
       endDate: endDate || undefined,
@@ -1558,7 +1792,7 @@ function Services({
 
             {/* Filter selectors */}
             <div className="space-y-4 my-4">
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5">
                 {/* Text Search */}
                 <div className="flex flex-col gap-1.5">
                   <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Buscar por Texto</span>
@@ -1569,39 +1803,8 @@ function Services({
                       placeholder="Cliente, Placa, Descrição..."
                       value={search}
                       onChange={e => setSearch(e.target.value)}
-                      className="w-full pl-9 pr-3.5 py-2.5 bg-[#0F1115] border border-slate-850 rounded-xl text-xs placeholder-slate-650 focus:outline-none focus:border-emerald-500 text-white font-bold"
+                      className="w-full pl-9 pr-3.5 py-2.5 bg-[#0F1115] border border-slate-850 rounded-xl text-xs placeholder-slate-650 focus:outline-none focus:border-emerald-500 text-white font-bold h-[38px]"
                     />
-                  </div>
-                </div>
-
-                {/* Client filter select */}
-                <div className="flex flex-col gap-1.5">
-                  <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Filtrar por Cliente</span>
-                  <div className="relative">
-                    <User size={12} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
-                    <select
-                      value={selectedClient}
-                      onChange={e => setSelectedClient(e.target.value)}
-                      className="w-full pl-9 pr-3.5 py-2.5 bg-[#0F1115] border border-slate-850 rounded-xl text-xs focus:outline-none focus:border-emerald-500 text-slate-300 font-medium cursor-pointer"
-                    >
-                      <option value="all">Todos os Clientes</option>
-                      {clients && clients.length > 0 ? (
-                        clients.map(c => (
-                          <option key={c.id} value={c.name}>
-                            {c.name} {c.company ? `(${c.company})` : ''}
-                          </option>
-                        ))
-                      ) : (
-                        // Fallback if no clients registered yet, populate unique client names from services
-                        Array.from(new Set(services.map(s => s.client)))
-                          .filter(Boolean)
-                          .map(clientName => (
-                            <option key={clientName} value={clientName}>
-                              {clientName}
-                            </option>
-                          ))
-                      )}
-                    </select>
                   </div>
                 </div>
 
@@ -1613,7 +1816,7 @@ function Services({
                     <select
                       value={selectedStatus}
                       onChange={e => setSelectedStatus(e.target.value)}
-                      className="w-full pl-8 pr-3.5 py-2.5 bg-[#0F1115] border border-slate-850 rounded-xl text-xs focus:outline-none focus:border-emerald-500 text-slate-300 font-medium cursor-pointer"
+                      className="w-full pl-8 pr-3.5 py-2.5 bg-[#0F1115] border border-slate-850 rounded-xl text-xs focus:outline-none focus:border-emerald-500 text-slate-300 font-medium cursor-pointer h-[38px]"
                     >
                       <option value="all">Todos os Status</option>
                       <option value="PAGO">PAGO</option>
@@ -1630,7 +1833,7 @@ function Services({
                     <select
                       value={selectedPaymentMethod}
                       onChange={e => setSelectedPaymentMethod(e.target.value)}
-                      className="w-full pl-8 pr-3.5 py-2.5 bg-[#0F1115] border border-slate-850 rounded-xl text-xs focus:outline-none focus:border-emerald-500 text-slate-300 font-medium cursor-pointer"
+                      className="w-full pl-8 pr-3.5 py-2.5 bg-[#0F1115] border border-slate-850 rounded-xl text-xs focus:outline-none focus:border-emerald-500 text-slate-300 font-medium cursor-pointer h-[38px]"
                     >
                       <option value="all">Todas as Formas</option>
                       <option value="PIX">PIX</option>
@@ -1641,6 +1844,15 @@ function Services({
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5">
+                {/* Category filter - positioned directly below text search */}
+                <MultiSelect
+                  label="Categoria de Serviço"
+                  options={serviceCategoryOptions}
+                  selected={selectedCategories}
+                  onChange={setSelectedCategories}
+                  allLabel="TODAS"
+                />
+
                 {/* Start Date filter */}
                 <div className="flex flex-col gap-1.5">
                   <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Data Início</span>
@@ -1650,7 +1862,7 @@ function Services({
                       type="date"
                       value={startDate}
                       onChange={e => setStartDate(e.target.value)}
-                      className="w-full pl-9 pr-3.5 py-2.5 bg-[#0F1115] border border-slate-850 rounded-xl text-xs text-white focus:outline-none focus:border-emerald-500 font-medium cursor-pointer"
+                      className="w-full pl-9 pr-3.5 py-2.5 bg-[#0F1115] border border-slate-850 rounded-xl text-xs text-white focus:outline-none focus:border-emerald-500 font-medium cursor-pointer h-[38px]"
                     />
                   </div>
                 </div>
@@ -1664,36 +1876,14 @@ function Services({
                       type="date"
                       value={endDate}
                       onChange={e => setEndDate(e.target.value)}
-                      className="w-full pl-9 pr-3.5 py-2.5 bg-[#0F1115] border border-slate-850 rounded-xl text-xs text-white focus:outline-none focus:border-emerald-500 font-medium cursor-pointer"
+                      className="w-full pl-9 pr-3.5 py-2.5 bg-[#0F1115] border border-slate-850 rounded-xl text-xs text-white focus:outline-none focus:border-emerald-500 font-medium cursor-pointer h-[38px]"
                     />
-                  </div>
-                </div>
-
-                {/* Category filter */}
-                <div className="flex flex-col gap-1.5">
-                  <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Categoria de Serviço</span>
-                  <div className="relative">
-                    <Tag size={12} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-404" />
-                    <select
-                      value={selectedCategory}
-                      onChange={e => setSelectedCategory(e.target.value)}
-                      className="w-full pl-9 pr-3.5 py-2.5 bg-[#0F1115] border border-slate-850 rounded-xl text-xs focus:outline-none focus:border-emerald-500 text-slate-300 font-medium cursor-pointer"
-                    >
-                      <option value="all">Todas as Categorias</option>
-                      {subCategories
-                        .filter(sub => (sub.type || 'RECEITA') === 'RECEITA')
-                        .map(sub => (
-                          <option key={sub.id} value={sub.id}>
-                            {sub.name}
-                          </option>
-                        ))}
-                    </select>
                   </div>
                 </div>
               </div>
 
               {/* Reset Filters button if any filter is dirty */}
-              {(search || selectedStatus !== 'all' || selectedPaymentMethod !== 'all' || startDate || endDate || selectedCategory !== 'all' || selectedClient !== 'all') && (
+              {(search || selectedStatus !== 'all' || selectedPaymentMethod !== 'all' || startDate || endDate || selectedCategories.length > 1 || !selectedCategories.includes('all')) && (
                 <div className="flex justify-end pt-1">
                   <button
                     type="button"
@@ -1703,8 +1893,7 @@ function Services({
                       setSelectedPaymentMethod('all');
                       setStartDate('');
                       setEndDate('');
-                      setSelectedCategory('all');
-                      setSelectedClient('all');
+                      setSelectedCategories(['all']);
                     }}
                     className="text-[10px] uppercase tracking-wider font-bold text-slate-400 hover:text-emerald-450 transition-colors flex items-center gap-1 cursor-pointer"
                   >
