@@ -298,11 +298,13 @@ export default function ReportsComparative({ services, expenses, subCategories, 
       .filter(e => (e.paymentMethod || 'PIX') === 'DINHEIRO')
       .reduce((sum, e) => sum + e.value, 0);
 
-    // 4. Quantitative counts
+    // 4. Quantitative counts & totals for General Commission (Painel Geral)
     let honorarios = 0;
+    let honorariosTotal = 0;
     let honorariosRevenda = 0;
     let placas = 0;
     let retCrlve = 0;
+    let retCrlveTotal = 0;
     let atpv = 0;
 
     filteredServices.forEach(srv => {
@@ -310,21 +312,32 @@ export default function ReportsComparative({ services, expenses, subCategories, 
         srv.items.forEach(item => {
           const name = (item.name || '').trim().toUpperCase();
           const normalized = name.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+          const val = Number(item.value) || 0;
           
           if (normalized === "HONORARIO REVENDA" || normalized.startsWith("HONORARIO REVENDA") || normalized.includes("REVENDA")) {
             honorariosRevenda++;
           } else if (normalized === "HONORARIO" || normalized === "HONORARIOS" || normalized.startsWith("HONORARIO")) {
             honorarios++;
+            honorariosTotal += val;
           } else if (normalized === "PLACA" || normalized === "PLACAS" || normalized.startsWith("PLACA")) {
             placas++;
           } else if (normalized.includes("CRLV")) {
             retCrlve++;
+            retCrlveTotal += val;
           } else if (normalized === "ATPV-E" || normalized === "ATPV" || normalized.includes("ATPV")) {
             atpv++;
           }
         });
       }
     });
+
+    // General commission calculations (Painel Geral: todos os usuários):
+    // 2.5% sobre Honorários (líquido de R$ 10 de termos por processo) e 2.5% sobre Ret. CRLV-E
+    const termosCostGeral = honorarios * 10;
+    const honorariosBaseGeral = Math.max(0, honorariosTotal - termosCostGeral);
+    const comissaoGeralHonorarios = honorarios > 0 ? honorariosBaseGeral * 0.025 : 0;
+    const comissaoGeralRetCrlve = retCrlve > 0 ? retCrlveTotal * 0.025 : 0;
+    const comissaoGeralTotal = comissaoGeralHonorarios + comissaoGeralRetCrlve;
 
     // 5. Revenue and Expense Categories sums
     const revenuesByCategory: Record<string, number> = {};
@@ -500,6 +513,17 @@ export default function ReportsComparative({ services, expenses, subCategories, 
       pixExpenses,
       cashExpenses,
       quantitatives: { honorarios, honorariosRevenda, placas, retCrlve, atpv },
+      comissaoGeral: {
+        honorariosCount: honorarios,
+        honorariosTotal,
+        honorariosTermosCost: termosCostGeral,
+        honorariosBase: honorariosBaseGeral,
+        comissaoHonorarios: comissaoGeralHonorarios,
+        retCrlveCount: retCrlve,
+        retCrlveTotal,
+        comissaoRetCrlve: comissaoGeralRetCrlve,
+        totalComissao: comissaoGeralTotal
+      },
       revenuesByCategory,
       expensesByCategory,
       rawServicesCount: filteredServices.length,
@@ -811,16 +835,16 @@ export default function ReportsComparative({ services, expenses, subCategories, 
       summaryText += `A sobra final foi equivalente em ambos os períodos.`;
     }
 
-    // Comissão Dinho insight (Lançamentos Próprios)
-    const comissaoVar = getVariance(metricsA.dinho.comissaoTotal, metricsB.dinho.comissaoTotal);
-    summaryText += `\n\n**Lançamentos e Comissões do Operador Dinho**: `;
-    summaryText += `Com base exclusivamente nos serviços lançados pelo operador Dinho, a comissão total apurada no período "${labelMonthA}" foi de ${formatCurrency(metricsA.dinho.comissaoTotal)} (sendo ${formatCurrency(metricsA.dinho.comissaoHonorarios)} de Honorários e ${formatCurrency(metricsA.dinho.comissaoRetCrlve)} de Ret. CRLV-E) contra ${formatCurrency(metricsB.dinho.comissaoTotal)} no período "${labelMonthB}" (sendo ${formatCurrency(metricsB.dinho.comissaoHonorarios)} de Honorários e ${formatCurrency(metricsB.dinho.comissaoRetCrlve)} de Ret. CRLV-E). `;
+    // Comissão Geral insight (Painel Geral - Todos os Usuários)
+    const comissaoVar = getVariance(metricsA.comissaoGeral.totalComissao, metricsB.comissaoGeral.totalComissao);
+    summaryText += `\n\n**Comissão Geral (Painel Geral - Todos os Usuários)**: `;
+    summaryText += `Com base nos lançamentos gerais de todos os operadores (conforme apurado no Painel Geral), a comissão total apurada no período "${labelMonthA}" foi de ${formatCurrency(metricsA.comissaoGeral.totalComissao)} (sendo ${formatCurrency(metricsA.comissaoGeral.comissaoHonorarios)} de Honorários e ${formatCurrency(metricsA.comissaoGeral.comissaoRetCrlve)} de Ret. CRLV-E) contra ${formatCurrency(metricsB.comissaoGeral.totalComissao)} no período "${labelMonthB}" (sendo ${formatCurrency(metricsB.comissaoGeral.comissaoHonorarios)} de Honorários e ${formatCurrency(metricsB.comissaoGeral.comissaoRetCrlve)} de Ret. CRLV-E). `;
     if (comissaoVar.diff > 0) {
-      summaryText += `Houve um acréscimo de ${formatCurrency(comissaoVar.diff)} (+${comissaoVar.pct.toFixed(1)}%) na comissão própria de Dinho em "${labelMonthA}" na comparação com "${labelMonthB}". `;
+      summaryText += `Houve um acréscimo de ${formatCurrency(comissaoVar.diff)} (+${comissaoVar.pct.toFixed(1)}%) na comissão geral em "${labelMonthA}" na comparação com "${labelMonthB}". `;
     } else if (comissaoVar.diff < 0) {
-      summaryText += `Houve uma redução de ${formatCurrency(Math.abs(comissaoVar.diff))} (${comissaoVar.pct.toFixed(1)}%) na comissão própria de Dinho em "${labelMonthA}" na comparação com "${labelMonthB}". `;
+      summaryText += `Houve uma redução de ${formatCurrency(Math.abs(comissaoVar.diff))} (${comissaoVar.pct.toFixed(1)}%) na comissão geral em "${labelMonthA}" na comparação com "${labelMonthB}". `;
     } else {
-      summaryText += `A comissão própria gerada foi equivalente em ambos os períodos. `;
+      summaryText += `A comissão geral gerada foi equivalente em ambos os períodos. `;
     }
     summaryText += `Em dinheiro (espécie), os lançamentos do operador Dinho totalizaram ${formatCurrency(metricsA.dinho.cashTotal)} (${metricsA.dinho.cashCount} serviços) em "${labelMonthA}" contra ${formatCurrency(metricsB.dinho.cashTotal)} (${metricsB.dinho.cashCount} serviços) em "${labelMonthB}".`;
 
@@ -1811,30 +1835,30 @@ export default function ReportsComparative({ services, expenses, subCategories, 
           </div>
         </div>
 
-        {/* Comparativo das Comissões: Honorários, Ret. CRLV-E e Total */}
+        {/* Comparativo das Comissões: Honorários, Ret. CRLV-E e Total (Geral de Todos os Usuários - Painel Geral) */}
         <div className="space-y-3 pt-1">
           <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-1 pb-1.5 border-b border-slate-800/80">
             <span className="text-[11px] font-extrabold text-amber-400 uppercase tracking-wider flex items-center gap-1.5">
-              <Award size={15} /> Comparativo de Comissões (Op. Dinho)
+              <Award size={15} /> Comparativo de Comissões (Painel Geral)
             </span>
             <span className="text-[9.5px] text-slate-400 font-mono">
-              2,5% sobre Honorários (líquido de R$ 10 de termos) e 2,5% sobre Ret. CRLV-E lançados por Dinho
+              2,5% sobre Honorários (líquido de R$ 10 de termos) e 2,5% sobre Ret. CRLV-E de todos os usuários (igual ao Painel Geral)
             </span>
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             {/* 1. Comissão Honorários */}
             {(() => {
-              const { diff, pct } = getVariance(metricsA.dinho.comissaoHonorarios, metricsB.dinho.comissaoHonorarios);
+              const { diff, pct } = getVariance(metricsA.comissaoGeral.comissaoHonorarios, metricsB.comissaoGeral.comissaoHonorarios);
               return (
                 <div className="p-4 bg-[#0F1115] border border-slate-850 rounded-xl space-y-2">
                   <div className="flex justify-between items-center">
                     <span className="text-[9px] uppercase font-bold text-emerald-400 tracking-wider block">Comissão Honorários</span>
-                    <span className="text-[9px] text-slate-500 font-mono">2,5% líq.</span>
+                    <span className="text-[9px] text-slate-500 font-mono">2,5% líq. ({metricsA.comissaoGeral.honorariosCount} vs {metricsB.comissaoGeral.honorariosCount} un)</span>
                   </div>
                   <div className="flex items-baseline gap-2">
-                    <span className="text-lg font-black text-emerald-300 font-mono">{formatCurrency(metricsA.dinho.comissaoHonorarios)}</span>
-                    <span className="text-[10px] text-slate-500 font-mono">vs {formatCurrency(metricsB.dinho.comissaoHonorarios)}</span>
+                    <span className="text-lg font-black text-emerald-300 font-mono">{formatCurrency(metricsA.comissaoGeral.comissaoHonorarios)}</span>
+                    <span className="text-[10px] text-slate-500 font-mono">vs {formatCurrency(metricsB.comissaoGeral.comissaoHonorarios)}</span>
                   </div>
                   <div className="flex justify-between items-center text-[10px] pt-1 border-t border-slate-800/60 font-mono">
                     <span className="text-slate-400">Variação:</span>
@@ -1848,16 +1872,16 @@ export default function ReportsComparative({ services, expenses, subCategories, 
 
             {/* 2. Comissão Ret. CRLV-E */}
             {(() => {
-              const { diff, pct } = getVariance(metricsA.dinho.comissaoRetCrlve, metricsB.dinho.comissaoRetCrlve);
+              const { diff, pct } = getVariance(metricsA.comissaoGeral.comissaoRetCrlve, metricsB.comissaoGeral.comissaoRetCrlve);
               return (
                 <div className="p-4 bg-[#0F1115] border border-slate-850 rounded-xl space-y-2">
                   <div className="flex justify-between items-center">
                     <span className="text-[9px] uppercase font-bold text-blue-400 tracking-wider block">Comissão Ret. CRLV-E</span>
-                    <span className="text-[9px] text-slate-500 font-mono">2,5%</span>
+                    <span className="text-[9px] text-slate-500 font-mono">2,5% ({metricsA.comissaoGeral.retCrlveCount} vs {metricsB.comissaoGeral.retCrlveCount} un)</span>
                   </div>
                   <div className="flex items-baseline gap-2">
-                    <span className="text-lg font-black text-blue-300 font-mono">{formatCurrency(metricsA.dinho.comissaoRetCrlve)}</span>
-                    <span className="text-[10px] text-slate-500 font-mono">vs {formatCurrency(metricsB.dinho.comissaoRetCrlve)}</span>
+                    <span className="text-lg font-black text-blue-300 font-mono">{formatCurrency(metricsA.comissaoGeral.comissaoRetCrlve)}</span>
+                    <span className="text-[10px] text-slate-500 font-mono">vs {formatCurrency(metricsB.comissaoGeral.comissaoRetCrlve)}</span>
                   </div>
                   <div className="flex justify-between items-center text-[10px] pt-1 border-t border-slate-800/60 font-mono">
                     <span className="text-slate-400">Variação:</span>
@@ -1871,16 +1895,16 @@ export default function ReportsComparative({ services, expenses, subCategories, 
 
             {/* 3. Comissão Total */}
             {(() => {
-              const { diff, pct } = getVariance(metricsA.dinho.comissaoTotal, metricsB.dinho.comissaoTotal);
+              const { diff, pct } = getVariance(metricsA.comissaoGeral.totalComissao, metricsB.comissaoGeral.totalComissao);
               return (
                 <div className="p-4 bg-[#0F1115] border border-amber-500/30 bg-amber-950/15 rounded-xl space-y-2">
                   <div className="flex justify-between items-center">
-                    <span className="text-[9px] uppercase font-bold text-amber-400 tracking-wider block">Comissão Total (Dinho)</span>
-                    <span className="text-[9px] text-amber-500/80 font-mono">Honorários + CRLV-E</span>
+                    <span className="text-[9px] uppercase font-bold text-amber-400 tracking-wider block">Comissão Total (Painel Geral)</span>
+                    <span className="text-[9px] text-amber-500/80 font-mono">Todos os Usuários</span>
                   </div>
                   <div className="flex items-baseline gap-2">
-                    <span className="text-lg font-black text-amber-300 font-mono">{formatCurrency(metricsA.dinho.comissaoTotal)}</span>
-                    <span className="text-[10px] text-slate-500 font-mono">vs {formatCurrency(metricsB.dinho.comissaoTotal)}</span>
+                    <span className="text-lg font-black text-amber-300 font-mono">{formatCurrency(metricsA.comissaoGeral.totalComissao)}</span>
+                    <span className="text-[10px] text-slate-500 font-mono">vs {formatCurrency(metricsB.comissaoGeral.totalComissao)}</span>
                   </div>
                   <div className="flex justify-between items-center text-[10px] pt-1 border-t border-slate-800/60 font-mono">
                     <span className="text-slate-400">Variação:</span>
@@ -1939,12 +1963,12 @@ export default function ReportsComparative({ services, expenses, subCategories, 
                   </div>
 
                   {/* Quantitativo de Processos Lançados */}
-                  <div className="flex justify-between items-center text-[10.5px] font-mono bg-[#161B22]/70 px-2.5 py-1.5 rounded-lg border border-slate-800/40">
-                    <span className="text-slate-400 uppercase font-semibold text-[9px]">Qtd Processos:</span>
+                  <div className="flex justify-between items-center text-[10.5px] font-mono bg-white dark:bg-[#161B22]/70 px-2.5 py-1.5 rounded-lg border border-slate-200 dark:border-slate-800/40 shadow-xs dark:shadow-none">
+                    <span className="text-slate-500 dark:text-slate-400 uppercase font-semibold text-[9px]">Qtd Processos:</span>
                     <div className="flex items-center gap-1.5">
-                      <span className="text-white font-bold">{item.countA} un</span>
-                      <span className="text-slate-500 text-[9px]">vs {item.countB} un</span>
-                      <span className={`text-[9px] font-bold ml-1 ${item.diffCount >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+                      <span className="text-slate-900 dark:text-white font-bold">{item.countA} un</span>
+                      <span className="text-slate-400 dark:text-slate-500 text-[9px]">vs {item.countB} un</span>
+                      <span className={`text-[9px] font-bold ml-1 ${item.diffCount >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}`}>
                         ({item.diffCount >= 0 ? `+${item.diffCount}` : item.diffCount})
                       </span>
                     </div>
