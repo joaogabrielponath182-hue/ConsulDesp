@@ -18,6 +18,7 @@ import {
   Check
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
+import { formatPhoneInput } from '../utils/phoneFormatter';
 import { Client } from '../types';
 
 interface ClientsProps {
@@ -72,13 +73,6 @@ export default function Clients({
     return `${clean.slice(0, 2)}.${clean.slice(2, 5)}.${clean.slice(5, 8)}/${clean.slice(8, 12)}-${clean.slice(12)}`;
   };
 
-  const formatPhone = (value: string) => {
-    const clean = value.replace(/\D/g, '').slice(0, 11);
-    if (clean.length <= 2) return clean;
-    if (clean.length <= 7) return `(${clean.slice(0, 2)}) ${clean.slice(2)}`;
-    return `(${clean.slice(0, 2)}) ${clean.slice(2, 7)}-${clean.slice(7)}`;
-  };
-
   const handleCpfChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setCpf(formatCPF(e.target.value));
   };
@@ -88,7 +82,7 @@ export default function Clients({
   };
 
   const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setPhone(formatPhone(e.target.value));
+    setPhone(formatPhoneInput(e.target.value));
   };
 
   // Filter clients
@@ -290,7 +284,7 @@ export default function Clients({
                     type="text"
                     value={phone}
                     onChange={handlePhoneChange}
-                    placeholder="(00) 00000-0000"
+                    placeholder="(99)9 9999-9999"
                     className="w-full px-3.5 py-2.5 bg-[#0F1115] border border-slate-850 rounded-xl text-sm placeholder-slate-650 focus:outline-none focus:border-emerald-500 text-white font-mono transition-all duration-200"
                   />
                 </div>

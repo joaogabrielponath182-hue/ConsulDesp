@@ -23,12 +23,14 @@ import {
   Pencil,
   X,
   ArrowUpDown,
-  Printer
+  Printer,
+  Phone
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { plateMatchesSearch } from '../utils/plateMatcher';
 import { generateReceiptPDF, generatePendingReportPDF } from '../utils/receiptGenerator';
 import { formatDateBR } from '../utils/dateFormatter';
+import { formatPhoneInput, getClientWithPhone, resolveServicePhone } from '../utils/phoneFormatter';
 
 interface ServicesProps {
   services: Service[];
@@ -287,7 +289,19 @@ function Services({
 
   // New Service Form State
   const [client, setClient] = useState('');
+  const [phone, setPhone] = useState('');
   const [showClientSearch, setShowClientSearch] = useState(false);
+
+  // Check if client is registered in the Clients database
+  const isRegisteredClient = React.useMemo(() => {
+    if (!client.trim() || !clients || clients.length === 0) return false;
+    return clients.some(c => c.name.trim().toLowerCase() === client.trim().toLowerCase());
+  }, [clients, client]);
+
+  const registeredClientData = React.useMemo(() => {
+    if (!isRegisteredClient) return null;
+    return clients?.find(c => c.name.trim().toLowerCase() === client.trim().toLowerCase()) || null;
+  }, [isRegisteredClient, client, clients]);
 
   // Filter clients based on what's typed
   const filteredClientsForForm = React.useMemo(() => {
@@ -600,6 +614,7 @@ function Services({
   const startEditingService = (service: Service) => {
     setEditingService(service);
     setClient(service.client);
+    setPhone(service.phone && service.phone.toLowerCase() !== 'ninfo' ? service.phone : '');
     setDescription(service.description);
     setDate(service.date);
     
@@ -642,6 +657,7 @@ function Services({
     setEditingService(null);
     setActiveVehicleId('');
     setClient('');
+    setPhone('');
     setPlate('');
     setDescription('');
     setPaymentMethod('DINHEIRO');
@@ -673,6 +689,10 @@ function Services({
       setErrorMsg('Selecione a data do serviço.');
       return;
     }
+
+    const finalPhone = isRegisteredClient 
+      ? (registeredClientData?.phone?.trim() || 'ninfo')
+      : (phone.trim() || 'ninfo');
 
     if (editingService) {
       let activeItems = [...serviceItems];
@@ -708,6 +728,7 @@ function Services({
               ...originalSrv,
               id: targetId,
               client: client.trim(),
+              phone: finalPhone,
               plate: finalPlate,
               description: description.trim(),
               paymentMethod,
@@ -721,6 +742,7 @@ function Services({
         } else {
           onAddService({
             client: client.trim(),
+            phone: finalPhone,
             plate: finalPlate,
             description: description.trim(),
             paymentMethod,
@@ -742,6 +764,7 @@ function Services({
               ...originalSrv,
               id: v.id,
               client: client.trim(),
+              phone: finalPhone,
               plate: vPlate,
               description: description.trim(),
               paymentMethod: v.paymentMethod,
@@ -755,6 +778,7 @@ function Services({
         } else {
           onAddService({
             client: client.trim(),
+            phone: finalPhone,
             plate: vPlate,
             description: description.trim(),
             paymentMethod: v.paymentMethod,
@@ -837,6 +861,7 @@ function Services({
       finalVehicles.forEach(v => {
         onAddService({
           client: client.trim(),
+          phone: finalPhone,
           plate: v.plate || 'NINFO',
           description: description.trim(),
           paymentMethod: v.paymentMethod,
@@ -851,6 +876,7 @@ function Services({
 
     // Reset Form
     setClient('');
+    setPhone('');
     setPlate('');
     setDescription('');
     setPaymentMethod('DINHEIRO');
@@ -1002,14 +1028,16 @@ function Services({
           // Strict plate filter: keep only the vehicles/services matching the plate
           srvList = srvList.filter(srv => plateMatchesSearch(srv.plate, search));
         } else {
-          // If no plate matched, check if search matches client, description, or subcategory items
+          // If no plate matched, check if search matches client, phone, description, or subcategory items
           const matchesClient = group.client.toLowerCase().includes(sLower);
+          const resolvedPhone = resolveServicePhone(group.services[0]?.phone, group.client, clients);
+          const matchesPhone = resolvedPhone.toLowerCase().includes(sLower) || (resolvedPhone.replace(/\D/g, '').length > 0 && resolvedPhone.replace(/\D/g, '').includes(sLower.replace(/\D/g, '')));
           const matchesDesc = group.description.toLowerCase().includes(sLower);
           const hasItemMatch = srvList.some(srv => srv.items.some(it => it.name.toLowerCase().includes(sLower)));
 
-          if (hasItemMatch && !matchesClient && !matchesDesc) {
+          if (hasItemMatch && !matchesClient && !matchesPhone && !matchesDesc) {
             srvList = srvList.filter(srv => srv.items.some(it => it.name.toLowerCase().includes(sLower)));
-          } else if (!matchesClient && !matchesDesc && !hasItemMatch) {
+          } else if (!matchesClient && !matchesPhone && !matchesDesc && !hasItemMatch) {
             return;
           }
         }
@@ -1102,7 +1130,7 @@ function Services({
         <div className="flex items-center gap-2">
           <button
             type="button"
-            onClick={() => generateReceiptPDF(lastLaunchedServices)}
+            onClick={() => generateReceiptPDF(lastLaunchedServices, clients)}
             className="text-[9px] text-emerald-400 hover:text-emerald-300 border border-emerald-500/30 hover:border-emerald-500/50 hover:bg-emerald-500/10 uppercase font-bold tracking-wider px-2.5 py-1 rounded bg-[#0F1115] cursor-pointer transition-all flex items-center gap-1 shadow-sm"
           >
             <Printer size={10} />
@@ -1124,7 +1152,7 @@ function Services({
           <div className="flex justify-between items-start">
             <div>
               <span className="text-[9px] font-bold text-slate-500 uppercase tracking-wide">Cliente</span>
-              <span className="block text-xs font-black text-white mt-0.5">{lastLaunchedServices[0]?.client}</span>
+              <span className="block text-xs font-black text-white mt-0.5">{getClientWithPhone(lastLaunchedServices[0]?.client, lastLaunchedServices[0]?.phone, clients)}</span>
             </div>
             <div className="text-right">
               <span className="text-[9px] font-bold text-slate-500 uppercase tracking-wide">Data</span>
@@ -1339,6 +1367,7 @@ function Services({
                         type="button"
                         onClick={() => {
                           setClient(c.name);
+                          setPhone(c.phone || '');
                           setShowClientSearch(false);
                         }}
                         className="w-full text-left px-2.5 py-1.5 rounded-lg text-xs font-semibold text-slate-300 hover:text-white hover:bg-slate-800/60 transition-all flex justify-between items-center cursor-pointer"
@@ -1356,6 +1385,36 @@ function Services({
               </div>
             )}
           </div>
+
+          {/* Número de Telefone - apenas quando NÃO for um cliente cadastrado */}
+          {!isRegisteredClient ? (
+            <div className="mt-3 animate-fadeIn">
+              <div className="flex justify-between items-center mb-1.5">
+                <label htmlFor="srv-phone" className="block text-xs font-bold text-slate-400 uppercase tracking-wide flex items-center gap-1.5">
+                  <Phone size={12} className="text-emerald-400" />
+                  Número de Telefone
+                </label>
+                <span className="text-[10px] text-slate-500 font-mono">(opcional • se vazio: ninfo)</span>
+              </div>
+              <input
+                id="srv-phone"
+                type="text"
+                value={phone}
+                onChange={e => setPhone(formatPhoneInput(e.target.value))}
+                placeholder="(99)9 9999-9999"
+                className="w-full px-3.5 py-2.5 bg-[#0F1115] border border-slate-850 rounded-xl text-sm placeholder-slate-650 focus:outline-none focus:border-emerald-500 text-white font-mono transition-all duration-200"
+              />
+            </div>
+          ) : (
+            <div className="mt-2.5 flex items-center justify-between text-xs px-3.5 py-2 bg-emerald-950/20 border border-emerald-500/20 rounded-xl text-emerald-300 font-mono animate-fadeIn">
+              <span className="flex items-center gap-1.5">
+                <Phone size={12} className="text-emerald-400" />
+                <span className="font-sans font-bold uppercase text-[9px] px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-300">Cliente Cadastrado</span>
+                <span className="text-slate-400 font-sans">Telefone:</span>
+              </span>
+              <span className="font-bold text-emerald-400">{registeredClientData?.phone ? registeredClientData.phone : 'ninfo'}</span>
+            </div>
+          )}
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -1975,7 +2034,7 @@ function Services({
                                 )}
                               </div>
 
-                              <h4 className="text-sm font-bold text-white mt-1">{service.client}</h4>
+                              <h4 className="text-sm font-bold text-white mt-1">{getClientWithPhone(service.client, service.phone, clients)}</h4>
                               <p className="text-xs text-slate-400 truncate max-w-lg">{service.description}</p>
                             </div>
 
@@ -1996,7 +2055,7 @@ function Services({
                                     type="button"
                                     onClick={(e) => {
                                       e.stopPropagation();
-                                      generateReceiptPDF([service]);
+                                      generateReceiptPDF([service], clients);
                                     }}
                                     className="p-1 px-1.5 rounded-lg bg-slate-850 hover:bg-slate-800 text-slate-300 hover:text-emerald-400 transition-all border border-slate-755 cursor-pointer"
                                     title="Imprimir Recibo"
@@ -2123,7 +2182,7 @@ function Services({
                                 )}
                               </div>
 
-                              <h4 className="text-sm font-bold text-white mt-1">{group.client}</h4>
+                              <h4 className="text-sm font-bold text-white mt-1">{getClientWithPhone(group.client, group.services[0]?.phone, clients)}</h4>
                               <p className="text-xs text-slate-400 truncate max-w-lg">{group.description}</p>
                             </div>
 
@@ -2144,7 +2203,7 @@ function Services({
                                     type="button"
                                     onClick={(e) => {
                                       e.stopPropagation();
-                                      generateReceiptPDF(group.services);
+                                      generateReceiptPDF(group.services, clients);
                                     }}
                                     className="p-1 px-1.5 rounded-lg bg-slate-850 hover:bg-slate-800 text-slate-300 hover:text-emerald-400 transition-all border border-slate-755 cursor-pointer"
                                     title="Imprimir Recibo Completo"

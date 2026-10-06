@@ -1,5 +1,6 @@
 import { jsPDF } from 'jspdf';
 import { Service, Client } from '../types';
+import { getClientWithPhone } from './phoneFormatter';
 
 export interface PendingReportFilterInfo {
   clientName?: string;
@@ -38,7 +39,7 @@ const formatDateBR = (dateStr?: string) => {
  * Generates a clean, professional, and personalized PDF receipt for a group of services.
  * Uses jsPDF directly.
  */
-export function generateReceiptPDF(services: Service[]) {
+export function generateReceiptPDF(services: Service[], clients?: Client[]) {
   if (!services || services.length === 0) return;
 
   const doc = new jsPDF({
@@ -48,7 +49,7 @@ export function generateReceiptPDF(services: Service[]) {
   });
 
   const firstService = services[0];
-  const clientName = firstService.client || 'CLIENTE NÃO INFORMADO';
+  const clientName = getClientWithPhone(firstService.client, firstService.phone, clients);
   const description = firstService.description || 'Nenhuma descrição adicional informada.';
   
   // Format Date from YYYY-MM-DD to DD/MM/YYYY
@@ -337,7 +338,8 @@ export function generatePendingReportPDF(
     doc.setTextColor(0, 0, 0);
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(11);
-    doc.text(targetClientName.toUpperCase(), 14, y + 11);
+    const fullTargetClient = getClientWithPhone(targetClientName, clientData?.phone || services.find(s => s.client.toLowerCase() === targetClientName.toLowerCase())?.phone, clients);
+    doc.text(fullTargetClient.toUpperCase(), 14, y + 11);
 
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(8.5);
@@ -469,8 +471,9 @@ export function generatePendingReportPDF(
     if (!isSingleClient) {
       // Client
       doc.setFont('helvetica', 'bold');
-      doc.setFontSize(8);
-      const truncatedClient = srv.client && srv.client.length > 22 ? srv.client.substring(0, 22) + '...' : srv.client || '-';
+      doc.setFontSize(7.5);
+      const clientWithPhone = getClientWithPhone(srv.client, srv.phone, clients);
+      const truncatedClient = clientWithPhone.length > 25 ? clientWithPhone.substring(0, 25) + '...' : clientWithPhone;
       doc.text(truncatedClient.toUpperCase(), 36, y + 4.5);
 
       // Plate badge

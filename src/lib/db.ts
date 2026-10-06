@@ -147,6 +147,7 @@ export async function fetchUserData(userId: string, isAdmin: boolean = false) {
       services.push({
         id: docSnap.id,
         client: data.client || '',
+        phone: data.phone || '',
         plate: data.plate || '',
         description: data.description || '',
         paymentMethod: data.paymentMethod || 'DINHEIRO',

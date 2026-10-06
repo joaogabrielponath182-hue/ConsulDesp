@@ -4,7 +4,7 @@
  */
 
 import React, { useState, useMemo } from 'react';
-import { Service, Expense, ExpenseCategory, SubCategory } from '../types';
+import { Service, Expense, ExpenseCategory, SubCategory, Client } from '../types';
 import { 
   Calendar, 
   Filter, 
@@ -22,11 +22,13 @@ import {
 } from 'lucide-react';
 import { plateMatchesSearch } from '../utils/plateMatcher';
 import { formatDateBR } from '../utils/dateFormatter';
+import { getClientWithPhone } from '../utils/phoneFormatter';
 
 interface ReportsProps {
   services: Service[];
   expenses: Expense[];
   subCategories: SubCategory[];
+  clients?: Client[];
 }
 
 interface LedgerItem {
@@ -386,7 +388,7 @@ const loadSavedGeneralFilters = (): GeneralReportFiltersStorage => {
   return {};
 };
 
-export default function Reports({ services, expenses, subCategories }: ReportsProps) {
+export default function Reports({ services, expenses, subCategories, clients }: ReportsProps) {
   // Load initial filter states from localStorage so user doesn't lose context when changing tabs/screens
   const initialFilters = useMemo(() => loadSavedGeneralFilters(), []);
 
@@ -556,15 +558,17 @@ export default function Reports({ services, expenses, subCategories }: ReportsPr
         if (startDate && s.date < startDate) return false;
         if (endDate && s.date > endDate) return false;
 
-        // 2. Text search (Matches plate, client name, description or items)
+        // 2. Text search (Matches plate, client name, phone, description or items)
         if (search) {
           const sLower = search.toLowerCase();
           const matchesPlate = plateMatchesSearch(s.plate, search);
           const matchesClient = s.client.toLowerCase().includes(sLower);
+          const phoneStr = (s.phone || '').toLowerCase();
+          const matchesPhone = phoneStr.includes(sLower) || (phoneStr.replace(/\D/g, '').length > 0 && phoneStr.replace(/\D/g, '').includes(sLower.replace(/\D/g, '')));
           const matchesDesc = s.description.toLowerCase().includes(sLower);
           const matchesItem = s.items.some(item => item.name.toLowerCase().includes(sLower));
           
-          if (!matchesPlate && !matchesClient && !matchesDesc && !matchesItem) {
+          if (!matchesPlate && !matchesClient && !matchesPhone && !matchesDesc && !matchesItem) {
             return false;
           }
         }
@@ -728,7 +732,7 @@ export default function Reports({ services, expenses, subCategories }: ReportsPr
           id: group.id,
           type: 'ENTRADA',
           date: group.date,
-          title: `Serviço: ${group.client}`,
+          title: `Serviço: ${getClientWithPhone(group.client, group.services[0]?.phone, clients)}`,
           description: `${group.description} (${group.services.length} veículos)`,
           plates: group.services.map(s => s.plate),
           paymentMethod: paymentMethodStr,
@@ -752,7 +756,7 @@ export default function Reports({ services, expenses, subCategories }: ReportsPr
           id: s.id,
           type: 'ENTRADA',
           date: s.date,
-          title: `Serviço: ${s.client}`,
+          title: `Serviço: ${getClientWithPhone(s.client, s.phone, clients)}`,
           description: s.description,
           plate: s.plate,
           paymentMethod: s.paymentMethod,

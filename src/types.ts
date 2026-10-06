@@ -28,6 +28,7 @@ export type PaymentStatus = 'PAGO' | 'PENDENTE';
 export interface Service {
   id: string;
   client: string;
+  phone?: string;
   plate: string;
   description: string;
   paymentMethod: PaymentMethod;
