@@ -19,6 +19,7 @@ import {
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { formatPhoneInput } from '../utils/phoneFormatter';
+import { textMatchesExact } from '../utils/reportSearch';
 import { Client } from '../types';
 
 interface ClientsProps {
@@ -87,14 +88,16 @@ export default function Clients({
 
   // Filter clients
   const filteredClients = useMemo(() => {
+    if (!search.trim()) return clients;
+    const q = search.trim();
+    const cleanDigits = q.replace(/\D/g, '');
     return clients.filter(c => {
-      const q = search.toLowerCase();
       return (
-        c.name.toLowerCase().includes(q) ||
-        c.cpf.replace(/\D/g, '').includes(q) ||
-        c.phone.replace(/\D/g, '').includes(q) ||
-        c.company.toLowerCase().includes(q) ||
-        c.cnpj.replace(/\D/g, '').includes(q)
+        textMatchesExact(c.name, q) ||
+        (cleanDigits.length > 0 && c.cpf.replace(/\D/g, '').includes(cleanDigits)) ||
+        (cleanDigits.length > 0 && c.phone.replace(/\D/g, '').includes(cleanDigits)) ||
+        textMatchesExact(c.company, q) ||
+        (cleanDigits.length > 0 && c.cnpj.replace(/\D/g, '').includes(cleanDigits))
       );
     });
   }, [clients, search]);

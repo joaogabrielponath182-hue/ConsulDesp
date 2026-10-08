@@ -49,7 +49,9 @@ export function plateMatchesSearch(targetPlate?: string | null, searchQuery?: st
   if (!targetPlate || typeof targetPlate !== 'string') return false;
   if (!searchQuery || typeof searchQuery !== 'string') return false;
   const cleanQuery = normalizePlate(searchQuery);
-  if (!cleanQuery) return true; // Empty search matches everything
+  if (!cleanQuery) return false;
+  const cleanTarget = normalizePlate(targetPlate);
+  if (!cleanTarget) return false;
 
   const variants = getPlateVariants(targetPlate);
   return variants.some(variant => variant.includes(cleanQuery));

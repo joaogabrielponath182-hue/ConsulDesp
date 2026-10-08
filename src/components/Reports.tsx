@@ -23,6 +23,7 @@ import {
 import { plateMatchesSearch } from '../utils/plateMatcher';
 import { formatDateBR } from '../utils/dateFormatter';
 import { getClientWithPhone } from '../utils/phoneFormatter';
+import { serviceMatchesReportSearch, expenseMatchesReportSearch, textMatchesExact } from '../utils/reportSearch';
 
 interface ReportsProps {
   services: Service[];
@@ -558,17 +559,9 @@ export default function Reports({ services, expenses, subCategories, clients }: 
         if (startDate && s.date < startDate) return false;
         if (endDate && s.date > endDate) return false;
 
-        // 2. Text search (Matches plate, client name, phone, description or items)
-        if (search) {
-          const sLower = search.toLowerCase();
-          const matchesPlate = plateMatchesSearch(s.plate, search);
-          const matchesClient = s.client.toLowerCase().includes(sLower);
-          const phoneStr = (s.phone || '').toLowerCase();
-          const matchesPhone = phoneStr.includes(sLower) || (phoneStr.replace(/\D/g, '').length > 0 && phoneStr.replace(/\D/g, '').includes(sLower.replace(/\D/g, '')));
-          const matchesDesc = s.description.toLowerCase().includes(sLower);
-          const matchesItem = s.items.some(item => item.name.toLowerCase().includes(sLower));
-          
-          if (!matchesPlate && !matchesClient && !matchesPhone && !matchesDesc && !matchesItem) {
+        // 2. Text search (Matches strictly: PLACA, DESCRIÇÃO or NOME)
+        if (search && search.trim()) {
+          if (!serviceMatchesReportSearch(s, search)) {
             return false;
           }
         }
@@ -603,21 +596,21 @@ export default function Reports({ services, expenses, subCategories, clients }: 
     return expenses
       .map(e => {
         // If there is an active search filter, and the expense has items,
-        // we must clone the expense keeping only the items matching the plate/search if search looks like a plate,
-        // or keeping all items if search matches description/category.
-        if (search && e.items && e.items.length > 0) {
-          const sLower = search.toLowerCase();
-          const hasPlateMatch = e.items.some(it => plateMatchesSearch(it.plate, search));
-          const hasDescCategoryMatch = e.description.toLowerCase().includes(sLower) || e.category.toLowerCase().includes(sLower);
+        // we must clone the expense keeping only the items matching the plate if search looks like a plate,
+        // or keeping all items if search matches description.
+        if (search && search.trim() && e.items && e.items.length > 0) {
+          const trimmed = search.trim();
+          const hasPlateMatch = e.items.some(it => plateMatchesSearch(it.plate, trimmed));
+          const hasDescMatch = textMatchesExact(e.description, trimmed);
 
           if (hasPlateMatch) {
-            const matchingItems = e.items.filter(it => plateMatchesSearch(it.plate, search));
+            const matchingItems = e.items.filter(it => plateMatchesSearch(it.plate, trimmed));
             return {
               ...e,
               items: matchingItems,
               value: matchingItems.reduce((sum, item) => sum + item.value, 0)
             };
-          } else if (hasDescCategoryMatch) {
+          } else if (hasDescMatch) {
             return e;
           } else {
             return null;
@@ -631,15 +624,9 @@ export default function Reports({ services, expenses, subCategories, clients }: 
         if (startDate && e.date < startDate) return false;
         if (endDate && e.date > endDate) return false;
 
-        // 2. Text Search
-        if (search) {
-          const sLower = search.toLowerCase();
-          const matchesPlate = plateMatchesSearch(e.plate, search) ||
-                               (e.items && e.items.some(it => plateMatchesSearch(it.plate, search)));
-          const matchesDesc = e.description.toLowerCase().includes(sLower);
-          const matchesCategory = e.category.toLowerCase().includes(sLower);
-          
-          if (!matchesPlate && !matchesDesc && !matchesCategory) return false;
+        // 2. Text Search (Matches strictly: PLACA or DESCRIÇÃO)
+        if (search && search.trim()) {
+          if (!expenseMatchesReportSearch(e, search)) return false;
         }
 
         // 3. Expense Category

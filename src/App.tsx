@@ -54,7 +54,6 @@ import {
 } from './lib/db';
 import AuthModal from './components/AuthModal';
 import LoginScreen from './components/LoginScreen';
-import { plateMatchesSearch } from './utils/plateMatcher';
 
 const getDbUserId = (username?: string | null): string => {
   if (!username) return 'joao.desp';

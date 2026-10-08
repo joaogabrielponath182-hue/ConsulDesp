@@ -28,6 +28,7 @@ import {
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { plateMatchesSearch } from '../utils/plateMatcher';
+import { textMatchesExact } from '../utils/reportSearch';
 import { generateReceiptPDF, generatePendingReportPDF } from '../utils/receiptGenerator';
 import { formatDateBR } from '../utils/dateFormatter';
 import { formatPhoneInput, getClientWithPhone, resolveServicePhone } from '../utils/phoneFormatter';
@@ -1019,25 +1020,21 @@ function Services({
 
       if (srvList.length === 0) return;
 
-      // 3. Text search filtering (Matches plate, client name, description, items)
-      if (search) {
-        const sLower = search.toLowerCase();
-        const hasPlateMatch = srvList.some(srv => plateMatchesSearch(srv.plate, search));
+      // 3. Text search filtering (Matches strictly: PLACA, DESCRIÇÃO or NOME)
+      if (search && search.trim()) {
+        const trimmed = search.trim();
+        const hasPlateMatch = srvList.some(srv => plateMatchesSearch(srv.plate, trimmed));
 
         if (hasPlateMatch) {
           // Strict plate filter: keep only the vehicles/services matching the plate
-          srvList = srvList.filter(srv => plateMatchesSearch(srv.plate, search));
+          srvList = srvList.filter(srv => plateMatchesSearch(srv.plate, trimmed));
         } else {
-          // If no plate matched, check if search matches client, phone, description, or subcategory items
-          const matchesClient = group.client.toLowerCase().includes(sLower);
-          const resolvedPhone = resolveServicePhone(group.services[0]?.phone, group.client, clients);
-          const matchesPhone = resolvedPhone.toLowerCase().includes(sLower) || (resolvedPhone.replace(/\D/g, '').length > 0 && resolvedPhone.replace(/\D/g, '').includes(sLower.replace(/\D/g, '')));
-          const matchesDesc = group.description.toLowerCase().includes(sLower);
-          const hasItemMatch = srvList.some(srv => srv.items.some(it => it.name.toLowerCase().includes(sLower)));
+          // If no plate matched, check if search matches client name or description
+          const matchesClient = textMatchesExact(group.client, trimmed);
+          const matchesDesc = textMatchesExact(group.description, trimmed) ||
+            srvList.some(srv => textMatchesExact(srv.description, trimmed));
 
-          if (hasItemMatch && !matchesClient && !matchesPhone && !matchesDesc) {
-            srvList = srvList.filter(srv => srv.items.some(it => it.name.toLowerCase().includes(sLower)));
-          } else if (!matchesClient && !matchesPhone && !matchesDesc && !hasItemMatch) {
+          if (!matchesClient && !matchesDesc) {
             return;
           }
         }

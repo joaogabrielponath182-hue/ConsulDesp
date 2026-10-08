@@ -23,6 +23,7 @@ import {
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { plateMatchesSearch } from '../utils/plateMatcher';
+import { expenseMatchesReportSearch, textMatchesExact } from '../utils/reportSearch';
 import { formatDateBR } from '../utils/dateFormatter';
 
 interface ExpensesProps {
@@ -655,21 +656,21 @@ function Expenses({
     const list = expenses
       .map(e => {
         // If there is an active search filter, and the expense has items,
-        // clone the expense keeping only the items matching the plate/search if search matches any plate,
-        // or keeping all items if search matches description/category.
-        if (search && e.items && e.items.length > 0) {
-          const sLower = search.toLowerCase();
-          const hasPlateMatch = e.items.some(it => plateMatchesSearch(it.plate, search));
-          const hasDescCategoryMatch = e.description.toLowerCase().includes(sLower) || e.category.toLowerCase().includes(sLower);
+        // clone the expense keeping only the items matching the plate if search is a plate,
+        // or keeping all items if search matches description.
+        if (search && search.trim() && e.items && e.items.length > 0) {
+          const trimmed = search.trim();
+          const hasPlateMatch = e.items.some(it => plateMatchesSearch(it.plate, trimmed));
+          const hasDescMatch = textMatchesExact(e.description, trimmed);
 
           if (hasPlateMatch) {
-            const matchingItems = e.items.filter(it => plateMatchesSearch(it.plate, search));
+            const matchingItems = e.items.filter(it => plateMatchesSearch(it.plate, trimmed));
             return {
               ...e,
               items: matchingItems,
               value: matchingItems.reduce((sum, item) => sum + item.value, 0)
             };
-          } else if (hasDescCategoryMatch) {
+          } else if (hasDescMatch) {
             return e;
           } else {
             return null;
@@ -695,15 +696,9 @@ function Expenses({
         const matchesPaymentMethod = selectedPaymentMethod === 'all' || exp.paymentMethod === selectedPaymentMethod;
         if (!matchesPaymentMethod) return false;
 
-        // 4. Text Search
-        if (search) {
-          const sLower = search.toLowerCase();
-          const matchesPlate = plateMatchesSearch(exp.plate, search) ||
-            (exp.items && exp.items.some(item => plateMatchesSearch(item.plate, search)));
-          const matchesDesc = exp.description.toLowerCase().includes(sLower);
-          const matchesCategoryName = exp.category.toLowerCase().includes(sLower);
-
-          if (!matchesPlate && !matchesDesc && !matchesCategoryName) return false;
+        // 4. Text Search (Matches strictly: PLACA or DESCRIÇÃO)
+        if (search && search.trim()) {
+          if (!expenseMatchesReportSearch(exp, search)) return false;
         }
 
         return true;
