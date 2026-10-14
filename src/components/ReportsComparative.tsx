@@ -666,6 +666,10 @@ export default function ReportsComparative({ services, expenses, subCategories, 
         cashCountB: dataB.cashCount,
         diffCash,
         pctCash,
+        pixValA: dataA.pixValue,
+        pixValB: dataB.pixValue,
+        pixCountA: dataA.pixCount,
+        pixCountB: dataB.pixCount,
         diffVal,
         pctVal,
         comissaoA,
@@ -1918,17 +1922,17 @@ export default function ReportsComparative({ services, expenses, subCategories, 
           </div>
         </div>
 
-        {/* Detalhamento por Item: Quantitativo e Lançamentos em Dinheiro por Categoria (Op. Dinho) - Modelo Comparativo de Receitas por Item */}
+        {/* Detalhamento por Item: Quantitativo e Total de Lançamentos por Categoria (Op. Dinho) - Modelo Comparativo de Receitas por Item */}
         <div className="space-y-4 pt-2 border-t border-slate-800/80">
           <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-1 pb-2 border-b border-slate-800/60">
             <div className="flex items-center gap-2">
-              <Coins size={16} className="text-amber-400" />
+              <Layers size={16} className="text-emerald-400" />
               <h3 className="text-xs font-extrabold text-white uppercase tracking-wider">
-                Quantitativo e Lançamentos em Dinheiro por Categoria (Op. Dinho)
+                Quantitativo e Total de Lançamentos por Categoria (Op. Dinho)
               </h3>
             </div>
             <span className="text-[9px] text-slate-450 lowercase tracking-normal font-mono">
-              ordenado por valor total no Período "{labelMonthA}" • apenas itens lançados pelo Op. Dinho
+              ordenado por valor total no Período "{labelMonthA}" • total de lançamentos do Op. Dinho
             </span>
           </div>
 
@@ -1950,18 +1954,6 @@ export default function ReportsComparative({ services, expenses, subCategories, 
                     </span>
                   </div>
 
-                  {/* Valor Total: Período A vs Período B (Idêntico ao modelo de Comparativo de Receitas por Item) */}
-                  <div className="grid grid-cols-2 gap-2 text-[11px] font-mono">
-                    <div>
-                      <span className="text-slate-500 block text-[9px] uppercase font-bold">{labelMonthA}:</span>
-                      <span className="text-white font-extrabold">{formatCurrency(item.valA)}</span>
-                    </div>
-                    <div>
-                      <span className="text-slate-500 block text-[9px] uppercase font-bold">{labelMonthB}:</span>
-                      <span className="text-slate-400">{formatCurrency(item.valB)}</span>
-                    </div>
-                  </div>
-
                   {/* Quantitativo de Processos Lançados */}
                   <div className="flex justify-between items-center text-[10.5px] font-mono bg-white dark:bg-[#161B22]/70 px-2.5 py-1.5 rounded-lg border border-slate-200 dark:border-slate-800/40 shadow-xs dark:shadow-none">
                     <span className="text-slate-500 dark:text-slate-400 uppercase font-semibold text-[9px]">Qtd Processos:</span>
@@ -1974,23 +1966,37 @@ export default function ReportsComparative({ services, expenses, subCategories, 
                     </div>
                   </div>
 
-                  {/* Lançamentos em Dinheiro (Destaque em Espécie) */}
-                  <div className="p-2.5 bg-amber-950/20 border border-amber-500/20 rounded-lg space-y-1.5">
-                    <div className="flex justify-between items-center text-[10px] font-semibold text-amber-400 uppercase">
-                      <span className="flex items-center gap-1"><Coins size={11} /> Em Dinheiro:</span>
-                      <span className="font-mono text-amber-300 font-bold">
-                        {item.cashCountA} un <span className="text-amber-500/80 font-normal">vs {item.cashCountB} un</span>
+                  {/* Total de Lançamentos (Geral: Total Lançado Dinheiro + PIX) */}
+                  <div className="p-2.5 bg-emerald-950/20 border border-emerald-500/20 rounded-lg space-y-1.5">
+                    <div className="flex justify-between items-center text-[10px] font-semibold text-emerald-400 uppercase">
+                      <span className="flex items-center gap-1"><Coins size={11} /> Total de Lançamentos:</span>
+                      <span className="font-mono text-emerald-300 font-bold">
+                        {item.countA} un <span className="text-emerald-500/80 font-normal">vs {item.countB} un</span>
                       </span>
                     </div>
                     <div className="flex justify-between items-baseline text-[11px] font-mono">
-                      <span className="text-amber-300 font-black">{formatCurrency(item.cashValA)}</span>
-                      <span className="text-[10px] text-slate-400">vs {formatCurrency(item.cashValB)}</span>
+                      <span className="text-emerald-300 font-black">{formatCurrency(item.valA)}</span>
+                      <span className="text-[10px] text-slate-400">vs {formatCurrency(item.valB)}</span>
                     </div>
-                    <div className="flex justify-between items-center text-[9px] font-mono pt-0.5 border-t border-amber-500/15">
-                      <span className="text-slate-400">Var. Dinheiro:</span>
-                      <span className={item.diffCash >= 0 ? 'text-emerald-400 font-bold' : 'text-rose-400 font-bold'}>
-                        {item.diffCash >= 0 ? '+' : ''}{formatCurrency(item.diffCash)} ({item.diffCash >= 0 ? '+' : ''}{item.pctCash.toFixed(1)}%)
+                    <div className="flex justify-between items-center text-[9px] font-mono pt-0.5 border-t border-emerald-500/15">
+                      <span className="text-slate-400">Var. Total:</span>
+                      <span className={item.diffVal >= 0 ? 'text-emerald-400 font-bold' : 'text-rose-400 font-bold'}>
+                        {item.diffVal >= 0 ? '+' : ''}{formatCurrency(item.diffVal)} ({item.diffVal >= 0 ? '+' : ''}{item.pctVal.toFixed(1)}%)
                       </span>
+                    </div>
+                  </div>
+
+                  {/* Detalhamento por Forma de Pagamento: Dinheiro & PIX */}
+                  <div className="grid grid-cols-2 gap-1.5 pt-0.5 text-[9.5px] font-mono">
+                    <div className="bg-slate-900/60 dark:bg-[#161B22]/60 px-2 py-1 rounded-lg border border-slate-800/60">
+                      <span className="text-[8.5px] text-amber-400 block font-semibold uppercase">💵 Dinheiro</span>
+                      <span className="text-slate-200 font-bold block">{formatCurrency(item.cashValA)}</span>
+                      <span className="text-slate-400 text-[8.5px] block">{item.cashCountA} un <span className="text-slate-500">(vs {formatCurrency(item.cashValB)})</span></span>
+                    </div>
+                    <div className="bg-slate-900/60 dark:bg-[#161B22]/60 px-2 py-1 rounded-lg border border-slate-800/60">
+                      <span className="text-[8.5px] text-teal-400 block font-semibold uppercase">⚡ PIX</span>
+                      <span className="text-slate-200 font-bold block">{formatCurrency(item.pixValA)}</span>
+                      <span className="text-slate-400 text-[8.5px] block">{item.pixCountA} un <span className="text-slate-500">(vs {formatCurrency(item.pixValB)})</span></span>
                     </div>
                   </div>
 
