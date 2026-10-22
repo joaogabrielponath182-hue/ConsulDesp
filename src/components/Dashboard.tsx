@@ -61,6 +61,10 @@ function Dashboard({
     return new Date().getFullYear().toString(); // e.g. "2026"
   });
 
+  // Dynamic commission rate for operator Dinho: 2026 = 2,5% and >= 2027 = 3% (2028+ to be decided later)
+  const dinhoRateForSelectedYear = parseInt(selectedYear, 10) >= 2027 ? 0.03 : 0.025;
+  const dinhoRateLabelForSelectedYear = dinhoRateForSelectedYear === 0.03 ? '3%' : '2,5%';
+
   // "Lucro Livre" settings and calculations state
   const [selectedRevenueCats, setSelectedRevenueCats] = useState<string[]>([]);
   const [selectedExpenseCats, setSelectedExpenseCats] = useState<string[]>([]);
@@ -763,10 +767,14 @@ function Dashboard({
         }
       });
 
+      const monthYear = parseInt(month.key.substring(0, 4), 10);
+      const monthRate = monthYear >= 2027 ? 0.03 : 0.025;
+      const monthRateLabel = monthRate === 0.03 ? '3%' : '2,5%';
+
       const termosCost = honorariosCount * 10;
       const honorariosBase = Math.max(0, honorariosTotal - termosCost);
-      const comissaoHonorarios = honorariosCount > 0 ? honorariosBase * 0.025 : 0;
-      const comissaoRetCrlve = retCrlveCount > 0 ? retCrlveTotal * 0.025 : 0;
+      const comissaoHonorarios = honorariosCount > 0 ? honorariosBase * monthRate : 0;
+      const comissaoRetCrlve = retCrlveCount > 0 ? retCrlveTotal * monthRate : 0;
       const totalComissao = comissaoHonorarios + comissaoRetCrlve;
 
       return {
@@ -780,7 +788,8 @@ function Dashboard({
         retCrlveTotal,
         comissaoRetCrlve,
         totalComissao,
-        totalProcessos: honorariosCount + retCrlveCount
+        totalProcessos: honorariosCount + retCrlveCount,
+        rateLabel: monthRateLabel
       };
     });
   }, [services, monthsList]);
@@ -830,7 +839,7 @@ function Dashboard({
               <h3 className="text-lg font-bold text-white">Comissão Dinho {selectedYear}</h3>
             </div>
             <p className="text-xs text-slate-400 mt-1">
-              Evolução da comissão total no decorrer dos meses ({selectedYear}) — 2,5% sobre Honorários (líquido de termos) e Ret. CRLV-E
+              Evolução da comissão total no decorrer dos meses ({selectedYear}) — {dinhoRateLabelForSelectedYear} sobre Honorários (líquido de termos) e Ret. CRLV-E
             </p>
           </div>
           {/* Legend */}
@@ -841,11 +850,11 @@ function Dashboard({
             </div>
             <div className="flex items-center gap-1.5">
               <span className="w-3 h-3 rounded bg-emerald-500 inline-block"></span>
-              <span className="text-slate-300">Honorários (2,5%)</span>
+              <span className="text-slate-300">Honorários ({dinhoRateLabelForSelectedYear})</span>
             </div>
             <div className="flex items-center gap-1.5">
               <span className="w-3 h-3 rounded bg-blue-500 inline-block"></span>
-              <span className="text-slate-300">Ret. CRLV-E (2,5%)</span>
+              <span className="text-slate-300">Ret. CRLV-E ({dinhoRateLabelForSelectedYear})</span>
             </div>
           </div>
         </div>
@@ -1074,7 +1083,7 @@ function Dashboard({
               <div className="flex justify-between items-center text-[11px]">
                 <span className="text-slate-400 flex items-center gap-1">
                   <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 inline-block"></span>
-                  Honorários (2,5%):
+                  Honorários ({dinhoChartData[hoveredDinhoBarIndex].rateLabel || dinhoRateLabelForSelectedYear}):
                 </span>
                 <span className="font-mono text-emerald-400 font-semibold">
                   {formatCurrency(dinhoChartData[hoveredDinhoBarIndex].comissaoHonorarios)}
@@ -1089,7 +1098,7 @@ function Dashboard({
               <div className="flex justify-between items-center text-[11px] mt-0.5">
                 <span className="text-slate-400 flex items-center gap-1">
                   <span className="w-1.5 h-1.5 rounded-full bg-blue-400 inline-block"></span>
-                  Ret. CRLV-E (2,5%):
+                  Ret. CRLV-E ({dinhoChartData[hoveredDinhoBarIndex].rateLabel || dinhoRateLabelForSelectedYear}):
                 </span>
                 <span className="font-mono text-blue-400 font-semibold">
                   {formatCurrency(dinhoChartData[hoveredDinhoBarIndex].comissaoRetCrlve)}
@@ -1115,8 +1124,8 @@ function Dashboard({
 
   // Reusable Card: Serviços Prestados
   const renderServicosPrestadosCard = () => {
-    const comissaoDinhoHonorarios = (subcategoryStats.honorarios.avg * 0.025) * subcategoryStats.honorarios.count;
-    const comissaoDinhoRetCrlve = (subcategoryStats.retCrlve.avg * 0.025) * subcategoryStats.retCrlve.count;
+    const comissaoDinhoHonorarios = (subcategoryStats.honorarios.avg * dinhoRateForSelectedYear) * subcategoryStats.honorarios.count;
+    const comissaoDinhoRetCrlve = (subcategoryStats.retCrlve.avg * dinhoRateForSelectedYear) * subcategoryStats.retCrlve.count;
     const totalComissaoDinho = comissaoDinhoHonorarios + comissaoDinhoRetCrlve;
 
     return (
@@ -1124,7 +1133,12 @@ function Dashboard({
         <div className="absolute top-0 left-0 w-1.5 h-full bg-amber-500"></div>
         <div className="flex justify-between items-start">
           <div className="flex-1">
-            <p className="text-slate-400 text-xs font-semibold uppercase tracking-wider">Serviços Prestados</p>
+            <div className="flex items-center gap-2">
+              <p className="text-slate-400 text-xs font-semibold uppercase tracking-wider">Serviços Prestados</p>
+              <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-400 border border-amber-500/20">
+                Comissão: {dinhoRateLabelForSelectedYear}
+              </span>
+            </div>
             <div className="space-y-2 mt-3">
               <div className="flex justify-between items-center text-xs text-slate-300 pb-2 border-b border-slate-800/60">
                 <div>
@@ -1136,7 +1150,7 @@ function Dashboard({
                     Média: <span className="text-slate-200 font-semibold">{formatCurrency(subcategoryStats.honorarios.avg)}</span>
                   </span>
                   <span className="text-[10px] text-slate-400 font-mono block mt-0.5">
-                    Comissão Dinho: <span className="text-amber-300 font-semibold">{formatCurrency(comissaoDinhoHonorarios)}</span>
+                    Comissão Dinho ({dinhoRateLabelForSelectedYear}): <span className="text-amber-300 font-semibold">{formatCurrency(comissaoDinhoHonorarios)}</span>
                   </span>
                 </div>
                 <div className="text-right">
@@ -1178,7 +1192,7 @@ function Dashboard({
                     Média: <span className="text-slate-200 font-semibold">{formatCurrency(subcategoryStats.retCrlve.avg)}</span>
                   </span>
                   <span className="text-[10px] text-slate-400 font-mono block mt-0.5">
-                    Comissão Dinho: <span className="text-amber-300 font-semibold">{formatCurrency(comissaoDinhoRetCrlve)}</span>
+                    Comissão Dinho ({dinhoRateLabelForSelectedYear}): <span className="text-amber-300 font-semibold">{formatCurrency(comissaoDinhoRetCrlve)}</span>
                   </span>
                 </div>
                 <div className="text-right">
@@ -1225,7 +1239,7 @@ function Dashboard({
         <div className="mt-4 text-[10px] text-slate-500 border-t border-slate-800/80 pt-3 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-1.5">
           <span>Quantidade e valor médio por serviço</span>
           <span className="text-slate-300 font-mono">
-            Comissão Dinho (Total): <strong className="text-amber-400">{formatCurrency(totalComissaoDinho)}</strong>
+            Comissão Dinho ({dinhoRateLabelForSelectedYear}) (Total): <strong className="text-amber-400">{formatCurrency(totalComissaoDinho)}</strong>
           </span>
         </div>
       </div>

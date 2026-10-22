@@ -35,7 +35,7 @@ interface OperatorsProps {
   onDeleteOperator: (id: string) => Promise<void> | void;
 }
 
-export default function Operators({
+function Operators({
   internalUsers,
   onAddOperator,
   onUpdateOperator,
@@ -635,3 +635,6 @@ export default function Operators({
     </div>
   );
 }
+
+const MemoizedOperators = React.memo(Operators);
+export default MemoizedOperators;

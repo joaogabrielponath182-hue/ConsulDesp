@@ -4,17 +4,29 @@
  */
 import { plateMatchesSearch } from './plateMatcher';
 
+// High performance normalization cache to eliminate redundant Unicode decompositions
+const normCache = new Map<string, string>();
+
 /**
  * Normalizes text for case-insensitive and accent-insensitive exact substring search.
  * e.g. "Irineo" -> "irineo", "IRINEO" -> "irineo", "José" -> "jose"
  */
 export function normalizeSearchText(text?: string | null): string {
   if (!text || typeof text !== 'string') return '';
-  return text
+  const cached = normCache.get(text);
+  if (cached !== undefined) return cached;
+
+  const normalized = text
     .normalize('NFD')
     .replace(/[\u0300-\u036f]/g, '')
     .toLowerCase()
     .trim();
+
+  if (normCache.size > 3000) {
+    normCache.clear();
+  }
+  normCache.set(text, normalized);
+  return normalized;
 }
 
 /**
@@ -27,11 +39,10 @@ export function normalizeSearchText(text?: string | null): string {
 export function textMatchesExact(target?: string | null, query?: string | null): boolean {
   if (!query || !query.trim()) return true;
   if (!target || typeof target !== 'string') return false;
-  
-  const cleanTarget = normalizeSearchText(target);
+
   const cleanQuery = normalizeSearchText(query);
-  
   if (!cleanQuery) return true;
+  const cleanTarget = normalizeSearchText(target);
   return cleanTarget.includes(cleanQuery);
 }
 
@@ -39,6 +50,7 @@ export function textMatchesExact(target?: string | null, query?: string | null):
  * Checks if a service matches the report text search.
  * Strictly searches ONLY: PLACA, DESCRIÇÃO or NOME (client).
  * Case-insensitive & accent-insensitive exact matching.
+ * Optimized for thousands of records.
  */
 export function serviceMatchesReportSearch(
   service: { plate?: string | null; description?: string | null; client?: string | null },
@@ -52,13 +64,16 @@ export function serviceMatchesReportSearch(
     return true;
   }
 
+  const cleanQuery = normalizeSearchText(trimmed);
+  if (!cleanQuery) return true;
+
   // 2. NOME (Cliente)
-  if (textMatchesExact(service.client, trimmed)) {
+  if (service.client && normalizeSearchText(service.client).includes(cleanQuery)) {
     return true;
   }
 
   // 3. DESCRIÇÃO
-  if (textMatchesExact(service.description, trimmed)) {
+  if (service.description && normalizeSearchText(service.description).includes(cleanQuery)) {
     return true;
   }
 
@@ -68,6 +83,7 @@ export function serviceMatchesReportSearch(
 /**
  * Checks if an expense matches the report text search.
  * Strictly searches ONLY: PLACA or DESCRIÇÃO.
+ * Optimized for thousands of records.
  */
 export function expenseMatchesReportSearch(
   expense: { plate?: string | null; description?: string | null; items?: Array<{ plate?: string | null }> },
@@ -80,12 +96,15 @@ export function expenseMatchesReportSearch(
   if (plateMatchesSearch(expense.plate, trimmed)) {
     return true;
   }
-  if (expense.items && expense.items.some(it => plateMatchesSearch(it.plate, trimmed))) {
+  if (expense.items && expense.items.length > 0 && expense.items.some(it => plateMatchesSearch(it.plate, trimmed))) {
     return true;
   }
 
+  const cleanQuery = normalizeSearchText(trimmed);
+  if (!cleanQuery) return true;
+
   // 2. DESCRIÇÃO
-  if (textMatchesExact(expense.description, trimmed)) {
+  if (expense.description && normalizeSearchText(expense.description).includes(cleanQuery)) {
     return true;
   }
 

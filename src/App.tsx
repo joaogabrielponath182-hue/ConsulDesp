@@ -711,7 +711,7 @@ export default function App() {
   };
 
   // Save states helper wrappers
-  const handleAddSubCategory = async (
+  const handleAddSubCategory = useCallback(async (
     name: string, 
     defaultValue: number, 
     type: 'RECEITA' | 'GASTO' = 'RECEITA',
@@ -734,9 +734,12 @@ export default function App() {
       categoryGroup,
       operator: currentSession?.username || 'admin'
     };
-    const updated = cleanAndDeduplicateSubcategories([...subCategories, newSub], currentSession?.username);
-    setSubCategories(updated);
-    localStorage.setItem('dep_subcategories', JSON.stringify(updated));
+
+    setSubCategories(prev => {
+      const updated = cleanAndDeduplicateSubcategories([...prev, newSub], currentSession?.username);
+      localStorage.setItem('dep_subcategories', JSON.stringify(updated));
+      return updated;
+    });
 
     if (currentSession && isCloudConnected) {
       try {
@@ -746,28 +749,30 @@ export default function App() {
       }
     }
     return newSub;
-  };
+  }, [currentSession, isCloudConnected]);
 
-  const handleRemoveSubCategory = async (id: string) => {
-    const subToRem = subCategories.find(sub => sub.id === id);
-    let isFixed = false;
-    if (subToRem) {
-      const name = subToRem.name.trim().toUpperCase();
-      const type = subToRem.type || 'RECEITA';
-      if (type === 'RECEITA') {
-        isFixed = ['PLACA', 'HONORARIO', 'RET. CRLV-E', 'ATPV-E', 'HONORÁRIO', 'HONORARIOS', 'HONORÁRIOS'].includes(name);
-      } else if (type === 'GASTO') {
-        isFixed = ['PLACA'].includes(name);
+  const handleRemoveSubCategory = useCallback(async (id: string) => {
+    setSubCategories(prev => {
+      const subToRem = prev.find(sub => sub.id === id);
+      let isFixed = false;
+      if (subToRem) {
+        const name = subToRem.name.trim().toUpperCase();
+        const type = subToRem.type || 'RECEITA';
+        if (type === 'RECEITA') {
+          isFixed = ['PLACA', 'HONORARIO', 'RET. CRLV-E', 'ATPV-E', 'HONORÁRIO', 'HONORARIOS', 'HONORÁRIOS'].includes(name);
+        } else if (type === 'GASTO') {
+          isFixed = ['PLACA'].includes(name);
+        }
       }
-    }
-    if (isFixed) {
-      console.warn("Remoção de subcategoria fixa bloqueada pelo sistema.");
-      return;
-    }
+      if (isFixed) {
+        console.warn("Remoção de subcategoria fixa bloqueada pelo sistema.");
+        return prev;
+      }
 
-    const updated = subCategories.filter(sub => sub.id !== id);
-    setSubCategories(updated);
-    localStorage.setItem('dep_subcategories', JSON.stringify(updated));
+      const updated = prev.filter(sub => sub.id !== id);
+      localStorage.setItem('dep_subcategories', JSON.stringify(updated));
+      return updated;
+    });
 
     if (currentSession && isCloudConnected) {
       try {
@@ -776,9 +781,9 @@ export default function App() {
         console.error("Erro ao deletar subcategoria na nuvem:", err);
       }
     }
-  };
+  }, [currentSession, isCloudConnected]);
 
-  const handleUpdateSubCategory = async (
+  const handleUpdateSubCategory = useCallback(async (
     id: string, 
     name: string, 
     defaultValue: number,
@@ -793,50 +798,48 @@ export default function App() {
       normalizedName = 'SERVIÇOS';
     }
 
-    const targetSub = subCategories.find(s => s.id === id);
-    const targetType = targetSub?.type || 'RECEITA';
-    const newCategoryGroup = categoryGroup !== undefined ? categoryGroup : (targetSub?.categoryGroup || 'SERVIÇOS');
+    let targetCleanedToSave: SubCategory | null = null;
 
-    const updated = subCategories.map(sub => {
-      // Update by ID or by matching normalized name + type
-      const matchesTarget = sub.id === id || (targetSub && sub.name.trim().toUpperCase() === targetSub.name.trim().toUpperCase() && (sub.type || 'RECEITA') === targetType);
-      if (matchesTarget) {
-        const isFixed = ['HONORÁRIO', 'HONORARIOS', 'HONORÁRIOS', 'HONORARIO', 'PLACA', 'RET. CRLV-E', 'ATPV-E'].includes(sub.name.trim().toUpperCase());
-        return {
-          ...sub,
-          name: isFixed ? sub.name : normalizedName,
-          defaultValue: Number(defaultValue),
-          categoryGroup: newCategoryGroup,
-          operator: currentSession?.username || sub.operator || 'admin'
-        };
-      }
-      return sub;
+    setSubCategories(prev => {
+      const targetSub = prev.find(s => s.id === id);
+      const targetType = targetSub?.type || 'RECEITA';
+      const newCategoryGroup = categoryGroup !== undefined ? categoryGroup : (targetSub?.categoryGroup || 'SERVIÇOS');
+
+      const updated = prev.map(sub => {
+        const matchesTarget = sub.id === id || (targetSub && sub.name.trim().toUpperCase() === targetSub.name.trim().toUpperCase() && (sub.type || 'RECEITA') === targetType);
+        if (matchesTarget) {
+          const isFixed = ['HONORÁRIO', 'HONORARIOS', 'HONORÁRIOS', 'HONORARIO', 'PLACA', 'RET. CRLV-E', 'ATPV-E'].includes(sub.name.trim().toUpperCase());
+          return {
+            ...sub,
+            name: isFixed ? sub.name : normalizedName,
+            defaultValue: Number(defaultValue),
+            categoryGroup: newCategoryGroup,
+            operator: currentSession?.username || sub.operator || 'admin'
+          };
+        }
+        return sub;
+      });
+
+      const cleaned = cleanAndDeduplicateSubcategories(updated, currentSession?.username);
+      localStorage.setItem('dep_subcategories', JSON.stringify(cleaned));
+      targetCleanedToSave = cleaned.find(sub => 
+        sub.id === id || (targetSub && sub.name.trim().toUpperCase() === targetSub.name.trim().toUpperCase() && (sub.type || 'RECEITA') === targetType)
+      ) || null;
+      return cleaned;
     });
 
-    const cleaned = cleanAndDeduplicateSubcategories(updated, currentSession?.username);
-    setSubCategories(cleaned);
-    localStorage.setItem('dep_subcategories', JSON.stringify(cleaned));
-
-    if (currentSession && isCloudConnected) {
+    if (currentSession && isCloudConnected && targetCleanedToSave) {
       try {
         const isDemo = currentSession.username.toLowerCase() === 'user' || currentSession.username === 'user-demo-default' || currentSession.username === 'user-demo';
         const dbUserId = isDemo ? currentSession.username : 'joao.desp';
-        const targetCleaned = cleaned.find(sub => 
-          sub.id === id || (targetSub && sub.name.trim().toUpperCase() === targetSub.name.trim().toUpperCase() && (sub.type || 'RECEITA') === targetType)
-        );
-        if (targetCleaned) {
-          await saveSubCategory(dbUserId, targetCleaned);
-          if (id && id !== targetCleaned.id) {
-            await saveSubCategory(dbUserId, { ...targetCleaned, id });
-          }
-        }
+        await saveSubCategory(dbUserId, targetCleanedToSave);
       } catch (err) {
         console.error("Erro ao atualizar subcategoria na nuvem:", err);
       }
     }
-  };
+  }, [currentSession, isCloudConnected]);
 
-  const handleAddService = async (newSrv: Omit<Service, 'id' | 'totalValue'>) => {
+  const handleAddService = useCallback(async (newSrv: Omit<Service, 'id' | 'totalValue'>) => {
     const total = newSrv.items.reduce((sum, item) => sum + item.value, 0);
     const service: Service = {
       ...newSrv,
@@ -858,9 +861,9 @@ export default function App() {
         console.error("Erro ao salvar serviço na nuvem:", err);
       }
     }
-  };
+  }, [currentSession, isCloudConnected]);
 
-  const handleRemoveService = async (id: string | string[]) => {
+  const handleRemoveService = useCallback(async (id: string | string[]) => {
     const ids = Array.isArray(id) ? id : [id];
     setServices(prev => {
       const updated = prev.filter(srv => !ids.includes(srv.id));
@@ -877,31 +880,17 @@ export default function App() {
         console.error("Erro ao deletar serviço na nuvem:", err);
       }
     }
-  };
+  }, [currentSession, isCloudConnected]);
 
-  const getLocalDateString = () => {
+  const getLocalDateString = useCallback(() => {
     const d = new Date();
     const year = d.getFullYear();
     const month = String(d.getMonth() + 1).padStart(2, '0');
     const day = String(d.getDate()).padStart(2, '0');
     return `${year}-${month}-${day}`;
-  };
+  }, []);
 
-  const handleToggleServiceStatus = async (id: string) => {
-    const srv = services.find(s => s.id === id);
-    if (!srv) return;
-
-    if (srv.status === 'PENDENTE') {
-      // Pergunta a data de pagamento
-      setPendingStatusToggleId(id);
-      setTogglePaymentDate(getLocalDateString());
-    } else {
-      // Reverte para pendente sem precisar perguntar data
-      await executeToggleServiceStatus(id, srv.date);
-    }
-  };
-
-  const executeToggleServiceStatus = async (id: string, customDate?: string) => {
+  const executeToggleServiceStatus = useCallback(async (id: string, customDate?: string) => {
     let updatedService: Service | null = null;
     setServices(prev => {
       const updated = prev.map(srv => {
@@ -929,9 +918,26 @@ export default function App() {
         }
       }
     }, 50);
-  };
+  }, [currentSession, isCloudConnected]);
 
-  const handleAddExpense = async (description: string, category: ExpenseCategory, value: number, date: string, plate?: string, paymentMethod?: 'DINHEIRO' | 'PIX', items?: any[], id?: string) => {
+  const handleToggleServiceStatus = useCallback(async (id: string) => {
+    setServices(prev => {
+      const srv = prev.find(s => s.id === id);
+      if (!srv) return prev;
+
+      if (srv.status === 'PENDENTE') {
+        // Pergunta a data de pagamento
+        setPendingStatusToggleId(id);
+        setTogglePaymentDate(getLocalDateString());
+      } else {
+        // Reverte para pendente sem precisar perguntar data
+        executeToggleServiceStatus(id, srv.date);
+      }
+      return prev;
+    });
+  }, [getLocalDateString, executeToggleServiceStatus]);
+
+  const handleAddExpense = useCallback(async (description: string, category: ExpenseCategory, value: number, date: string, plate?: string, paymentMethod?: 'DINHEIRO' | 'PIX', items?: any[], id?: string) => {
     const expense: Expense = {
       id: id || `exp-${Date.now()}`,
       description,
@@ -943,9 +949,11 @@ export default function App() {
       items,
       operator: currentSession?.username || 'admin'
     };
-    const updated = [expense, ...expenses];
-    setExpenses(updated);
-    localStorage.setItem('dep_expenses', JSON.stringify(updated));
+    setExpenses(prev => {
+      const updated = [expense, ...prev];
+      localStorage.setItem('dep_expenses', JSON.stringify(updated));
+      return updated;
+    });
 
     if (currentSession && isCloudConnected) {
       try {
@@ -954,18 +962,19 @@ export default function App() {
         console.error("Erro ao salvar gasto na nuvem:", err);
       }
     }
-  };
+  }, [currentSession, isCloudConnected]);
 
-  const handleEditService = async (updatedService: Service) => {
-    const originalSrv = services.find(s => s.id === updatedService.id);
-
+  const handleEditService = useCallback(async (updatedService: Service) => {
+    let mergedService = updatedService;
     setServices(prev => {
+      const existingSrv = prev.find(s => s.id === updatedService.id);
+      mergedService = existingSrv 
+        ? { ...existingSrv, ...updatedService }
+        : updatedService;
+
       const updated = prev.map(s => {
         if (s.id === updatedService.id) {
-          return {
-            ...s,
-            ...updatedService
-          };
+          return mergedService;
         }
         return s;
       });
@@ -975,21 +984,19 @@ export default function App() {
 
     if (currentSession && isCloudConnected) {
       try {
-        const existingSrv = services.find(s => s.id === updatedService.id);
-        const mergedService = existingSrv 
-          ? { ...existingSrv, ...updatedService }
-          : updatedService;
         await saveService(getDbUserId(currentSession.username), mergedService);
       } catch (err) {
         console.error("Erro ao editar serviço na nuvem:", err);
       }
     }
-  };
+  }, [currentSession, isCloudConnected]);
 
-  const handleEditExpense = async (updatedExpense: Expense) => {
-    const updated = expenses.map(e => e.id === updatedExpense.id ? updatedExpense : e);
-    setExpenses(updated);
-    localStorage.setItem('dep_expenses', JSON.stringify(updated));
+  const handleEditExpense = useCallback(async (updatedExpense: Expense) => {
+    setExpenses(prev => {
+      const updated = prev.map(e => e.id === updatedExpense.id ? updatedExpense : e);
+      localStorage.setItem('dep_expenses', JSON.stringify(updated));
+      return updated;
+    });
 
     if (currentSession && isCloudConnected) {
       try {
@@ -998,12 +1005,14 @@ export default function App() {
         console.error("Erro ao editar gasto na nuvem:", err);
       }
     }
-  };
+  }, [currentSession, isCloudConnected]);
 
-  const handleRemoveExpense = async (id: string) => {
-    const updated = expenses.filter(exp => exp.id !== id);
-    setExpenses(updated);
-    localStorage.setItem('dep_expenses', JSON.stringify(updated));
+  const handleRemoveExpense = useCallback(async (id: string) => {
+    setExpenses(prev => {
+      const updated = prev.filter(exp => exp.id !== id);
+      localStorage.setItem('dep_expenses', JSON.stringify(updated));
+      return updated;
+    });
 
     if (currentSession && isCloudConnected) {
       try {
@@ -1012,17 +1021,19 @@ export default function App() {
         console.error("Erro ao deletar gasto na nuvem:", err);
       }
     }
-  };
+  }, [currentSession, isCloudConnected]);
 
-  const handleAddPersonalExpense = async (peData: Omit<PersonalExpense, 'id'>) => {
+  const handleAddPersonalExpense = useCallback(async (peData: Omit<PersonalExpense, 'id'>) => {
     const pe: PersonalExpense = {
       ...peData,
       id: `pe-${Date.now()}`,
       operator: currentSession?.username || 'admin'
     };
-    const updated = [pe, ...personalExpenses];
-    setPersonalExpenses(updated);
-    localStorage.setItem('dep_personal_expenses', JSON.stringify(updated));
+    setPersonalExpenses(prev => {
+      const updated = [pe, ...prev];
+      localStorage.setItem('dep_personal_expenses', JSON.stringify(updated));
+      return updated;
+    });
 
     if (currentSession && isCloudConnected) {
       try {
@@ -1031,12 +1042,14 @@ export default function App() {
         console.error("Erro ao salvar gasto pessoal na nuvem:", err);
       }
     }
-  };
+  }, [currentSession, isCloudConnected]);
 
-  const handleEditPersonalExpense = async (updatedPe: PersonalExpense) => {
-    const updated = personalExpenses.map(p => p.id === updatedPe.id ? updatedPe : p);
-    setPersonalExpenses(updated);
-    localStorage.setItem('dep_personal_expenses', JSON.stringify(updated));
+  const handleEditPersonalExpense = useCallback(async (updatedPe: PersonalExpense) => {
+    setPersonalExpenses(prev => {
+      const updated = prev.map(p => p.id === updatedPe.id ? updatedPe : p);
+      localStorage.setItem('dep_personal_expenses', JSON.stringify(updated));
+      return updated;
+    });
 
     if (currentSession && isCloudConnected) {
       try {
@@ -1045,12 +1058,14 @@ export default function App() {
         console.error("Erro ao editar gasto pessoal na nuvem:", err);
       }
     }
-  };
+  }, [currentSession, isCloudConnected]);
 
-  const handleRemovePersonalExpense = async (id: string) => {
-    const updated = personalExpenses.filter(p => p.id !== id);
-    setPersonalExpenses(updated);
-    localStorage.setItem('dep_personal_expenses', JSON.stringify(updated));
+  const handleRemovePersonalExpense = useCallback(async (id: string) => {
+    setPersonalExpenses(prev => {
+      const updated = prev.filter(p => p.id !== id);
+      localStorage.setItem('dep_personal_expenses', JSON.stringify(updated));
+      return updated;
+    });
 
     if (currentSession && isCloudConnected) {
       try {
@@ -1059,9 +1074,9 @@ export default function App() {
         console.error("Erro ao deletar gasto pessoal na nuvem:", err);
       }
     }
-  };
+  }, [currentSession, isCloudConnected]);
 
-  const handleAddClient = async (clientData: Omit<Client, 'id'>) => {
+  const handleAddClient = useCallback(async (clientData: Omit<Client, 'id'>) => {
     const client: Client = {
       ...clientData,
       id: `cli-${Date.now()}-${Math.floor(Math.random() * 100000)}`,
@@ -1082,9 +1097,9 @@ export default function App() {
       }
     }
     return client;
-  };
+  }, [currentSession, isCloudConnected]);
 
-  const handleRemoveClient = async (id: string) => {
+  const handleRemoveClient = useCallback(async (id: string) => {
     setClients(prev => {
       const updated = prev.filter(c => c.id !== id);
       localStorage.setItem('dep_clients', JSON.stringify(updated));
@@ -1098,9 +1113,9 @@ export default function App() {
         console.error("Erro ao deletar cliente na nuvem:", err);
       }
     }
-  };
+  }, [currentSession, isCloudConnected]);
 
-  const handleUpdateClient = async (updatedClient: Client) => {
+  const handleUpdateClient = useCallback(async (updatedClient: Client) => {
     setClients(prev => {
       const updated = prev.map(c => c.id === updatedClient.id ? updatedClient : c).sort((a, b) => a.name.localeCompare(b.name));
       localStorage.setItem('dep_clients', JSON.stringify(updated));
@@ -1114,18 +1129,20 @@ export default function App() {
         console.error("Erro ao atualizar cliente na nuvem:", err);
       }
     }
-  };
+  }, [currentSession, isCloudConnected]);
 
-  const handleAddOperator = async (opData: Omit<InternalUser, 'id' | 'createdAt'>) => {
+  const handleAddOperator = useCallback(async (opData: Omit<InternalUser, 'id' | 'createdAt'>) => {
     const newOp: InternalUser = {
       ...opData,
       id: `usr-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`,
       createdAt: new Date().toISOString()
     };
 
-    const updatedUsers = [...internalUsers, newOp];
-    setInternalUsers(updatedUsers);
-    localStorage.setItem('dep_internal_users', JSON.stringify(updatedUsers));
+    setInternalUsers(prev => {
+      const updatedUsers = [...prev, newOp];
+      localStorage.setItem('dep_internal_users', JSON.stringify(updatedUsers));
+      return updatedUsers;
+    });
 
     if (isCloudConnected) {
       try {
@@ -1134,12 +1151,14 @@ export default function App() {
         console.error("Erro ao salvar operador na nuvem:", err);
       }
     }
-  };
+  }, [isCloudConnected]);
 
-  const handleUpdateOperator = async (updatedOp: InternalUser) => {
-    const updatedUsers = internalUsers.map(u => u.id === updatedOp.id ? updatedOp : u);
-    setInternalUsers(updatedUsers);
-    localStorage.setItem('dep_internal_users', JSON.stringify(updatedUsers));
+  const handleUpdateOperator = useCallback(async (updatedOp: InternalUser) => {
+    setInternalUsers(prev => {
+      const updatedUsers = prev.map(u => u.id === updatedOp.id ? updatedOp : u);
+      localStorage.setItem('dep_internal_users', JSON.stringify(updatedUsers));
+      return updatedUsers;
+    });
 
     if (isCloudConnected) {
       try {
@@ -1148,12 +1167,14 @@ export default function App() {
         console.error("Erro ao atualizar operador na nuvem:", err);
       }
     }
-  };
+  }, [isCloudConnected]);
 
-  const handleDeleteOperator = async (id: string) => {
-    const updatedUsers = internalUsers.filter(u => u.id !== id);
-    setInternalUsers(updatedUsers);
-    localStorage.setItem('dep_internal_users', JSON.stringify(updatedUsers));
+  const handleDeleteOperator = useCallback(async (id: string) => {
+    setInternalUsers(prev => {
+      const updatedUsers = prev.filter(u => u.id !== id);
+      localStorage.setItem('dep_internal_users', JSON.stringify(updatedUsers));
+      return updatedUsers;
+    });
 
     if (isCloudConnected) {
       try {
@@ -1162,9 +1183,9 @@ export default function App() {
         console.error("Erro ao excluir operador na nuvem:", err);
       }
     }
-  };
+  }, [isCloudConnected]);
 
-  const handleImportBackup = async (parsedData: { 
+  const handleImportBackup = useCallback(async (parsedData: { 
     services: Service[]; 
     expenses: Expense[]; 
     subCategories: SubCategory[];
@@ -1213,13 +1234,13 @@ export default function App() {
         setIsSuggestAutoBackupOpen(true);
       }, 800);
     }
-  };
+  }, [currentSession, isCloudConnected]);
 
-  const handleLogoutInternalSession = () => {
+  const handleLogoutInternalSession = useCallback(() => {
     setCurrentSession(null);
     localStorage.removeItem('dep_current_session');
     setCurrentTab('dashboard');
-  };
+  }, []);
 
   // Switch tab and close drawer helper
   const handleNavigate = useCallback((tab: string, initialStatus?: string) => {
@@ -1238,6 +1259,11 @@ export default function App() {
       setInitialStatusFilter('all');
     }
   }, [currentSession?.isAdmin]);
+
+  const handleOpenAuthModal = useCallback(() => setIsAuthModalOpen(true), []);
+  const handleCloseAuthModal = useCallback(() => setIsAuthModalOpen(false), []);
+  const handleOpenNewServiceModal = useCallback(() => handleNavigate('services'), [handleNavigate]);
+  const handleOpenNewExpenseModal = useCallback(() => handleNavigate('expenses'), [handleNavigate]);
 
   // Safety redirect: ensure non-admin operator cannot access restricted tabs
   useEffect(() => {
@@ -1322,7 +1348,7 @@ export default function App() {
           personalExpenses={filteredPersonalExpenses}
           onImportData={handleImportBackup}
           currentUser={currentUser}
-          onOpenAuthModal={() => setIsAuthModalOpen(true)}
+          onOpenAuthModal={handleOpenAuthModal}
           isCloudLoading={isCloudLoading}
           currentSession={currentSession}
           onLogoutInternalSession={handleLogoutInternalSession}
@@ -1358,7 +1384,7 @@ export default function App() {
               personalExpenses={filteredPersonalExpenses}
               onImportData={handleImportBackup}
               currentUser={currentUser}
-              onOpenAuthModal={() => setIsAuthModalOpen(true)}
+              onOpenAuthModal={handleOpenAuthModal}
               isCloudLoading={isCloudLoading}
               currentSession={currentSession}
               onLogoutInternalSession={handleLogoutInternalSession}
@@ -1450,17 +1476,18 @@ export default function App() {
         {/* Scrollable primary router layout view */}
         <main className="flex-1 overflow-y-auto px-4 py-8 sm:px-6 md:px-8 max-w-7xl mx-auto w-full">
 
-          {currentTab === 'dashboard' && (
+          {/* Keep Dashboard mounted in DOM with hidden class to preserve all memoized charts and eliminate transition lag */}
+          <div className={currentTab === 'dashboard' ? '' : 'hidden'}>
             <Dashboard
               services={filteredServices}
               expenses={filteredExpenses}
               subCategories={filteredSubCategories}
               onNavigate={handleNavigate}
-              onOpenNewServiceModal={() => handleNavigate('services')}
-              onOpenNewExpenseModal={() => handleNavigate('expenses')}
+              onOpenNewServiceModal={handleOpenNewServiceModal}
+              onOpenNewExpenseModal={handleOpenNewExpenseModal}
               currentSession={currentSession}
             />
-          )}
+          </div>
 
           {currentTab.startsWith('reports') && (
             <div className="mb-6 border-b border-slate-800 pb-4 select-none">
@@ -1566,7 +1593,7 @@ export default function App() {
               viewMode="list"
               initialStatusFilter={initialStatusFilter}
               isPendingReport={currentTab === 'reports-pending'}
-              onRedirectToForm={() => handleNavigate('services')}
+              onRedirectToForm={handleOpenNewServiceModal}
             />
           )}
 
@@ -1609,7 +1636,7 @@ export default function App() {
               onRemoveExpense={handleRemoveExpense}
               onEditExpense={handleEditExpense}
               viewMode="list"
-              onRedirectToForm={() => setCurrentTab('expenses')}
+              onRedirectToForm={handleOpenNewExpenseModal}
             />
           )}
 
@@ -1645,7 +1672,7 @@ export default function App() {
       {/* Cloud Authentication & Coordination Panel overlay */}
       <AuthModal
         isOpen={isAuthModalOpen}
-        onClose={() => setIsAuthModalOpen(false)}
+        onClose={handleCloseAuthModal}
         currentUser={currentUser}
         onSyncLocalData={handleSyncLocalData}
         onForceRefreshCloud={handleForceRefreshCloud}

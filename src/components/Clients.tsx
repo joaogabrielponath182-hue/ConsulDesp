@@ -29,7 +29,7 @@ interface ClientsProps {
   onUpdateClient: (client: Client) => void;
 }
 
-export default function Clients({
+function Clients({
   clients,
   onAddClient,
   onRemoveClient,
@@ -464,3 +464,6 @@ export default function Clients({
     </div>
   );
 }
+
+const MemoizedClients = React.memo(Clients);
+export default MemoizedClients;

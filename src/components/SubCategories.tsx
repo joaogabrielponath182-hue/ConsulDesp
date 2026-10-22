@@ -15,7 +15,7 @@ interface SubCategoriesProps {
   onEditSubCategory: (id: string, name: string, defaultValue: number, categoryGroup?: CategoryGroup) => void;
 }
 
-export default function SubCategories({
+function SubCategories({
   subCategories,
   onAddSubCategory,
   onRemoveSubCategory,
@@ -592,3 +592,6 @@ export default function SubCategories({
     </div>
   );
 }
+
+const MemoizedSubCategories = React.memo(SubCategories);
+export default MemoizedSubCategories;

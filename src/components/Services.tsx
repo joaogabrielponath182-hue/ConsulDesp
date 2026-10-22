@@ -280,6 +280,12 @@ function Services({
     }
   }, [initialStatusFilter]);
 
+  // Progressive loading limit for high performance with thousands of records
+  const [displayLimit, setDisplayLimit] = useState(50);
+  React.useEffect(() => {
+    setDisplayLimit(50);
+  }, [search, selectedStatus, selectedPaymentMethod, startDate, endDate, selectedCategories, sortOrder]);
+
   // Editing State
   const [editingService, setEditingService] = useState<Service | null>(null);
   const [activeVehicleId, setActiveVehicleId] = useState<string>('');
@@ -903,8 +909,19 @@ function Services({
     }));
   };
 
-  // Group services by groupId or (client + description + date) if they have no groupId but were launched together
+  // Group services by groupId or (client + description + date) if they have no groupId but were launched together (O(N) Map lookup)
   const groupedServices = React.useMemo(() => {
+    if (viewMode === 'form') return [];
+
+    const groupMap = new Map<string, {
+      groupId: string;
+      id: string;
+      client: string;
+      description: string;
+      date: string;
+      services: Service[];
+      totalValue: number;
+    }>();
     const groups: {
       groupId: string;
       id: string;
@@ -916,40 +933,31 @@ function Services({
     }[] = [];
 
     services.forEach(srv => {
-      // Find an existing group this service belongs to
-      let foundGroup = groups.find(g => {
-        if (srv.groupId && g.groupId === srv.groupId) {
-          return true;
-        }
-        if (!srv.groupId && !g.groupId) {
-          // Fallback legacy match: same client, same description, and same date
-          return (
-            g.client.trim().toUpperCase() === srv.client.trim().toUpperCase() &&
-            g.description.trim().toUpperCase() === srv.description.trim().toUpperCase() &&
-            g.date === srv.date
-          );
-        }
-        return false;
-      });
+      const key = srv.groupId
+        ? `gid_${srv.groupId}`
+        : `legacy_${srv.client.trim().toUpperCase()}_${srv.description.trim().toUpperCase()}_${srv.date}`;
 
-      if (foundGroup) {
-        foundGroup.services.push(srv);
-        foundGroup.totalValue += srv.totalValue;
+      const existing = groupMap.get(key);
+      if (existing) {
+        existing.services.push(srv);
+        existing.totalValue += srv.totalValue;
       } else {
-        groups.push({
+        const newGroup = {
           groupId: srv.groupId || '',
-          id: srv.id, // Use first service id as the group id
+          id: srv.id,
           client: srv.client,
           description: srv.description,
           date: srv.date,
           services: [srv],
           totalValue: srv.totalValue
-        });
+        };
+        groupMap.set(key, newGroup);
+        groups.push(newGroup);
       }
     });
 
     return groups;
-  }, [services]);
+  }, [services, viewMode]);
 
   // Subcategories options for MultiSelect in list mode
   const serviceCategoryOptions: MultiSelectOption[] = React.useMemo(() => {
@@ -983,6 +991,7 @@ function Services({
 
   // Filters logic on grouped services
   const filteredGroupedServices = React.useMemo(() => {
+    if (viewMode === 'form') return [];
     const list: typeof groupedServices = [];
 
     groupedServices.forEach(group => {
@@ -1059,7 +1068,12 @@ function Services({
         return b.date.localeCompare(a.date);
       }
     });
-  }, [groupedServices, search, selectedStatus, selectedPaymentMethod, startDate, endDate, selectedCategories, sortOrder, subCategories]);
+  }, [groupedServices, search, selectedStatus, selectedPaymentMethod, startDate, endDate, selectedCategories, sortOrder, subCategories, viewMode]);
+
+  // Progressive list slice for high performance
+  const visibleGroupedServices = React.useMemo(() => {
+    return filteredGroupedServices.slice(0, displayLimit);
+  }, [filteredGroupedServices, displayLimit]);
 
   const totalFilteredRevenues = React.useMemo(() => {
     return filteredGroupedServices.reduce((acc, curr) => {
@@ -1967,9 +1981,10 @@ function Services({
                 <p className="text-xs text-slate-550 max-w-sm mt-1 mx-4">Crie um novo serviço no formulário lateral, ou limpe as correspondências de busca do cabeçalho.</p>
               </div>
             ) : (
-              <div className="space-y-3.5 max-h-[640px] overflow-y-auto pr-1">
+              <>
+                <div className="space-y-3.5 max-h-[640px] overflow-y-auto pr-1">
                 <AnimatePresence initial={false}>
-                  {filteredGroupedServices.map((group) => {
+                  {visibleGroupedServices.map((group) => {
                     const isExpanded = !!expandedRows[group.id];
                     const isMulti = group.services.length > 1;
 
@@ -2373,7 +2388,32 @@ function Services({
                   })}
                 </AnimatePresence>
               </div>
-            )}
+
+              {filteredGroupedServices.length > displayLimit && (
+                <div className="pt-2 text-center flex flex-col sm:flex-row items-center justify-between gap-2.5 bg-[#0F1115] p-3 rounded-xl border border-slate-800 text-xs mt-3">
+                  <span className="text-slate-400 font-medium">
+                    Exibindo <strong className="text-white font-mono">{visibleGroupedServices.length}</strong> de <strong className="text-white font-mono">{filteredGroupedServices.length}</strong> lançamentos
+                  </span>
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setDisplayLimit(prev => prev + 50)}
+                      className="px-3.5 py-1.5 bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-400 border border-emerald-500/30 rounded-lg font-bold cursor-pointer transition-all"
+                    >
+                      + Carregar mais 50
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setDisplayLimit(filteredGroupedServices.length)}
+                      className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg font-medium cursor-pointer transition-all"
+                    >
+                      Carregar todos ({filteredGroupedServices.length})
+                    </button>
+                  </div>
+                </div>
+              )}
+            </>
+          )}
           </div>
           </div>
         )}

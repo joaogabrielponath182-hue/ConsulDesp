@@ -403,6 +403,12 @@ function Expenses({
   const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<string>('all');
   const [sortOrder, setSortOrder] = useState<'oldest' | 'newest'>('newest');
 
+  // Progressive loading limit for high performance
+  const [displayLimit, setDisplayLimit] = useState(50);
+  React.useEffect(() => {
+    setDisplayLimit(50);
+  }, [search, selectedCategories, startDate, endDate, selectedPaymentMethod, sortOrder]);
+
   const expenseCategoryOptions = React.useMemo(() => {
     return expenseCategories.map(cat => {
       const matchedSub = subCategories.find(
@@ -653,6 +659,7 @@ function Expenses({
 
   // Filter accounts details
   const filteredExpenses = React.useMemo(() => {
+    if (viewMode === 'form') return [];
     const list = expenses
       .map(e => {
         // If there is an active search filter, and the expense has items,
@@ -711,7 +718,12 @@ function Expenses({
         return b.date.localeCompare(a.date);
       }
     });
-  }, [expenses, search, selectedCategories, startDate, endDate, selectedPaymentMethod, sortOrder]);
+  }, [expenses, search, selectedCategories, startDate, endDate, selectedPaymentMethod, sortOrder, viewMode]);
+
+  // Progressive list slice for high performance with large datasets
+  const visibleExpenses = React.useMemo(() => {
+    return filteredExpenses.slice(0, displayLimit);
+  }, [filteredExpenses, displayLimit]);
 
   const totalFilteredValue = React.useMemo(() => {
     return filteredExpenses.reduce((acc, curr) => acc + curr.value, 0);
@@ -1225,9 +1237,10 @@ function Expenses({
                 <p className="text-xs text-slate-550 max-w-sm mt-1 mx-4">Insira novas despesas no formulário ao lado ou modifique as opções de pesquisa.</p>
               </div>
             ) : (
-              <div className="space-y-3 max-h-[580px] overflow-y-auto pr-1">
+              <>
+                <div className="space-y-3 max-h-[580px] overflow-y-auto pr-1">
                 <AnimatePresence initial={false}>
-                  {filteredExpenses.map((expense) => {
+                  {visibleExpenses.map((expense) => {
                     const isExpanded = !!expandedRows[expense.id];
                     const hasItems = expense.items && expense.items.length > 0;
                     return (
@@ -1236,7 +1249,6 @@ function Expenses({
                         initial={{ opacity: 0, y: 10 }}
                         animate={{ opacity: 1, y: 0 }}
                         exit={{ opacity: 0, x: -15, transition: { duration: 0.15 } }}
-                        layout
                         className="bg-[#0F1115] border border-slate-850 hover:border-slate-700 rounded-xl overflow-hidden transition-all shadow-xs animate-fadeIn"
                       >
                         <div 
@@ -1360,7 +1372,32 @@ function Expenses({
                   })}
                 </AnimatePresence>
               </div>
-            )}
+
+              {filteredExpenses.length > displayLimit && (
+                <div className="pt-2 text-center flex flex-col sm:flex-row items-center justify-between gap-2.5 bg-[#0F1115] p-3 rounded-xl border border-slate-850 text-xs mt-3">
+                  <span className="text-slate-400 font-medium">
+                    Exibindo <strong className="text-white font-mono">{visibleExpenses.length}</strong> de <strong className="text-white font-mono">{filteredExpenses.length}</strong> despesas
+                  </span>
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setDisplayLimit(prev => prev + 50)}
+                      className="px-3.5 py-1.5 bg-rose-600/20 hover:bg-rose-600/30 text-rose-400 border border-rose-500/30 rounded-lg font-bold cursor-pointer transition-all"
+                    >
+                      + Carregar mais 50
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setDisplayLimit(filteredExpenses.length)}
+                      className="px-3 py-1.5 bg-slate-800 hover:bg-slate-750 text-slate-300 rounded-lg font-medium cursor-pointer transition-all"
+                    >
+                      Carregar todas ({filteredExpenses.length})
+                    </button>
+                  </div>
+                </div>
+              )}
+            </>
+          )}
           </div>
           </div>
         )}

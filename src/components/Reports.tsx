@@ -389,7 +389,7 @@ const loadSavedGeneralFilters = (): GeneralReportFiltersStorage => {
   return {};
 };
 
-export default function Reports({ services, expenses, subCategories, clients }: ReportsProps) {
+function Reports({ services, expenses, subCategories, clients }: ReportsProps) {
   // Load initial filter states from localStorage so user doesn't lose context when changing tabs/screens
   const initialFilters = useMemo(() => loadSavedGeneralFilters(), []);
 
@@ -1162,3 +1162,6 @@ export default function Reports({ services, expenses, subCategories, clients }: 
     </div>
   );
 }
+
+const MemoizedReports = React.memo(Reports);
+export default MemoizedReports;

@@ -31,7 +31,7 @@ interface ReportsComparativeProps {
 
 const currencyFormatter = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' });
 
-export default function ReportsComparative({ services, expenses, subCategories, currentSession }: ReportsComparativeProps) {
+function ReportsComparative({ services, expenses, subCategories, currentSession }: ReportsComparativeProps) {
   const isAdmin = currentSession?.isAdmin === true;
   // Helper to get formatted dates
   const getLocalDateString = (offsetDays = 0) => {
@@ -332,11 +332,15 @@ export default function ReportsComparative({ services, expenses, subCategories, 
     });
 
     // General commission calculations (Painel Geral: todos os usuários):
-    // 2.5% sobre Honorários (líquido de R$ 10 de termos por processo) e 2.5% sobre Ret. CRLV-E
+    // 2.5% em 2026 e 3% a partir de 2027
+    const periodYear = parseInt((start || '').substring(0, 4) || (end || '').substring(0, 4), 10) || 2026;
+    const periodCommissionRate = periodYear >= 2027 ? 0.03 : 0.025;
+    const periodCommissionRateLabel = periodCommissionRate === 0.03 ? '3%' : '2,5%';
+
     const termosCostGeral = honorarios * 10;
     const honorariosBaseGeral = Math.max(0, honorariosTotal - termosCostGeral);
-    const comissaoGeralHonorarios = honorarios > 0 ? honorariosBaseGeral * 0.025 : 0;
-    const comissaoGeralRetCrlve = retCrlve > 0 ? retCrlveTotal * 0.025 : 0;
+    const comissaoGeralHonorarios = honorarios > 0 ? honorariosBaseGeral * periodCommissionRate : 0;
+    const comissaoGeralRetCrlve = retCrlve > 0 ? retCrlveTotal * periodCommissionRate : 0;
     const comissaoGeralTotal = comissaoGeralHonorarios + comissaoGeralRetCrlve;
 
     // 5. Revenue and Expense Categories sums
@@ -484,16 +488,16 @@ export default function ReportsComparative({ services, expenses, subCategories, 
     });
 
     // Commission calculations for Dinho's launches:
-    // 2.5% sobre Honorários (líquido de R$ 10 de termos por processo) e 2.5% sobre Ret. CRLV-E
+    // 2.5% em 2026 e 3% a partir de 2027
     const dinhoHonorariosTermosCost = dinhoHonorariosCount * 10;
     const dinhoHonorariosBase = Math.max(0, dinhoHonorariosTotal - dinhoHonorariosTermosCost);
     const dinhoHonorariosAvg = dinhoHonorariosCount > 0 ? dinhoHonorariosBase / dinhoHonorariosCount : 0;
-    const dinhoComissaoHonorarios = dinhoHonorariosCount > 0 ? dinhoHonorariosBase * 0.025 : 0;
+    const dinhoComissaoHonorarios = dinhoHonorariosCount > 0 ? dinhoHonorariosBase * periodCommissionRate : 0;
 
     const dinhoHonorariosRevendaAvg = dinhoHonorariosRevendaCount > 0 ? dinhoHonorariosRevendaTotal / dinhoHonorariosRevendaCount : 0;
 
     const dinhoRetCrlveAvg = dinhoRetCrlveCount > 0 ? dinhoRetCrlveTotal / dinhoRetCrlveCount : 0;
-    const dinhoComissaoRetCrlve = dinhoRetCrlveCount > 0 ? dinhoRetCrlveTotal * 0.025 : 0;
+    const dinhoComissaoRetCrlve = dinhoRetCrlveCount > 0 ? dinhoRetCrlveTotal * periodCommissionRate : 0;
 
     const dinhoPlacasAvg = dinhoPlacasCount > 0 ? dinhoPlacasTotal / dinhoPlacasCount : 0;
     const dinhoAtpvTermosCost = dinhoAtpvCount * 10;
@@ -514,6 +518,8 @@ export default function ReportsComparative({ services, expenses, subCategories, 
       cashExpenses,
       quantitatives: { honorarios, honorariosRevenda, placas, retCrlve, atpv },
       comissaoGeral: {
+        rateLabel: periodCommissionRateLabel,
+        rate: periodCommissionRate,
         honorariosCount: honorarios,
         honorariosTotal,
         honorariosTermosCost: termosCostGeral,
@@ -641,14 +647,17 @@ export default function ReportsComparative({ services, expenses, subCategories, 
       let comissaoA: number | null = null;
       let comissaoB: number | null = null;
 
+      const rateA = metricsA.comissaoGeral.rate;
+      const rateB = metricsB.comissaoGeral.rate;
+
       if ((norm === "HONORARIO" || norm === "HONORARIOS" || norm.startsWith("HONORARIO")) && !norm.includes("REVENDA")) {
         const baseA = Math.max(0, dataA.total - dataA.count * 10);
         const baseB = Math.max(0, dataB.total - dataB.count * 10);
-        comissaoA = dataA.count > 0 ? baseA * 0.025 : 0;
-        comissaoB = dataB.count > 0 ? baseB * 0.025 : 0;
+        comissaoA = dataA.count > 0 ? baseA * rateA : 0;
+        comissaoB = dataB.count > 0 ? baseB * rateB : 0;
       } else if (norm.includes("CRLV")) {
-        comissaoA = dataA.count > 0 ? dataA.total * 0.025 : 0;
-        comissaoB = dataB.count > 0 ? dataB.total * 0.025 : 0;
+        comissaoA = dataA.count > 0 ? dataA.total * rateA : 0;
+        comissaoB = dataB.count > 0 ? dataB.total * rateB : 0;
       }
 
       const comDiff = (comissaoA !== null && comissaoB !== null) ? getVariance(comissaoA, comissaoB) : null;
@@ -1846,7 +1855,9 @@ export default function ReportsComparative({ services, expenses, subCategories, 
               <Award size={15} /> Comparativo de Comissões (Painel Geral)
             </span>
             <span className="text-[9.5px] text-slate-400 font-mono">
-              2,5% sobre Honorários (líquido de R$ 10 de termos) e 2,5% sobre Ret. CRLV-E de todos os usuários (igual ao Painel Geral)
+              {metricsA.comissaoGeral.rateLabel === metricsB.comissaoGeral.rateLabel
+                ? `${metricsA.comissaoGeral.rateLabel} sobre Honorários (líquido de R$ 10 de termos) e Ret. CRLV-E de todos os usuários (igual ao Painel Geral)`
+                : `${metricsA.comissaoGeral.rateLabel} (${labelMonthA}) vs ${metricsB.comissaoGeral.rateLabel} (${labelMonthB}) sobre Honorários e Ret. CRLV-E`}
             </span>
           </div>
 
@@ -1858,7 +1869,11 @@ export default function ReportsComparative({ services, expenses, subCategories, 
                 <div className="p-4 bg-[#0F1115] border border-slate-850 rounded-xl space-y-2">
                   <div className="flex justify-between items-center">
                     <span className="text-[9px] uppercase font-bold text-emerald-400 tracking-wider block">Comissão Honorários</span>
-                    <span className="text-[9px] text-slate-500 font-mono">2,5% líq. ({metricsA.comissaoGeral.honorariosCount} vs {metricsB.comissaoGeral.honorariosCount} un)</span>
+                    <span className="text-[9px] text-slate-500 font-mono">
+                      {metricsA.comissaoGeral.rateLabel === metricsB.comissaoGeral.rateLabel 
+                        ? `${metricsA.comissaoGeral.rateLabel} líq.` 
+                        : `${metricsA.comissaoGeral.rateLabel} vs ${metricsB.comissaoGeral.rateLabel}`} ({metricsA.comissaoGeral.honorariosCount} vs {metricsB.comissaoGeral.honorariosCount} un)
+                    </span>
                   </div>
                   <div className="flex items-baseline gap-2">
                     <span className="text-lg font-black text-emerald-300 font-mono">{formatCurrency(metricsA.comissaoGeral.comissaoHonorarios)}</span>
@@ -1881,7 +1896,11 @@ export default function ReportsComparative({ services, expenses, subCategories, 
                 <div className="p-4 bg-[#0F1115] border border-slate-850 rounded-xl space-y-2">
                   <div className="flex justify-between items-center">
                     <span className="text-[9px] uppercase font-bold text-blue-400 tracking-wider block">Comissão Ret. CRLV-E</span>
-                    <span className="text-[9px] text-slate-500 font-mono">2,5% ({metricsA.comissaoGeral.retCrlveCount} vs {metricsB.comissaoGeral.retCrlveCount} un)</span>
+                    <span className="text-[9px] text-slate-500 font-mono">
+                      {metricsA.comissaoGeral.rateLabel === metricsB.comissaoGeral.rateLabel 
+                        ? metricsA.comissaoGeral.rateLabel 
+                        : `${metricsA.comissaoGeral.rateLabel} vs ${metricsB.comissaoGeral.rateLabel}`} ({metricsA.comissaoGeral.retCrlveCount} vs {metricsB.comissaoGeral.retCrlveCount} un)
+                    </span>
                   </div>
                   <div className="flex items-baseline gap-2">
                     <span className="text-lg font-black text-blue-300 font-mono">{formatCurrency(metricsA.comissaoGeral.comissaoRetCrlve)}</span>
@@ -1904,7 +1923,11 @@ export default function ReportsComparative({ services, expenses, subCategories, 
                 <div className="p-4 bg-[#0F1115] border border-amber-500/30 bg-amber-950/15 rounded-xl space-y-2">
                   <div className="flex justify-between items-center">
                     <span className="text-[9px] uppercase font-bold text-amber-400 tracking-wider block">Comissão Total (Painel Geral)</span>
-                    <span className="text-[9px] text-amber-500/80 font-mono">Todos os Usuários</span>
+                    <span className="text-[9px] text-amber-500/80 font-mono">
+                      {metricsA.comissaoGeral.rateLabel === metricsB.comissaoGeral.rateLabel 
+                        ? `Taxa: ${metricsA.comissaoGeral.rateLabel}` 
+                        : `${metricsA.comissaoGeral.rateLabel} vs ${metricsB.comissaoGeral.rateLabel}`}
+                    </span>
                   </div>
                   <div className="flex items-baseline gap-2">
                     <span className="text-lg font-black text-amber-300 font-mono">{formatCurrency(metricsA.comissaoGeral.totalComissao)}</span>
@@ -2004,11 +2027,11 @@ export default function ReportsComparative({ services, expenses, subCategories, 
                   {item.comissaoA !== null && item.comissaoB !== null && item.comDiff && (
                     <div className="pt-1.5 border-t border-slate-800/80 space-y-1">
                       <div className="flex justify-between items-baseline text-[10px] font-mono">
-                        <span className="text-amber-400 font-semibold">Comissão ({labelMonthA}):</span>
+                        <span className="text-amber-400 font-semibold">Comissão ({metricsA.comissaoGeral.rateLabel} - {labelMonthA}):</span>
                         <span className="font-bold text-amber-300">{formatCurrency(item.comissaoA)}</span>
                       </div>
                       <div className="flex justify-between items-baseline text-[9.5px] font-mono text-slate-500">
-                        <span>Comissão ({labelMonthB}):</span>
+                        <span>Comissão ({metricsB.comissaoGeral.rateLabel} - {labelMonthB}):</span>
                         <span>{formatCurrency(item.comissaoB)}</span>
                       </div>
                       <div className="flex justify-between items-center text-[9px] font-mono pt-0.5">
@@ -2104,3 +2127,6 @@ export default function ReportsComparative({ services, expenses, subCategories, 
     </div>
   );
 }
+
+const MemoizedReportsComparative = React.memo(ReportsComparative);
+export default MemoizedReportsComparative;
