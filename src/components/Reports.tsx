@@ -18,7 +18,8 @@ import {
   Coins, 
   ArrowUpRight, 
   ArrowDownLeft,
-  ArrowUpDown
+  ArrowUpDown,
+  Plus
 } from 'lucide-react';
 import { plateMatchesSearch } from '../utils/plateMatcher';
 import { formatDateBR } from '../utils/dateFormatter';
@@ -30,6 +31,8 @@ interface ReportsProps {
   expenses: Expense[];
   subCategories: SubCategory[];
   clients?: Client[];
+  onRefreshCloud?: () => Promise<void>;
+  isCloudLoading?: boolean;
 }
 
 interface LedgerItem {
@@ -366,6 +369,25 @@ const currencyFormatter = new Intl.NumberFormat('pt-BR', {
 
 const GENERAL_REPORTS_FILTER_STORAGE_KEY = 'dep_reports_general_filters';
 
+// Helper to get formatted YYYY-MM-DD for today
+const getTodayStr = () => {
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, '0');
+  const day = String(now.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
+
+// Helper to get formatted YYYY-MM-DD for N days ago
+const getDateNDaysAgoStr = (days: number) => {
+  const d = new Date();
+  d.setDate(d.getDate() - days);
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
+
 interface GeneralReportFiltersStorage {
   startDate?: string;
   endDate?: string;
@@ -389,17 +411,32 @@ const loadSavedGeneralFilters = (): GeneralReportFiltersStorage => {
   return {};
 };
 
-function Reports({ services, expenses, subCategories, clients }: ReportsProps) {
+function Reports({ services, expenses, subCategories, clients, onRefreshCloud, isCloudLoading }: ReportsProps) {
   // Load initial filter states from localStorage so user doesn't lose context when changing tabs/screens
   const initialFilters = useMemo(() => loadSavedGeneralFilters(), []);
 
-  const [startDate, setStartDate] = useState<string>(initialFilters.startDate || '');
-  const [endDate, setEndDate] = useState<string>(initialFilters.endDate || '');
+  // Default to the last 15 days for lightning-fast loading and zero DOM lag
+  const [startDate, setStartDate] = useState<string>(initialFilters.startDate || getDateNDaysAgoStr(15));
+  const [endDate, setEndDate] = useState<string>(initialFilters.endDate || getTodayStr());
   const [selectedSubCategories, setSelectedSubCategories] = useState<string[]>(initialFilters.selectedSubCategories || ['all']);
   const [search, setSearch] = useState<string>(initialFilters.search || '');
   const [selectedExpenseCategories, setSelectedExpenseCategories] = useState<string[]>(initialFilters.selectedExpenseCategories || ['all']);
   const [paymentMethod, setPaymentMethod] = useState<string>(initialFilters.paymentMethod || 'all');
   const [selectedOperator, setSelectedOperator] = useState<string>(initialFilters.selectedOperator || 'all');
+
+  // Expands the start date backwards by 15 days (+15 dias)
+  const handleLoadMoreDays = () => {
+    const base = startDate ? new Date(startDate + 'T00:00:00') : new Date();
+    base.setDate(base.getDate() - 15);
+    const year = base.getFullYear();
+    const month = String(base.getMonth() + 1).padStart(2, '0');
+    const day = String(base.getDate()).padStart(2, '0');
+    const newStart = `${year}-${month}-${day}`;
+    setStartDate(newStart);
+    if (!endDate) {
+      setEndDate(getTodayStr());
+    }
+  };
 
   // Sort order state for general report detailed statement ('oldest' first or 'newest' first)
   const [sortOrder, setSortOrder] = useState<'oldest' | 'newest'>(initialFilters.sortOrder || 'newest');
@@ -508,10 +545,10 @@ function Reports({ services, expenses, subCategories, clients }: ReportsProps) {
     return list;
   }, [subCategories, expenses]);
 
-  // Reset all filters to default and clear localStorage
+  // Reset all filters to default and clear localStorage (defaults to last 15 days for speed)
   const handleResetFilters = () => {
-    setStartDate('');
-    setEndDate('');
+    setStartDate(getDateNDaysAgoStr(15));
+    setEndDate(getTodayStr());
     setSelectedSubCategories(['all']);
     setSearch('');
     setSelectedExpenseCategories(['all']);
@@ -831,7 +868,15 @@ function Reports({ services, expenses, subCategories, clients }: ReportsProps) {
         {/* Upper state header */}
         <div className="flex flex-col md:flex-row gap-4 justify-between items-start md:items-center pb-5 border-b border-slate-800">
           <div>
-            <h3 className="text-lg font-bold text-white block">Demonstrativo de Caixa Consolidado</h3>
+            <div className="flex items-center gap-2.5">
+              <h3 className="text-lg font-bold text-white block">Demonstrativo de Caixa Consolidado</h3>
+              {isCloudLoading && (
+                <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-emerald-950/60 border border-emerald-700/60 text-[10px] font-bold text-emerald-400 animate-pulse">
+                  <RefreshCw size={10} className="animate-spin text-emerald-400" />
+                  Atualizando da nuvem...
+                </span>
+              )}
+            </div>
             <p className="text-xs text-slate-400 mt-0.5 font-medium">Auditoria geral de entradas e saídas com filtro instantâneo e saldo acumulado</p>
           </div>
 
@@ -945,21 +990,35 @@ function Reports({ services, expenses, subCategories, clients }: ReportsProps) {
 
           {/* Reset Filters and Sub-summaries row inside filter box */}
           <div className="flex flex-wrap items-center justify-between gap-3 pt-3 border-t border-slate-800/50">
-            <div className="flex flex-wrap gap-2 text-[10px] text-slate-350 select-none">
+            <div className="flex flex-wrap items-center gap-2 text-[10px] text-slate-350 select-none">
               <span className="bg-emerald-950/40 text-emerald-400 border border-emerald-900/40 px-2.5 py-1 rounded-lg">Pago: {formatCurrency(totalPaidRevenues)}</span>
               <span className="bg-amber-950/40 text-amber-400 border border-amber-900/40 px-2.5 py-1 rounded-lg">Pendente: {formatCurrency(totalPendingRevenues)}</span>
+              <span className="bg-slate-900/80 text-slate-300 border border-slate-800 px-2.5 py-1 rounded-lg font-mono">
+                📅 {startDate ? formatDateBR(startDate, '/') : 'Início'} até {endDate ? formatDateBR(endDate, '/') : 'Hoje'}
+              </span>
             </div>
 
-            {(startDate || endDate || selectedSubCategories.length > 1 || !selectedSubCategories.includes('all') || search || selectedExpenseCategories.length > 1 || !selectedExpenseCategories.includes('all') || paymentMethod !== 'all' || selectedOperator !== 'all') && (
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={handleLoadMoreDays}
+                className="text-[10px] uppercase tracking-wider font-bold text-emerald-400 hover:text-emerald-300 transition-colors flex items-center gap-1.5 cursor-pointer select-none bg-emerald-950/40 hover:bg-emerald-950/70 border border-emerald-800/50 px-2.5 py-1 rounded-lg shadow-xs"
+                title="Amplia a consulta recuando a data inicial em mais 15 dias"
+              >
+                <Plus size={12} />
+                <span>+ 15 Dias Anteriores</span>
+              </button>
+
               <button
                 type="button"
                 onClick={handleResetFilters}
-                className="text-[10px] uppercase tracking-wider font-bold text-slate-400 hover:text-emerald-450 transition-colors flex items-center gap-1.5 cursor-pointer select-none"
+                className="text-[10px] uppercase tracking-wider font-bold text-slate-400 hover:text-emerald-450 transition-colors flex items-center gap-1.5 cursor-pointer select-none bg-slate-900/60 hover:bg-slate-800/80 border border-slate-800 px-2.5 py-1 rounded-lg"
+                title="Redefine para os últimos 15 dias e limpa filtros adicionais"
               >
                 <RefreshCw size={11} />
                 <span>Limpar Filtros</span>
               </button>
-            )}
+            </div>
           </div>
         </div>
 
@@ -1098,6 +1157,21 @@ function Reports({ services, expenses, subCategories, clients }: ReportsProps) {
               })}
             </div>
           )}
+
+          {/* Load more 15 days footer action banner */}
+          <div className="pt-4 flex flex-col sm:flex-row items-center justify-between gap-3 border-t border-slate-800/70 mt-3 select-none">
+            <div className="text-xs text-slate-400 font-medium text-center sm:text-left">
+              Exibindo lançamentos de <strong className="text-emerald-400 font-mono">{startDate ? formatDateBR(startDate, '/') : 'Início'}</strong> até <strong className="text-emerald-400 font-mono">{endDate ? formatDateBR(endDate, '/') : 'Hoje'}</strong> ({displayedLedgerItems.length} registros).
+            </div>
+            <button
+              type="button"
+              onClick={handleLoadMoreDays}
+              className="flex items-center justify-center gap-2 px-4 py-2 bg-emerald-950/40 hover:bg-emerald-950/70 text-emerald-400 hover:text-emerald-300 border border-emerald-500/40 hover:border-emerald-500/60 rounded-xl text-xs font-bold transition-all shadow-sm cursor-pointer"
+            >
+              <Plus size={14} />
+              <span>Carregar + 15 Dias Anteriores</span>
+            </button>
+          </div>
         </div>
 
       </div>

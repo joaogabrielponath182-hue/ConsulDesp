@@ -1242,6 +1242,9 @@ export default function App() {
     setCurrentTab('dashboard');
   }, []);
 
+  // Reference to track the timestamp of the last cloud sync triggered by entering 'reports-general'
+  const lastReportsRefreshRef = useRef<number>(0);
+
   // Switch tab and close drawer helper
   const handleNavigate = useCallback((tab: string, initialStatus?: string) => {
     let targetTab = tab;
@@ -1258,7 +1261,19 @@ export default function App() {
     } else {
       setInitialStatusFilter('all');
     }
-  }, [currentSession?.isAdmin]);
+
+    // Auto-refresh data from cloud when entering 'reports-general' with at least 120s cooldown
+    if (targetTab === 'reports-general' && isCloudConnected && currentSession) {
+      const now = Date.now();
+      const elapsed = now - lastReportsRefreshRef.current;
+      if (elapsed >= 120000) { // pelo menos 120 segundos
+        lastReportsRefreshRef.current = now;
+        handleForceRefreshCloud().catch(err => {
+          console.warn("Erro ao sincronizar dados da nuvem ao abrir Relatório Geral:", err);
+        });
+      }
+    }
+  }, [currentSession, isCloudConnected, handleForceRefreshCloud]);
 
   const handleOpenAuthModal = useCallback(() => setIsAuthModalOpen(true), []);
   const handleCloseAuthModal = useCallback(() => setIsAuthModalOpen(false), []);
@@ -1646,6 +1661,8 @@ export default function App() {
               expenses={filteredExpenses}
               subCategories={filteredSubCategories}
               clients={filteredClients}
+              onRefreshCloud={handleForceRefreshCloud}
+              isCloudLoading={isCloudLoading}
             />
           )}
 
