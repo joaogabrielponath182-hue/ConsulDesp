@@ -19,7 +19,11 @@ import {
   ArrowUpRight, 
   ArrowDownLeft,
   ArrowUpDown,
-  Plus
+  Plus,
+  ChevronLeft,
+  ChevronRight,
+  ChevronsLeft,
+  ChevronsRight
 } from 'lucide-react';
 import { plateMatchesSearch } from '../utils/plateMatcher';
 import { formatDateBR } from '../utils/dateFormatter';
@@ -367,7 +371,7 @@ const currencyFormatter = new Intl.NumberFormat('pt-BR', {
   currency: 'BRL'
 });
 
-const GENERAL_REPORTS_FILTER_STORAGE_KEY = 'dep_reports_general_filters';
+const GENERAL_REPORTS_FILTER_STORAGE_KEY = 'dep_reports_general_filters_v2';
 
 // Helper to get formatted YYYY-MM-DD for today
 const getTodayStr = () => {
@@ -397,6 +401,7 @@ interface GeneralReportFiltersStorage {
   paymentMethod?: string;
   sortOrder?: 'oldest' | 'newest';
   selectedOperator?: string;
+  pageSize?: number;
 }
 
 const loadSavedGeneralFilters = (): GeneralReportFiltersStorage => {
@@ -415,31 +420,45 @@ function Reports({ services, expenses, subCategories, clients, onRefreshCloud, i
   // Load initial filter states from localStorage so user doesn't lose context when changing tabs/screens
   const initialFilters = useMemo(() => loadSavedGeneralFilters(), []);
 
-  // Default to the last 15 days for lightning-fast loading and zero DOM lag
-  const [startDate, setStartDate] = useState<string>(initialFilters.startDate || getDateNDaysAgoStr(15));
-  const [endDate, setEndDate] = useState<string>(initialFilters.endDate || getTodayStr());
+  // Unconstrained dates by default so any vehicle plate or service across all history can be searched instantly
+  const [startDate, setStartDate] = useState<string>(initialFilters.startDate || '');
+  const [endDate, setEndDate] = useState<string>(initialFilters.endDate || '');
   const [selectedSubCategories, setSelectedSubCategories] = useState<string[]>(initialFilters.selectedSubCategories || ['all']);
   const [search, setSearch] = useState<string>(initialFilters.search || '');
   const [selectedExpenseCategories, setSelectedExpenseCategories] = useState<string[]>(initialFilters.selectedExpenseCategories || ['all']);
   const [paymentMethod, setPaymentMethod] = useState<string>(initialFilters.paymentMethod || 'all');
   const [selectedOperator, setSelectedOperator] = useState<string>(initialFilters.selectedOperator || 'all');
 
-  // Expands the start date backwards by 15 days (+15 dias)
-  const handleLoadMoreDays = () => {
-    const base = startDate ? new Date(startDate + 'T00:00:00') : new Date();
-    base.setDate(base.getDate() - 15);
-    const year = base.getFullYear();
-    const month = String(base.getMonth() + 1).padStart(2, '0');
-    const day = String(base.getDate()).padStart(2, '0');
-    const newStart = `${year}-${month}-${day}`;
-    setStartDate(newStart);
-    if (!endDate) {
-      setEndDate(getTodayStr());
-    }
+  // Pagination state (50 items per page for instant zero-lag DOM rendering)
+  const [currentPage, setCurrentPage] = useState<number>(1);
+  const [pageSize, setPageSize] = useState<number>(initialFilters.pageSize || 50);
+
+  // Quick date presets
+  const handleSetLast15Days = () => {
+    setStartDate(getDateNDaysAgoStr(15));
+    setEndDate(getTodayStr());
+  };
+
+  const handleSetCurrentMonth = () => {
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = String(now.getMonth() + 1).padStart(2, '0');
+    setStartDate(`${year}-${month}-01`);
+    setEndDate(getTodayStr());
+  };
+
+  const handleSetAllTime = () => {
+    setStartDate('');
+    setEndDate('');
   };
 
   // Sort order state for general report detailed statement ('oldest' first or 'newest' first)
   const [sortOrder, setSortOrder] = useState<'oldest' | 'newest'>(initialFilters.sortOrder || 'newest');
+
+  // Reset page to 1 whenever any filter or search changes
+  React.useEffect(() => {
+    setCurrentPage(1);
+  }, [startDate, endDate, selectedSubCategories, search, selectedExpenseCategories, paymentMethod, selectedOperator, sortOrder, pageSize]);
 
   // Save filters to localStorage whenever any filter changes
   React.useEffect(() => {
@@ -452,13 +471,14 @@ function Reports({ services, expenses, subCategories, clients, onRefreshCloud, i
         selectedExpenseCategories,
         paymentMethod,
         sortOrder,
-        selectedOperator
+        selectedOperator,
+        pageSize
       };
       localStorage.setItem(GENERAL_REPORTS_FILTER_STORAGE_KEY, JSON.stringify(filtersToSave));
     } catch (e) {
       console.error('Erro ao persistir filtros do relatório geral:', e);
     }
-  }, [startDate, endDate, selectedSubCategories, search, selectedExpenseCategories, paymentMethod, sortOrder, selectedOperator]);
+  }, [startDate, endDate, selectedSubCategories, search, selectedExpenseCategories, paymentMethod, sortOrder, selectedOperator, pageSize]);
 
   // Format currency helper
   const formatCurrency = (val: number) => currencyFormatter.format(val);
@@ -545,15 +565,16 @@ function Reports({ services, expenses, subCategories, clients, onRefreshCloud, i
     return list;
   }, [subCategories, expenses]);
 
-  // Reset all filters to default and clear localStorage (defaults to last 15 days for speed)
+  // Reset all filters to default and clear localStorage (defaults to all time with pagination)
   const handleResetFilters = () => {
-    setStartDate(getDateNDaysAgoStr(15));
-    setEndDate(getTodayStr());
+    setStartDate('');
+    setEndDate('');
     setSelectedSubCategories(['all']);
     setSearch('');
     setSelectedExpenseCategories(['all']);
     setPaymentMethod('all');
     setSelectedOperator('all');
+    setCurrentPage(1);
     try {
       localStorage.removeItem(GENERAL_REPORTS_FILTER_STORAGE_KEY);
     } catch (e) {
@@ -593,8 +614,12 @@ function Reports({ services, expenses, subCategories, clients, onRefreshCloud, i
       .filter((s): s is Service => s !== null)
       .filter(s => {
         // 1. Date Interval
-        if (startDate && s.date < startDate) return false;
-        if (endDate && s.date > endDate) return false;
+        // Se houver busca por texto/placa ativa, pesquisa em todo o histórico sem barrar datas antigas
+        const isSearching = Boolean(search && search.trim());
+        if (!isSearching) {
+          if (startDate && s.date < startDate) return false;
+          if (endDate && s.date > endDate) return false;
+        }
 
         // 2. Text search (Matches strictly: PLACA, DESCRIÇÃO or NOME)
         if (search && search.trim()) {
@@ -658,8 +683,12 @@ function Reports({ services, expenses, subCategories, clients, onRefreshCloud, i
       .filter((e): e is Expense => e !== null)
       .filter(e => {
         // 1. Date Interval
-        if (startDate && e.date < startDate) return false;
-        if (endDate && e.date > endDate) return false;
+        // Se houver busca por texto/placa ativa, pesquisa em todo o histórico sem barrar datas antigas
+        const isSearching = Boolean(search && search.trim());
+        if (!isSearching) {
+          if (startDate && e.date < startDate) return false;
+          if (endDate && e.date > endDate) return false;
+        }
 
         // 2. Text Search (Matches strictly: PLACA or DESCRIÇÃO)
         if (search && search.trim()) {
@@ -840,6 +869,17 @@ function Reports({ services, expenses, subCategories, clients, onRefreshCloud, i
     return list;
   }, [ledgerWithBalances, sortOrder]);
 
+  // Pagination calculation
+  const totalItems = displayedLedgerItems.length;
+  const totalPages = Math.max(1, Math.ceil(totalItems / pageSize));
+  const validCurrentPage = Math.min(Math.max(1, currentPage), totalPages);
+
+  // Paginated items slice (strictly limits DOM nodes to pageSize rows for instant performance)
+  const paginatedLedgerItems = useMemo(() => {
+    const start = (validCurrentPage - 1) * pageSize;
+    return displayedLedgerItems.slice(start, start + pageSize);
+  }, [displayedLedgerItems, validCurrentPage, pageSize]);
+
   // Compute totals for summary box of filtered dataset
   // Strictly consider PAGO status services as requested:
   const totalRevenuesSum = filteredServices.filter(s => s.status === 'PAGO').reduce((acc, curr) => acc + curr.totalValue, 0);
@@ -988,32 +1028,65 @@ function Reports({ services, expenses, subCategories, clients, onRefreshCloud, i
             </div>
           </div>
 
-          {/* Reset Filters and Sub-summaries row inside filter box */}
+          {/* Reset Filters, Date Presets, and Sub-summaries row inside filter box */}
           <div className="flex flex-wrap items-center justify-between gap-3 pt-3 border-t border-slate-800/50">
             <div className="flex flex-wrap items-center gap-2 text-[10px] text-slate-350 select-none">
               <span className="bg-emerald-950/40 text-emerald-400 border border-emerald-900/40 px-2.5 py-1 rounded-lg">Pago: {formatCurrency(totalPaidRevenues)}</span>
               <span className="bg-amber-950/40 text-amber-400 border border-amber-900/40 px-2.5 py-1 rounded-lg">Pendente: {formatCurrency(totalPendingRevenues)}</span>
-              <span className="bg-slate-900/80 text-slate-300 border border-slate-800 px-2.5 py-1 rounded-lg font-mono">
-                📅 {startDate ? formatDateBR(startDate, '/') : 'Início'} até {endDate ? formatDateBR(endDate, '/') : 'Hoje'}
-              </span>
+              
+              {search && search.trim() ? (
+                <span className="bg-emerald-950/60 text-emerald-300 border border-emerald-700/60 px-2.5 py-1 rounded-lg font-medium flex items-center gap-1.5 animate-fadeIn">
+                  <span className="size-1.5 rounded-full bg-emerald-400 animate-ping"></span>
+                  Pesquisa global em todo o histórico ({totalItems} encontrados)
+                </span>
+              ) : (
+                <span className="bg-slate-900/80 text-slate-300 border border-slate-800 px-2.5 py-1 rounded-lg font-mono">
+                  {(!startDate && !endDate) ? '📅 Todo o Histórico Completo' : `📅 ${startDate ? formatDateBR(startDate, '/') : 'Início'} até ${endDate ? formatDateBR(endDate, '/') : 'Hoje'}`}
+                </span>
+              )}
             </div>
 
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2">
               <button
                 type="button"
-                onClick={handleLoadMoreDays}
-                className="text-[10px] uppercase tracking-wider font-bold text-emerald-400 hover:text-emerald-300 transition-colors flex items-center gap-1.5 cursor-pointer select-none bg-emerald-950/40 hover:bg-emerald-950/70 border border-emerald-800/50 px-2.5 py-1 rounded-lg shadow-xs"
-                title="Amplia a consulta recuando a data inicial em mais 15 dias"
+                onClick={handleSetAllTime}
+                className={`text-[10px] uppercase tracking-wider font-bold px-2.5 py-1 rounded-lg border transition-colors cursor-pointer select-none ${
+                  !startDate && !endDate 
+                    ? 'bg-emerald-950/60 text-emerald-300 border-emerald-700/60' 
+                    : 'bg-slate-900/60 text-slate-400 hover:text-slate-200 border-slate-800 hover:bg-slate-800/80'
+                }`}
+                title="Visualizar todo o histórico sem filtro de data"
               >
-                <Plus size={12} />
-                <span>+ 15 Dias Anteriores</span>
+                Todo Histórico
+              </button>
+
+              <button
+                type="button"
+                onClick={handleSetLast15Days}
+                className={`text-[10px] uppercase tracking-wider font-bold px-2.5 py-1 rounded-lg border transition-colors cursor-pointer select-none ${
+                  startDate === getDateNDaysAgoStr(15) && endDate === getTodayStr()
+                    ? 'bg-emerald-950/60 text-emerald-300 border-emerald-700/60' 
+                    : 'bg-slate-900/60 text-slate-400 hover:text-slate-200 border-slate-800 hover:bg-slate-800/80'
+                }`}
+                title="Filtrar pelos últimos 15 dias"
+              >
+                Últimos 15 Dias
+              </button>
+
+              <button
+                type="button"
+                onClick={handleSetCurrentMonth}
+                className="text-[10px] uppercase tracking-wider font-bold px-2.5 py-1 rounded-lg border bg-slate-900/60 text-slate-400 hover:text-slate-200 border-slate-800 hover:bg-slate-800/80 transition-colors cursor-pointer select-none"
+                title="Filtrar por este mês vigente"
+              >
+                Este Mês
               </button>
 
               <button
                 type="button"
                 onClick={handleResetFilters}
-                className="text-[10px] uppercase tracking-wider font-bold text-slate-400 hover:text-emerald-450 transition-colors flex items-center gap-1.5 cursor-pointer select-none bg-slate-900/60 hover:bg-slate-800/80 border border-slate-800 px-2.5 py-1 rounded-lg"
-                title="Redefine para os últimos 15 dias e limpa filtros adicionais"
+                className="text-[10px] uppercase tracking-wider font-bold text-slate-400 hover:text-emerald-450 transition-colors flex items-center gap-1.5 cursor-pointer select-none bg-slate-900/60 hover:bg-slate-800/80 border border-slate-800 px-2.5 py-1 rounded-lg ml-1"
+                title="Limpar todos os filtros e pesquisa"
               >
                 <RefreshCw size={11} />
                 <span>Limpar Filtros</span>
@@ -1025,10 +1098,92 @@ function Reports({ services, expenses, subCategories, clients, onRefreshCloud, i
         {/* Detailed Ledger List (Extrato) */}
         <div className="mt-6 space-y-4">
           <div className="border-t border-slate-800 pt-5">
-            <h4 className="text-xs font-black text-slate-450 uppercase tracking-widest mb-3.5 flex items-center gap-2 select-none">
-              <FileText size={14} className="text-emerald-450" />
-              Extrato Detalhado de Lançamentos ({displayedLedgerItems.length})
-            </h4>
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 mb-3.5">
+              <h4 className="text-xs font-black text-slate-450 uppercase tracking-widest flex items-center gap-2 select-none">
+                <FileText size={14} className="text-emerald-450" />
+                Extrato Detalhado de Lançamentos ({totalItems})
+              </h4>
+              {search && search.trim() && (
+                <span className="text-[10px] text-emerald-400 bg-emerald-950/40 border border-emerald-900/50 px-2 py-0.5 rounded font-medium select-none">
+                  Pesquisando em todo o histórico ({totalItems} itens)
+                </span>
+              )}
+            </div>
+
+            {/* Pagination Controls (Top) */}
+            {totalItems > 0 && (
+              <div className="flex flex-col sm:flex-row items-center justify-between gap-3 select-none text-xs pb-3 pt-1">
+                <div className="text-slate-400 font-medium text-center sm:text-left text-[11px]">
+                  Mostrando <strong className="text-white font-mono">{(validCurrentPage - 1) * pageSize + 1}</strong> a <strong className="text-white font-mono">{Math.min(validCurrentPage * pageSize, totalItems)}</strong> de <strong className="text-emerald-400 font-mono">{totalItems}</strong> lançamentos
+                  {totalPages > 1 && (
+                    <span className="text-slate-500 ml-1.5 font-mono text-[10px]">
+                      (Pág. {validCurrentPage} de {totalPages})
+                    </span>
+                  )}
+                </div>
+
+                <div className="flex flex-wrap items-center justify-center gap-1.5">
+                  <div className="flex items-center gap-1.5 mr-2">
+                    <span className="text-[10px] text-slate-500 uppercase font-bold tracking-wider">Por pág:</span>
+                    <select
+                      value={pageSize}
+                      onChange={(e) => setPageSize(Number(e.target.value))}
+                      className="bg-[#0F1115] border border-slate-800 text-slate-300 text-xs rounded-lg px-2 py-1 font-mono focus:outline-none focus:border-emerald-500 cursor-pointer h-7"
+                    >
+                      <option value={25}>25</option>
+                      <option value={50}>50</option>
+                      <option value={100}>100</option>
+                    </select>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => setCurrentPage(1)}
+                    disabled={validCurrentPage === 1}
+                    className="p-1.5 rounded-lg border border-slate-800 bg-[#0F1115] text-slate-300 hover:text-white hover:bg-slate-800 hover:border-slate-700 disabled:opacity-25 disabled:cursor-not-allowed transition-all cursor-pointer h-7 w-7 flex items-center justify-center"
+                    title="Primeira página"
+                  >
+                    <ChevronsLeft size={13} />
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                    disabled={validCurrentPage === 1}
+                    className="px-2.5 py-1 rounded-lg border border-slate-800 bg-[#0F1115] text-slate-300 hover:text-white hover:bg-slate-800 hover:border-slate-700 disabled:opacity-25 disabled:cursor-not-allowed transition-all flex items-center gap-1 text-[11px] font-bold cursor-pointer h-7"
+                    title="Página anterior"
+                  >
+                    <ChevronLeft size={13} />
+                    <span className="hidden sm:inline">Anterior</span>
+                  </button>
+
+                  <span className="px-2.5 py-1 bg-slate-900 border border-slate-800 rounded-lg text-xs font-mono text-emerald-400 font-bold min-w-[54px] text-center h-7 flex items-center justify-center">
+                    {validCurrentPage} / {totalPages}
+                  </span>
+
+                  <button
+                    type="button"
+                    onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                    disabled={validCurrentPage === totalPages}
+                    className="px-2.5 py-1 rounded-lg border border-slate-800 bg-[#0F1115] text-slate-300 hover:text-white hover:bg-slate-800 hover:border-slate-700 disabled:opacity-25 disabled:cursor-not-allowed transition-all flex items-center gap-1 text-[11px] font-bold cursor-pointer h-7"
+                    title="Próxima página"
+                  >
+                    <span className="hidden sm:inline">Próxima</span>
+                    <ChevronRight size={13} />
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setCurrentPage(totalPages)}
+                    disabled={validCurrentPage === totalPages}
+                    className="p-1.5 rounded-lg border border-slate-800 bg-[#0F1115] text-slate-300 hover:text-white hover:bg-slate-800 hover:border-slate-700 disabled:opacity-25 disabled:cursor-not-allowed transition-all cursor-pointer h-7 w-7 flex items-center justify-center"
+                    title="Última página"
+                  >
+                    <ChevronsRight size={13} />
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
 
           {displayedLedgerItems.length === 0 ? (
@@ -1037,7 +1192,7 @@ function Reports({ services, expenses, subCategories, clients, onRefreshCloud, i
             </div>
           ) : (
             <div className="border border-slate-850 rounded-xl bg-[#0F1115] overflow-hidden divide-y divide-slate-850 max-h-[640px] overflow-y-auto pr-1">
-              {displayedLedgerItems.map((item) => {
+              {paginatedLedgerItems.map((item) => {
                 const isEntrada = item.type === 'ENTRADA';
                 const isPending = item.status === 'PENDENTE';
                 const isParcial = item.status === 'PARCIAL';
@@ -1158,20 +1313,62 @@ function Reports({ services, expenses, subCategories, clients, onRefreshCloud, i
             </div>
           )}
 
-          {/* Load more 15 days footer action banner */}
-          <div className="pt-4 flex flex-col sm:flex-row items-center justify-between gap-3 border-t border-slate-800/70 mt-3 select-none">
-            <div className="text-xs text-slate-400 font-medium text-center sm:text-left">
-              Exibindo lançamentos de <strong className="text-emerald-400 font-mono">{startDate ? formatDateBR(startDate, '/') : 'Início'}</strong> até <strong className="text-emerald-400 font-mono">{endDate ? formatDateBR(endDate, '/') : 'Hoje'}</strong> ({displayedLedgerItems.length} registros).
+          {/* Pagination Controls (Bottom) */}
+          {totalItems > 0 && (
+            <div className="pt-4 flex flex-col sm:flex-row items-center justify-between gap-3 border-t border-slate-800/70 mt-3 select-none text-xs">
+              <div className="text-xs text-slate-400 font-medium text-center sm:text-left">
+                Mostrando página <strong className="text-emerald-400 font-mono">{validCurrentPage}</strong> de <strong className="text-emerald-400 font-mono">{totalPages}</strong> ({totalItems} lançamentos no total).
+              </div>
+
+              <div className="flex flex-wrap items-center justify-center gap-1.5">
+                <button
+                  type="button"
+                  onClick={() => setCurrentPage(1)}
+                  disabled={validCurrentPage === 1}
+                  className="p-1.5 rounded-lg border border-slate-800 bg-[#0F1115] text-slate-300 hover:text-white hover:bg-slate-800 hover:border-slate-700 disabled:opacity-25 disabled:cursor-not-allowed transition-all cursor-pointer h-7 w-7 flex items-center justify-center"
+                  title="Primeira página"
+                >
+                  <ChevronsLeft size={13} />
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                  disabled={validCurrentPage === 1}
+                  className="px-2.5 py-1 rounded-lg border border-slate-800 bg-[#0F1115] text-slate-300 hover:text-white hover:bg-slate-800 hover:border-slate-700 disabled:opacity-25 disabled:cursor-not-allowed transition-all flex items-center gap-1 text-[11px] font-bold cursor-pointer h-7"
+                  title="Página anterior"
+                >
+                  <ChevronLeft size={13} />
+                  <span>Anterior</span>
+                </button>
+
+                <span className="px-2.5 py-1 bg-slate-900 border border-slate-800 rounded-lg text-xs font-mono text-emerald-400 font-bold min-w-[54px] text-center h-7 flex items-center justify-center">
+                  {validCurrentPage} / {totalPages}
+                </span>
+
+                <button
+                  type="button"
+                  onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                  disabled={validCurrentPage === totalPages}
+                  className="px-2.5 py-1 rounded-lg border border-slate-800 bg-[#0F1115] text-slate-300 hover:text-white hover:bg-slate-800 hover:border-slate-700 disabled:opacity-25 disabled:cursor-not-allowed transition-all flex items-center gap-1 text-[11px] font-bold cursor-pointer h-7"
+                  title="Próxima página"
+                >
+                  <span>Próxima</span>
+                  <ChevronRight size={13} />
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setCurrentPage(totalPages)}
+                  disabled={validCurrentPage === totalPages}
+                  className="p-1.5 rounded-lg border border-slate-800 bg-[#0F1115] text-slate-300 hover:text-white hover:bg-slate-800 hover:border-slate-700 disabled:opacity-25 disabled:cursor-not-allowed transition-all cursor-pointer h-7 w-7 flex items-center justify-center"
+                  title="Última página"
+                >
+                  <ChevronsRight size={13} />
+                </button>
+              </div>
             </div>
-            <button
-              type="button"
-              onClick={handleLoadMoreDays}
-              className="flex items-center justify-center gap-2 px-4 py-2 bg-emerald-950/40 hover:bg-emerald-950/70 text-emerald-400 hover:text-emerald-300 border border-emerald-500/40 hover:border-emerald-500/60 rounded-xl text-xs font-bold transition-all shadow-sm cursor-pointer"
-            >
-              <Plus size={14} />
-              <span>Carregar + 15 Dias Anteriores</span>
-            </button>
-          </div>
+          )}
         </div>
 
       </div>
